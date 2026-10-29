@@ -1,0 +1,15 @@
+# Secrets and personal data: never committed
+.env
+secrets/
+state/
+logs/
+models/
+caddy/Caddyfile
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+.DS_Store

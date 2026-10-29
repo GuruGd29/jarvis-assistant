@@ -1,0 +1,22 @@
+# Jarvis data services. Bound to localhost only; on a server keep it behind WireGuard (docs/oracle-plan.md).
+services:
+  jarvis-db:
+    image: pgvector/pgvector:pg17
+    container_name: jarvis-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jarvis
+      POSTGRES_DB: jarvis
+      POSTGRES_PASSWORD: ${JARVIS_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - jarvis-pgdata:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jarvis -d jarvis"]
+      interval: 10s
+      retries: 5
+volumes:
+  jarvis-pgdata:
+    name: jarvis-pgdata
