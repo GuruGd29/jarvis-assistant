@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Runs bin/startup.sh at login (Ollama settings, Docker, Ollama restart). Install (replaces /Users/YOU):
+     sed "s|/Users/YOU|$HOME|g" ~/jarvis-system/deploy/launchd/com.jarvis.startup.plist > ~/Library/LaunchAgents/com.jarvis.startup.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.jarvis.startup.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.jarvis.startup</string>
+  <key>ProgramArguments</key><array><string>/Users/YOU/jarvis-system/bin/startup.sh</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/Users/YOU/jarvis-system/logs/startup.log</string>
+  <key>StandardErrorPath</key><string>/Users/YOU/jarvis-system/logs/startup.log</string>
+</dict>
+</plist>
