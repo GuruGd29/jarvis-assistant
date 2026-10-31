@@ -70,7 +70,7 @@ jobs:
         if: always()
         run: |
           if [ -f reports/report.md ]; then cat reports/report.md >> "$GITHUB_STEP_SUMMARY"; else echo "No report was written." >> "$GITHUB_STEP_SUMMARY"; fi
-          cp "$RUNNER_TEMP"/*.log reports/ 2>/dev/null || true
+          mkdir -p reports && cp "$RUNNER_TEMP"/*.log reports/ 2>/dev/null || true
 
       - name: Upload the report (HTML + CSV + logs)
         if: always()
