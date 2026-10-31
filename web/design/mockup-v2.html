@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Jarvis prototype</title>
+<style>
+/* Clickable prototype of the Jarvis web app (sample data, nothing is saved or sent).
+   Neutral ChatGPT / Claude-style look; frosted glass only on the floating bars.
+   ?theme=light|dark   ?board=1 renders all screens side by side for screenshots. */
+:root { --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --r-card: 14px; --r-bubble: 18px; }
+[data-theme="light"] {
+  --bg: #f9f8f6; --surface: #ffffff; --surface-2: #f2f1ee; --bubble: #efeeeb;
+  --line: rgba(0, 0, 0, .08); --line-strong: rgba(0, 0, 0, .14);
+  --text: #141413; --text-2: #5f5e5a; --text-3: #9a9893;
+  --primary: #141413; --on-primary: #ffffff;
+  --frost: rgba(249, 248, 246, .74); --frost-edge: rgba(255, 255, 255, .9);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 4px 16px rgba(0, 0, 0, .06);
+  --up: #b4541a; --down: #2f7d4f; --bar: #141413; --bar-2: #e2e0db; --page: #e4e3df;
+}
+[data-theme="dark"] {
+  --bg: #1a1a19; --surface: #232322; --surface-2: #2b2b29; --bubble: #2f2f2d;
+  --line: rgba(255, 255, 255, .08); --line-strong: rgba(255, 255, 255, .14);
+  --text: #ecebe8; --text-2: #a8a6a0; --text-3: #6f6d68;
+  --primary: #ecebe8; --on-primary: #1a1a19;
+  --frost: rgba(30, 30, 29, .74); --frost-edge: rgba(255, 255, 255, .10);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .35);
+  --up: #e8935a; --down: #6cc28e; --bar: #ecebe8; --bar-2: #3a3937; --page: #0b0b0a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { font-family: var(--font); color: var(--text); -webkit-font-smoothing: antialiased; background: var(--page); }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+input { font: inherit; color: inherit; background: none; border: 0; outline: 0; }
+svg { display: block; }
+
+/* page around the phone (desktop) */
+.stage { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 14px; padding: 18px; }
+.controls { display: flex; gap: 8px; align-items: center; font: 500 13.5px var(--font); color: var(--text-2); }
+.controls button { padding: 7px 12px; border-radius: 999px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-weight: 600; }
+.hint { font: 400 12.5px var(--font); color: var(--text-3); }
+body.board { display: flex; gap: 36px; padding: 48px; }
+.board .label { font: 600 15px var(--font); color: var(--text-3); text-align: center; margin-top: 26px; }
+
+/* device */
+.device { width: 390px; height: 844px; position: relative; overflow: hidden; flex: none; background: var(--bg);
+  border-radius: 52px; box-shadow: 0 0 0 11px #0b0b0f, 0 0 0 12px #2a2a33, 0 40px 80px rgba(0, 0, 0, .3); }
+@media (max-width: 500px) { /* on a real phone: full screen, no frame */
+  .stage { padding: 0; gap: 0; } .controls, .hint { display: none; }
+  .device { width: 100vw; height: 100dvh; border-radius: 0; box-shadow: none; }
+  .island, .status { display: none; } .screen { padding-top: env(safe-area-inset-top); }
+}
+.island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 124px; height: 36px; border-radius: 20px; background: #000; z-index: 20; }
+.status { height: 50px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 30px 8px 36px; font: 600 16px var(--font); position: absolute; top: 0; left: 0; right: 0; z-index: 19; }
+.status .icons { display: flex; gap: 6px; align-items: center; }
+.screen { position: absolute; inset: 0; padding-top: 50px; display: flex; flex-direction: column; }
+.scroll { flex: 1; overflow-y: auto; padding: 2px 16px 120px; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
+/* content scrolls under the floating bars and fades out instead of peeking below them */
+.screen::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 120px; z-index: 3; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--bg) 70%); }
+.fade-in { animation: fade .18s ease-out; }
+/* theme changes snap instead of animating every colour; Reduce Motion turns movement off */
+.no-trans *, .no-trans *::after { transition: none !important; }
+@media (prefers-reduced-motion: reduce) { *, *::after { animation: none !important; transition: none !important; } }
+/* movement only: if animations are paused (Low Power Mode, background tab) content must still be visible */
+@keyframes fade { from { transform: translateY(6px); } to { transform: none; } }
+
+/* surfaces */
+.frost { background: var(--frost); backdrop-filter: blur(24px) saturate(160%); -webkit-backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: var(--shadow), inset 0 0 0 1px var(--line), inset 0 1px 0 var(--frost-edge); }
+.card { background: var(--surface); border-radius: var(--r-card); box-shadow: inset 0 0 0 1px var(--line); }
+
+/* type */
+.h1 { font: 700 30px/1.15 var(--font); letter-spacing: -.02em; margin: 8px 2px 2px; }
+.sub { font: 400 15px var(--font); color: var(--text-2); margin: 0 2px 14px; }
+.sec { display: flex; justify-content: space-between; align-items: baseline; font: 600 13px var(--font); color: var(--text-2); margin: 20px 2px 8px; }
+.sec button { color: var(--text); font-weight: 500; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
+.muted { color: var(--text-2); }
+
+/* rows */
+.row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; position: relative; width: 100%; text-align: left; }
+.row + .row::before { content: ""; position: absolute; top: 0; left: 14px; right: 0; height: 1px; background: var(--line); }
+.row .m { flex: 1; min-width: 0; }
+.row .t { font: 500 15.5px var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .s { font: 400 13px var(--font); color: var(--text-2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row.done .t { text-decoration: line-through; color: var(--text-3); }
+.ic { width: 30px; height: 30px; border-radius: 8px; background: var(--surface-2); display: grid; place-items: center; flex: none; }
+.ic svg, .chev svg { width: 17px; height: 17px; }
+.chev { color: var(--text-3); }
+.tag { font: 600 11.5px var(--font); padding: 2px 7px; border-radius: 6px; box-shadow: inset 0 0 0 1px currentColor; flex: none; }
+.check { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1.6px var(--text-3); flex: none; display: grid; place-items: center; }
+.row.done .check { background: var(--text); box-shadow: none; color: var(--bg); }
+.check svg { width: 13px; height: 13px; }
+.btn { font: 600 13.5px var(--font); padding: 7px 13px; border-radius: 999px; flex: none; }
+.btn.p { background: var(--primary); color: var(--on-primary); }
+.btn.s { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.time { width: 50px; font: 600 13px var(--font); color: var(--text-2); font-variant-numeric: tabular-nums; flex: none; }
+.vline { width: 3px; align-self: stretch; border-radius: 2px; background: var(--text); flex: none; }
+
+/* chat */
+.cbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px 6px; }
+.cbar .ttl { text-align: center; }
+.cbar .ttl b { font: 650 17px var(--font); display: block; }
+.cbar .ttl span { font: 500 12px var(--font); color: var(--text-2); }
+.ib { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; }
+.ib svg { width: 22px; height: 22px; }
+.thread { flex: 1; overflow-y: auto; padding: 8px 18px 268px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: none; }
+.thread::-webkit-scrollbar { display: none; }
+.u { align-self: flex-end; max-width: 80%; background: var(--bubble); border-radius: var(--r-bubble); padding: 10px 14px; font: 400 16px/1.4 var(--font); }
+.a { font: 400 16px/1.5 var(--font); }
+.a p + p { margin-top: 8px; }
+.a b { font-weight: 650; }
+.tool { display: flex; align-items: center; gap: 6px; font: 500 13px var(--font); color: var(--text-2); margin-bottom: 6px; }
+.tool svg { width: 14px; height: 14px; }
+.src { display: inline-flex; align-items: center; gap: 5px; margin-top: 9px; font: 500 12.5px var(--font); color: var(--text-2);
+  padding: 4px 10px 4px 8px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.src svg { width: 14px; height: 14px; }
+.acts { display: flex; gap: 2px; margin-top: 8px; color: var(--text-3); }
+.acts button { width: 30px; height: 28px; display: grid; place-items: center; border-radius: 8px; }
+.acts button:hover { background: var(--surface-2); color: var(--text); }
+.acts svg { width: 16px; height: 16px; }
+.voice { display: flex; align-items: center; gap: 9px; }
+.voice .pl { width: 26px; height: 26px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; }
+.wave { display: flex; gap: 2.5px; align-items: center; height: 22px; }
+.wave i { width: 2.5px; border-radius: 2px; background: var(--text-2); }
+.tr { font: 400 13px/1.35 var(--font); color: var(--text-2); margin-top: 5px; }
+.dots { display: flex; gap: 5px; padding: 6px 0; }
+.dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); animation: blink 1s infinite; }
+.dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+.sugg { position: absolute; left: 0; right: 0; bottom: 192px; display: flex; gap: 8px; padding: 0 14px; z-index: 4; overflow-x: auto; scrollbar-width: none; }
+.sugg::-webkit-scrollbar { display: none; }
+.sugg button { padding: 8px 12px; border-radius: 12px; font: 500 13.5px var(--font); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-strong); white-space: nowrap; text-align: left; }
+.sugg small { display: block; font-size: 12px; color: var(--text-2); font-weight: 400; }
+.composer { position: absolute; left: 12px; right: 12px; bottom: 102px; border-radius: 24px; padding: 12px 12px 10px 16px; z-index: 4; }
+.composer input { width: 100%; font-size: 16px; }
+.composer input::placeholder { color: var(--text-3); }
+.composer .tools { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.cb { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.cb svg { width: 18px; height: 18px; }
+.cb.go { margin-left: auto; background: var(--primary); color: var(--on-primary); box-shadow: none; }
+
+/* tab bar */
+.tabbar { position: absolute; left: 16px; right: 16px; bottom: 28px; height: 62px; border-radius: 22px; display: flex; padding: 5px; z-index: 6; }
+@media (max-width: 500px) { .tabbar { bottom: max(14px, env(safe-area-inset-bottom)); } }
+.tab { flex: 1; border-radius: 17px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font: 600 10.5px var(--font); color: var(--text-3); position: relative; transition: background .15s, color .15s; }
+.tab svg { width: 23px; height: 23px; }
+.tab.on { color: var(--text); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.tab .badge { position: absolute; top: 5px; left: 52%; min-width: 16px; height: 16px; border-radius: 8px; background: var(--text);
+  color: var(--bg); font: 700 10px/16px var(--font); text-align: center; padding: 0 4px; }
+.home { position: absolute; bottom: 9px; left: 50%; transform: translateX(-50%); width: 134px; height: 5px; border-radius: 3px; background: var(--text); z-index: 20; }
+@media (max-width: 500px) { .home { display: none; } }
+
+/* money */
+.seg { display: flex; padding: 3px; border-radius: 10px; background: var(--surface-2); margin-bottom: 12px; }
+.seg button { flex: 1; padding: 7px 0; border-radius: 8px; font: 600 13.5px var(--font); color: var(--text-2); }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .08), inset 0 0 0 1px var(--line); }
+.big { padding: 16px; }
+.big .k { font: 500 13.5px var(--font); color: var(--text-2); }
+.big .n { font: 700 34px/1.15 var(--font); letter-spacing: -.02em; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.big .d { font: 500 13.5px var(--font); margin-top: 6px; color: var(--text-2); }
+.kpis { display: flex; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; gap: 6px; }
+.kpis div { flex: 1; min-width: 0; }
+.kpis b { display: block; font: 650 15px var(--font); font-variant-numeric: tabular-nums; }
+.kpis span { font: 400 12px var(--font); color: var(--text-2); }
+.catrow { padding: 11px 14px; }
+.catrow + .catrow { border-top: 1px solid var(--line); }
+.catrow .top { display: flex; justify-content: space-between; font: 500 15px var(--font); }
+.catrow .top b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.catrow .meta { display: flex; justify-content: space-between; font: 400 12.5px var(--font); color: var(--text-2); margin-top: 3px; }
+.bar { height: 5px; border-radius: 3px; background: var(--bar-2); margin-top: 7px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--bar); border-radius: 3px; transition: width .3s; }
+.spark { width: 100%; height: 46px; margin-top: 10px; }
+
+/* toggles */
+.tog { width: 46px; height: 28px; border-radius: 999px; background: var(--text); position: relative; flex: none; transition: background .2s; }
+.tog::after { content: ""; position: absolute; width: 24px; height: 24px; top: 2px; left: 20px; border-radius: 50%; background: var(--bg); transition: left .2s; }
+.tog.off { background: var(--bar-2); }
+.tog.off::after { left: 2px; }
+
+/* notification banner + lock screen */
+.banner { position: absolute; left: 10px; right: 10px; top: 54px; z-index: 30; transform: translateY(-140%); transition: transform .35s cubic-bezier(.2, .9, .3, 1.1); }
+.banner.show { transform: none; }
+.nt { display: flex; gap: 11px; padding: 12px 13px; border-radius: 20px; }
+.nt .ap { width: 36px; height: 36px; border-radius: 9px; background: var(--text); color: var(--bg); display: grid; place-items: center; font: 700 16px var(--font); flex: none; }
+.nt .h { display: flex; justify-content: space-between; font: 650 14.5px var(--font); }
+.nt .h span { font: 400 12.5px var(--font); color: var(--text-2); }
+.nt .b { font: 400 14px/1.38 var(--font); margin-top: 2px; }
+.nt .bt { display: flex; gap: 6px; margin-top: 8px; }
+.lk .clock { text-align: center; font: 700 84px/1 var(--font); letter-spacing: -.03em; margin-top: 36px; }
+.lk .date { text-align: center; font: 600 18px var(--font); color: var(--text-2); margin-top: 6px; }
+.nts { position: absolute; left: 12px; right: 12px; top: 320px; display: flex; flex-direction: column; gap: 8px; }
+.lkbar { position: absolute; bottom: 44px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 46px; }
+.lkbar span { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; }
+.lkbar svg { width: 21px; height: 21px; }
+.toast { position: absolute; left: 50%; bottom: 104px; transform: translateX(-50%); z-index: 30; padding: 9px 14px; border-radius: 12px;
+  font: 500 13.5px var(--font); background: var(--text); color: var(--bg); opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<script>
+// ---------- icons ----------
+const sv = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const I = {
+  chat: sv('<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z"/>'),
+  today: sv('<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'),
+  money: sv('<path d="M7 5h10M7 9h10M7 5c4 0 6 1.6 6 4s-2 4-6 4h-.5L14 20"/>'),
+  more: sv('<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>'),
+  menu: sv('<path d="M4 8h16M4 16h11"/>', 2), edit: sv('<path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6M17.5 3.5l3 3L12 15H9v-3z"/>', 1.9),
+  plus: sv('<path d="M12 5v14M5 12h14"/>', 2), mic: sv('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>', 2),
+  send: sv('<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>', 2.3), copy: sv('<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>'),
+  speak: sv('<path d="M4 9.5v5h3.5L12 18V6L7.5 9.5zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>'),
+  like: sv('<path d="M7 11v9H4v-9zM7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.6 10H18a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 16.8 20H7"/>'),
+  redo: sv('<path d="M19 8a7.5 7.5 0 1 0 1 5M19 3.5V8h-4.5"/>'), ok: sv('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 2.4),
+  file: sv('<path d="M6 3h8l4 4v14H6zM14 3v4h4"/>'), pill: sv('<rect x="3" y="8" width="18" height="8" rx="4" transform="rotate(-35 12 12)"/><path d="M9.5 8.7l5 6.6"/>'),
+  renew: sv('<path d="M19 8a7.5 7.5 0 0 0-13.5 1M5 16a7.5 7.5 0 0 0 13.5-1M19 3.5V8h-4.5M5 20.5V16h4.5"/>'),
+  brain: sv('<path d="M9 4.5a3 3 0 0 0-3 3 3 3 0 0 0-1.5 5.5A3 3 0 0 0 9 18v1.5M15 4.5a3 3 0 0 1 3 3 3 3 0 0 1 1.5 5.5A3 3 0 0 1 15 18v1.5M9 4.5a3 3 0 0 1 6 0V19.5"/>'),
+  gear: sv('<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>'),
+  list: sv('<path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>', 2.2), chev: sv('<path d="M9 5l7 7-7 7"/>', 2.2),
+  play: '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12-7.5z"/></svg>',
+  torch: sv('<path d="M9 3h6l-1 6h3l-6 12 1-8H9z"/>'), cam: sv('<rect x="3" y="6" width="18" height="13" rx="3"/><circle cx="12" cy="12.5" r="3.5"/>'),
+};
+const status = `<div class="island"></div><div class="status"><span>9:41</span><span class="icons">
+ <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+ <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 2.2c2.3 0 4.4.9 6 2.4l1.2-1.3A10.2 10.2 0 0 0 8 .4 10.2 10.2 0 0 0 .8 3.3L2 4.6a8.4 8.4 0 0 1 6-2.4Zm0 3.6c1.3 0 2.5.5 3.4 1.3l1.2-1.3A6.6 6.6 0 0 0 8 4a6.6 6.6 0 0 0-4.6 1.8l1.2 1.3A4.9 4.9 0 0 1 8 5.8ZM8 9.4l1.9-2a2.9 2.9 0 0 0-3.8 0Z"/></svg>
+ <svg width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="18" height="9" rx="2" fill="currentColor"/></svg></span></div>`;
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const wave = [6,12,18,10,20,14,8,16,22,11,6,13,19,9,15,7,11,17,9,5].map(h => `<i style="height:${h}px"></i>`).join("");
+const acts = `<div class="acts"><button data-act="toast" data-msg="Copied">${I.copy}</button><button data-act="toast" data-msg="Reading aloud…">${I.speak}</button><button data-act="toast" data-msg="Thanks for the feedback">${I.like}</button><button data-act="toast" data-msg="Asking again…">${I.redo}</button></div>`;
+
+// ---------- sample data and state ----------
+const MONEY = {
+  Today: { k: "Spent · Sat 31 Oct", n: "₹6,780.55", d: "5 payments", up: "", kp: [["₹0", "refunds"], ["₹2,000", "received"], ["₹0", "own transfers"]],
+    cats: [["Sent to people", "₹5,200", "2 payments · 77%", "", 77], ["Food & dining", "₹980", "2 payments · 14%", "", 14], ["Groceries", "₹600", "1 payment · 9%", "", 9]] },
+  Week: { k: "Spent · 25 – 31 Oct", n: "₹1,01,347.50", d: "vs previous week · 26 payments", up: "↑ 25%", kp: [["₹102.74", "refunds"], ["₹1,23,846", "received"], ["₹42,500", "own transfers"]],
+    cats: [["Travel & fuel", "₹67,941", "1 payment · 67% of week", "new", 67], ["Loans & credit", "₹16,544", "3 payments · 16%", "↓ 25%", 16], ["Sent to people", "₹14,867", "12 payments · 15%", "↓ 71%", 15]] },
+  Month: { k: "Spent · October", n: "₹2,74,684.42", d: "vs September · 112 payments", up: "↑ 48%", kp: [["₹205.48", "refunds"], ["₹2,55,309", "received"], ["₹2,35,200", "own transfers"]],
+    cats: [["Sent to people", "₹1,04,941", "59 payments · 38%", "↑ 53%", 38], ["Loans & credit", "₹71,737", "6 payments · 26%", "↑ 361%", 26], ["Travel & fuel", "₹71,390", "7 payments · 26%", "↑ 71%", 26], ["Shopping", "₹17,595", "9 payments · 6%", "↓ 64%", 6], ["Food & dining", "₹4,590", "27 payments · 2%", "↑ 24%", 2]] },
+  Year: { k: "Spent · 2026 so far", n: "₹6,48,210.00", d: "since 1 Aug (alerts start then) · 402 payments", up: "", kp: [["₹1,240", "refunds"], ["₹6,10,402", "received"], ["₹5,02,700", "own transfers"]],
+    cats: [["Sent to people", "₹2,31,400", "160 payments · 36%", "", 36], ["Travel & fuel", "₹1,52,880", "18 payments · 24%", "", 24], ["Loans & credit", "₹1,12,920", "14 payments · 17%", "", 17]] },
+};
+const S = { tab: "chat", period: "Week", done: {}, dose: null,
+  toggles: { brief: true, reminders: true, renewals: true, reports: true, telegram: true, quiet: false }, thread: [] };
+S.thread = [
+  { me: "What's on my calendar tomorrow?" },
+  { jarvis: `<div class="tool">${I.ok} Checked Google + Apple calendars · 0.9 s</div><p>You're free tomorrow, <b>Sunday 1 Nov</b>. Nothing is scheduled.</p>
+    <p class="muted">Heads-up: your gym membership renews on 1 Dec (₹9,000).</p><span class="src">${I.file} subscriptions-2026.txt</span>` },
+  { voice: "intha maasam saapaattukku evlo selavu?" },
+  { jarvis: `<div class="tool">${I.ok} Read bank alerts · 112 payments · 1.4 s</div><p>இந்த மாதம் உணவுக்கு <b>₹4,590</b> செலவு (27 முறை). கடந்த மாதத்தை விட 24% அதிகம்.</p>` },
+];
+const REPLIES = [
+  [/renew|bill|subscription/i, `<div class="tool">${I.ok} Read your files · 0.6 s</div><p>Coming up: <b>Netflix</b> renews Thu 5 Nov (₹499), <b>Spotify</b> on 21 Nov (₹179), and your <b>gym</b> on 1 Dec (₹9,000).</p><span class="src">${I.file} subscriptions-2026.txt</span>`],
+  [/spend|spent|money|selav|week/i, `<div class="tool">${I.ok} Read bank alerts · 26 payments · 1.1 s</div><p>This week you spent <b>₹1,01,347.50</b>, 25% more than last week. Most of it was one flight booking (₹67,941).</p>`],
+  [/plan|day|today/i, `<div class="tool">${I.ok} Checked calendars, tasks and reminders · 1.3 s</div><p>No events left today. Due soon: <b>Re-connect Google Calendar</b> (Tue) and <b>L&amp;T finance EMI</b> (Tue). Vitamin D3 at 9 pm.</p>`],
+  [/./, `<p>This is the prototype, so replies are samples. In the real app Jarvis answers from your files, calendar, email and bank alerts.</p>`],
+];
+
+// ---------- screens ----------
+const tabbar = () => `<nav class="tabbar frost">${[["chat", "Chat"], ["today", "Today"], ["money", "Money"], ["more", "More"]].map(([k, n]) =>
+  `<button class="tab ${k === S.tab ? "on" : ""}" data-act="tab" data-v="${k}">${I[k]}${k === "today" && pending() ? `<span class="badge">${pending()}</span>` : ""}<span>${n}</span></button>`).join("")}</nav>`;
+// Today's open items: the two sample tasks plus tonight's dose until it is marked.
+const pending = () => 2 - Object.keys(S.done).length + (S.dose ? 0 : 1);
+const msgHtml = m => m.me ? `<div class="u ${m.fresh ? "fade-in" : ""}">${esc(m.me)}</div>`
+  : m.voice ? `<div class="u"><div class="voice"><span class="pl">${I.play}</span><div class="wave">${wave}</div><span class="muted" style="font-size:12.5px">0:04</span></div><div class="tr">“${esc(m.voice)}”</div></div>`
+  : m.typing ? `<div class="a"><div class="dots"><i></i><i></i><i></i></div></div>`
+  : `<div class="a ${m.fresh ? "fade-in" : ""}">${m.jarvis}${acts}</div>`;
+const screens = {
+  lock: () => `<div class="screen lk"><div class="clock">7:30</div><div class="date">Sunday, 1 November</div><div class="nts">${notif("brief")}${notif("renew")}${notif("med")}</div>
+    <div class="lkbar"><span class="frost">${I.torch}</span><span class="frost">${I.cam}</span></div></div>`,
+  chat: () => `<div class="screen">
+    <div class="cbar"><button class="ib" data-act="toast" data-msg="Chat history opens here">${I.menu}</button><div class="ttl"><b>Jarvis</b><span>Qwen3 4B · on your Mac</span></div><button class="ib" data-act="newchat">${I.edit}</button></div>
+    <div class="thread" id="thread">${S.thread.map(msgHtml).join("")}</div>
+    <div class="sugg"><button data-act="ask" data-v="Plan my day">Plan my day<small>events, tasks, bills</small></button><button data-act="ask" data-v="How much did I spend this week?">This week's spending<small>by category</small></button><button data-act="ask" data-v="Which bills renew soon?">Renewals<small>next 30 days</small></button></div>
+    <form class="composer frost" data-act="send"><input id="box" placeholder="Ask Jarvis anything" autocomplete="off">
+      <div class="tools"><button type="button" class="cb" data-act="toast" data-msg="Attach a PDF or photo">${I.plus}</button><button type="button" class="cb" data-act="toast" data-msg="Listening… (prototype)">${I.mic}</button><button class="cb go" aria-label="Send">${I.send}</button></div></form>
+    ${tabbar()}</div>`,
+  today: () => `<div class="screen"><div class="scroll ${S.anim ? "fade-in" : ""}">
+    <div class="h1">Today</div><div class="sub">Saturday, 31 October · Good evening, Guru</div>
+    <div class="card big"><div class="k">Summary</div><div style="font:400 15px/1.5 var(--font);margin-top:4px">No more events today. 2 tasks are due this week and Netflix renews on Thursday (₹499).</div>
+      <div class="kpis"><div><b>₹6,781</b><span>spent today</span></div><div><b>${2 - Object.keys(S.done).length}</b><span>tasks due</span></div><div><b>9</b><span>reminders</span></div><div><b>0</b><span>missed</span></div></div></div>
+    <div class="sec">Schedule <button data-act="toast" data-msg="Opens the full calendar">Calendar</button></div>
+    <div class="card">
+      <div class="row"><span class="time">Sun 8</span><span class="vline"></span><div class="m"><div class="t">Diwali / Deepavali</div><div class="s">All day · Google · Holidays</div></div></div>
+      <div class="row"><span class="time">Mon 9</span><span class="vline" style="background:var(--text-3)"></span><div class="m"><div class="t">Govardhan Puja</div><div class="s">All day · Google · Holidays</div></div></div></div>
+    <div class="sec">To do <button data-act="toast" data-msg="Shows all 11 tasks and reminders">All 11</button></div>
+    <div class="card">${[["t5", "Re-connect Google Calendar", "Jarvis task #5 · due Tue 3 Nov", true], ["r1", "L&amp;T finance EMI", "iPhone Reminders · Tue 3 Nov", false]].map(([id, t, s, hi]) =>
+      `<button class="row ${S.done[id] ? "done" : ""}" data-act="check" data-v="${id}"><span class="check">${S.done[id] ? I.ok : ""}</span><div class="m"><div class="t">${t}</div><div class="s">${s}</div></div>${hi && !S.done[id] ? '<span class="tag" style="color:var(--up)">High</span>' : ""}</button>`).join("")}</div>
+    <div class="sec">Medicines</div>
+    <div class="card"><div class="row"><span class="ic">${I.pill}</span><div class="m"><div class="t">Vitamin D3</div><div class="s">${S.dose ? (S.dose === "taken" ? "Taken at 9:02 pm ✓" : "Skipped today") : "60000 IU · 9 pm"}</div></div>
+      ${S.dose ? `<button class="btn s" data-act="dose" data-v="">Undo</button>` : `<button class="btn s" data-act="dose" data-v="skipped">Skip</button><button class="btn p" data-act="dose" data-v="taken">Taken</button>`}</div></div>
+    </div>${tabbar()}</div>`,
+  money: () => { const m = MONEY[S.period]; return `<div class="screen"><div class="scroll ${S.anim ? "fade-in" : ""}">
+    <div class="h1">Money</div><div class="sub">From HDFC + ICICI alert emails</div>
+    <div class="seg">${Object.keys(MONEY).map(p => `<button class="${p === S.period ? "on" : ""}" data-act="period" data-v="${p}">${p}</button>`).join("")}</div>
+    <div class="card big"><div class="k">${m.k}</div><div class="n">${m.n}</div><div class="d">${m.up ? `<span style="color:var(--up)">${m.up}</span> ` : ""}${m.d}</div>
+      <svg class="spark" viewBox="0 0 320 46" preserveAspectRatio="none"><path d="M0 38 L46 34 L92 40 L138 26 L184 31 L230 19 L276 6 L320 12" fill="none" stroke="var(--text)" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      <div class="kpis">${m.kp.map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join("")}</div></div>
+    <div class="sec">By category <button data-act="toast" data-msg="Opens every category and payment">Details</button></div>
+    <div class="card">${m.cats.map(([n, v, meta, ch, w]) => `<div class="catrow"><div class="top"><span>${n}</span><b>${v}</b></div><div class="meta"><span>${meta}</span><span style="color:${ch.startsWith("↓") ? "var(--down)" : "var(--up)"}">${ch}</span></div><div class="bar"><i style="width:${w}%"></i></div></div>`).join("")}</div>
+    </div>${tabbar()}</div>`; },
+  more: () => `<div class="screen"><div class="scroll ${S.anim ? "fade-in" : ""}">
+    <div class="h1">More</div><div class="sub">Files, memory and settings</div>
+    <div class="card">
+      <button class="row" data-act="toast" data-msg="Upload PDFs and photos here"><span class="ic">${I.file}</span><div class="m"><div class="t">Files</div><div class="s">4 documents · upload PDFs and photos</div></div><span class="chev">${I.chev}</span></button>
+      <button class="row" data-act="toast" data-msg="See, forget and restore what Jarvis knows"><span class="ic">${I.brain}</span><div class="m"><div class="t">Memory</div><div class="s">19 facts · 4 chat summaries</div></div><span class="tag" style="color:var(--text-2)">1 review</span></button>
+      <button class="row" data-act="toast" data-msg="All bills and renewal dates"><span class="ic">${I.renew}</span><div class="m"><div class="t">Bills &amp; renewals</div><div class="s">Netflix Thu 5 Nov · ₹499</div></div><span class="chev">${I.chev}</span></button>
+      <button class="row" data-act="toast" data-msg="Jarvis tasks and iPhone Reminders together"><span class="ic">${I.list}</span><div class="m"><div class="t">Tasks &amp; reminders</div><div class="s">2 Jarvis tasks · 9 iPhone reminders</div></div><span class="chev">${I.chev}</span></button></div>
+    <div class="sec">Notifications</div>
+    <div class="card">${[["brief", "Morning brief", "Daily at 7:30 am"], ["reminders", "Reminders & medicines", "When due"], ["renewals", "Bills & renewals", "30 and 2 days before"],
+      ["reports", "Weekly & monthly reports", "Sun 7 pm · 1st at 9 am"], ["telegram", "Also send to Telegram", "Until Sat 7 Nov"], ["quiet", "Quiet hours", "11 pm – 7 am"]].map(([k, t, s]) =>
+      `<button class="row" data-act="toggle" data-v="${k}"><div class="m"><div class="t">${esc(t)}</div><div class="s">${s}</div></div><span class="tog ${S.toggles[k] ? "" : "off"}"></span></button>`).join("")}</div>
+    <div class="sec">Preview</div>
+    <div class="card"><button class="row" data-act="banner"><span class="ic">${I.renew}</span><div class="m"><div class="t">Show a sample notification</div><div class="s">How alerts arrive on your iPhone</div></div><span class="chev">${I.chev}</span></button></div>
+    </div>${tabbar()}</div>`,
+};
+const NOTIFS = {
+  brief: ["Jarvis", "now", "<b>Good morning, Guru.</b> No events today · 14 unread emails · ₹6,781 spent yesterday · Netflix renews Thu.", ""],
+  renew: ["Bills & renewals", "9:00 am", "Gym membership renews in 30 days (Tue 1 Dec) · ₹9,000", ""],
+  med: ["Medicine", "9:00 pm", "Time for Vitamin D3 · 60000 IU", `<div class="bt"><span class="btn s">Skip</span><span class="btn p">Taken</span></div>`],
+};
+const notif = k => { const [h, t, b, x] = NOTIFS[k]; return `<div class="nt frost"><div class="ap">J</div><div style="flex:1"><div class="h">${h} <span>${t}</span></div><div class="b">${b}</div>${x}</div></div>`; };
+
+// ---------- app ----------
+const q = new URLSearchParams(location.search);
+const setTheme = t => {
+  const root = document.documentElement;
+  root.classList.add("no-trans"); root.dataset.theme = t;
+  requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove("no-trans")));
+};
+setTheme(q.get("theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", e => { if (!q.get("theme")) setTheme(e.matches ? "dark" : "light"); });
+
+if (q.get("board")) {
+  document.body.classList.add("board");
+  const names = { lock: "Notifications", chat: "Chat", today: "Today", money: "Money", more: "More" };
+  document.body.innerHTML = Object.keys(names).map(k => { S.tab = k; return `<div><div class="device">${status}${screens[k]()}<div class="home"></div></div><div class="label">${names[k]}</div></div>`; }).join("");
+} else {
+  document.body.innerHTML = `<div class="stage"><div class="controls">Prototype · sample data <button data-act="theme">Light / Dark</button></div>
+    <div class="device" id="dev">${status}<div id="view"></div><div class="banner" id="banner"></div><div class="toast" id="toast"></div><div class="home"></div></div>
+    <div class="hint">Tap the tabs, tick a task, switch Week / Month, toggle settings, or ask Jarvis something.</div></div>`;
+  render();
+  fit();
+  document.addEventListener("click", onClick);
+  document.addEventListener("submit", e => { e.preventDefault(); const box = document.getElementById("box"); ask(box.value); box.value = ""; });
+}
+
+// On a desktop window, shrink the phone to fit the window height (a real phone shows it full screen instead).
+function fit() {
+  const dev = document.getElementById("dev");
+  if (!dev || innerWidth <= 500) { if (dev) { dev.style.transform = ""; dev.style.marginBottom = ""; } return; }
+  const scale = Math.min(1, (innerHeight - 100) / 844);
+  dev.style.transform = `scale(${scale})`; dev.style.transformOrigin = "top center";
+  dev.style.marginBottom = `${-844 * (1 - scale)}px`;
+}
+addEventListener("resize", fit);
+
+function render() {
+  document.getElementById("view").innerHTML = screens[S.tab]();
+  const t = document.getElementById("thread");
+  if (t) t.scrollTop = t.scrollHeight;
+}
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById("toast"); el.textContent = msg; el.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 1600);
+}
+function ask(text) {
+  text = (text || "").trim(); if (!text) return;
+  S.thread.forEach(m => { m.fresh = false; }); S.thread.push({ me: text, fresh: true }, { typing: true }); render();
+  setTimeout(() => { S.thread.pop(); S.thread.forEach(m => { m.fresh = false; }); S.thread.push({ jarvis: REPLIES.find(([re]) => re.test(text))[1], fresh: true }); render(); }, 1100);
+}
+function onClick(e) {
+  const el = e.target.closest("[data-act]"); if (!el || el.tagName === "FORM") return;
+  const v = el.dataset.v;
+  switch (el.dataset.act) {
+    case "tab": S.tab = v; S.anim = true; render(); S.anim = false; break;
+    case "theme": setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"); break;
+    case "period": S.period = v; render(); break;
+    case "check": S.done[v] ? delete S.done[v] : (S.done[v] = true); render(); break;
+    case "dose": S.dose = v || null; render(); if (v) toast(v === "taken" ? "Marked taken" : "Marked skipped"); break;
+    case "toggle": S.toggles[v] = !S.toggles[v]; render(); break;
+    case "ask": ask(v); break;
+    case "newchat": S.thread = []; render(); toast("New chat"); break;
+    case "toast": toast(el.dataset.msg); break;
+    case "banner": { const b = document.getElementById("banner"); b.innerHTML = notif("renew"); b.classList.add("show"); setTimeout(() => b.classList.remove("show"), 3200); break; }
+  }
+}
+</script>
+</body>
+</html>
