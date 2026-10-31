@@ -45,7 +45,10 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          # Hermes runs on 3.14 (as on the Mac); Jarvis on 3.12. The last one listed is the default "python".
+          python-version: |
+            3.14
+            3.12
 
       - name: Cache models
         uses: actions/cache@v4
