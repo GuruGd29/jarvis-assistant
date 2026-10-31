@@ -38,11 +38,13 @@ cp hermes/SOUL.md "$HERMES_HOME/SOUL.md"
 sed "s#__VENV__#$REPO/.venv#" tests/ci/hermes/config.yaml > "$HERMES_HOME/config.yaml"
 printf 'API_SERVER_ENABLED=true\nAPI_SERVER_KEY=%s\n' "$(openssl rand -hex 24)" > "$HERMES_HOME/.env"
 nohup "$RUNNER_TEMP/hermes-venv/bin/hermes" gateway run > "$RUNNER_TEMP/hermes.log" 2>&1 &
-for _ in $(seq 120); do curl -s -o /dev/null http://127.0.0.1:8642/ && break; sleep 2; done
+up=0; for _ in $(seq 150); do curl -sf http://127.0.0.1:8642/health >/dev/null && { up=1; break; }; sleep 2; done
+if [ "$up" != 1 ]; then echo "Hermes did not start:"; tail -60 "$RUNNER_TEMP/hermes.log"; exit 1; fi
 
 # The app server.
 nohup .venv/bin/jarvis-web > "$RUNNER_TEMP/web.log" 2>&1 &
-for _ in $(seq 60); do curl -sf http://127.0.0.1:8791/api/health >/dev/null && break; sleep 1; done
+for _ in $(seq 60); do curl -s http://127.0.0.1:8791/api/health >/dev/null && break; sleep 1; done
+curl -s http://127.0.0.1:8791/api/health; echo
 
 # Load the chat model once so the first test is not charged for the cold start.
 curl -s http://127.0.0.1:11434/api/generate -d '{"model": "qwen3-4b-instruct-64k", "prompt": "hi", "stream": false}' >/dev/null
