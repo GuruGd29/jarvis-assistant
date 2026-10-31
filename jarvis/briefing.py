@@ -178,7 +178,7 @@ def monthly() -> None:
     lines += _insight_lines(i, top=8)
     if i["new_merchants"]:
         lines.append(f"\n🆕 New this month: {', '.join(i['new_merchants'][:8])}")
-    lines.append("\n(HDFC and ICICI alert emails only; categories are guessed from merchant names.)")
+    lines.append("\n(HDFC, ICICI and IDFC alert emails only; categories are guessed from merchant names.)")
     print("\n".join(lines))
 
 

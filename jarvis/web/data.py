@@ -7,7 +7,8 @@ from .. import calendars, config, health, learn, money, renewals, tasks
 
 
 def _greeting(now: datetime) -> str:
-    return "Good morning" if now.hour < 12 else "Good afternoon" if now.hour < 17 else "Good evening"
+    h = now.hour  # night is 9 pm to 5 am
+    return "Good night" if h >= 21 or h < 5 else "Good morning" if h < 12 else "Good afternoon" if h < 17 else "Good evening"
 
 
 def _event(e: dict) -> dict:
@@ -167,8 +168,8 @@ def money_view(period: str) -> dict:
     insights = money.insights(str(start), str(end))
     with money.psycopg.connect(config.DB_DSN) as conn:
         daily = dict(conn.execute(
-            """SELECT occurred_on, sum(amount) FROM transactions
-               WHERE occurred_on BETWEEN %s AND %s AND direction = 'debit' AND NOT is_self AND kind <> 'card_bill_payment'
+            f"""SELECT occurred_on, sum(amount) FROM transactions
+               WHERE occurred_on BETWEEN %s AND %s AND {money.SPENDING}
                GROUP BY occurred_on""", (start, end)).fetchall())
     # Daily totals for the small line chart (weekly totals for a whole year).
     points, cursor = [], start
@@ -182,7 +183,12 @@ def money_view(period: str) -> dict:
         "own_transfers": now["own_account_transfers_total"], "card_bills": now["card_bill_payments_total"],
         "categories": insights["by_category"], "unusual": insights["unusual_payments"],
         "new_merchants": insights["new_merchants"], "points": points, "note": now["note"],
+        "card_purchases": now["credit_card_purchases_total"],
     }
+
+
+def cards_view() -> dict:
+    return {"cards": money.cards(tasks.today()), "today": str(tasks.today())}
 
 
 def more() -> dict:

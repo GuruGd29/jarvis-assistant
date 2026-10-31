@@ -1,7 +1,9 @@
 """Money from bank alert emails: parse HDFC / ICICI alerts into `transactions`, then sum in SQL.
 
 Totals are computed here, never by the model. "Spending" = debits that are not transfers between
-the user's own accounts (secrets/money.json) and not credit card bill payments, minus card refunds.
+the user's own accounts (secrets/money.json) and not credit card purchases: a credit card counts when
+its bill is paid, so the bill payment is the spending and the purchases on the card are left out.
+Card statement emails (bill amount and due date) go into `card_statements`.
 
   jarvis-money-sync [--days 90]   read alert emails into the table (idempotent; prints nothing unless --verbose)
 """
@@ -21,6 +23,13 @@ TZ = ZoneInfo(config.TIMEZONE)
 SETTINGS = config.SECRETS_DIR / "money.json"
 _AMT = r"(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{1,2})?)"
 CARD_BILL_PAYEE = re.compile(r"credit ?card bill|ccbillpay|card ?bill ?pay", re.I)
+# A purchase on a credit card (not a debit card): counted later, when the card bill is paid.
+CREDIT_CARD_PURCHASE = "kind IN ('card_spend', 'card_refund') AND instrument ~ ' card ' AND instrument !~ 'debit card'"
+SPENDING = f"direction = 'debit' AND NOT is_self AND NOT ({CREDIT_CARD_PURCHASE})"
+# Which card a bill payment went to, from the payee name.
+CARD_PAYEE_BANK = [("ICICI", re.compile(r"amazon ?pay|icici", re.I)), ("IDFC", re.compile(r"idfc", re.I)),
+                   ("HDFC", re.compile(r"hdfc", re.I))]
+STATEMENT_QUERY = 'subject:("credit card statement")'
 
 
 def _settings() -> dict:
@@ -32,7 +41,7 @@ def _amount(text: str) -> float:
 
 
 def _day(text: str, fallback: date) -> date:
-    for fmt in ("%d-%m-%y", "%d %b, %Y", "%b %d, %Y", "%d-%b-%Y"):
+    for fmt in ("%d-%m-%y", "%d %b, %Y", "%b %d, %Y", "%d-%b-%Y", "%d %b %Y"):
         try:
             return datetime.strptime(text.strip(), fmt).date()
         except ValueError:
@@ -90,6 +99,45 @@ def parse_alert(sender: str, subject: str, body: str, received: datetime) -> dic
             # The money already left the bank as a card bill payment; this email only confirms it arrived.
             return dict(bank="ICICI", instrument=f"ICICI card {m[2]}", kind="card_payment_confirmation", direction="credit",
                         amount=_amount(m[1]), counterparty="card bill payment", occurred_on=_day(m[3], fallback), reference=None)
+
+    if "idfcfirstbank" in sender:
+        if m := re.search(_AMT + r" spent on your IDFC FIRST BANK Credit Card ending X*(\d{4}) at (.+?) on (\d{1,2} \w{3} \d{4})",
+                          t, re.I):
+            return dict(bank="IDFC", instrument=f"IDFC card {m[2]}", kind="card_spend", direction="debit", amount=_amount(m[1]),
+                        counterparty=m[3].strip(), occurred_on=_day(m[4], fallback), reference=None)
+        if m := re.search(r"Payment of " + _AMT + r" was received on your .*?Credit Card ending with X*(\d{4}) on "
+                          r"(\d{1,2} \w{3} \d{4})", t, re.I):
+            return dict(bank="IDFC", instrument=f"IDFC card {m[2]}", kind="card_payment_confirmation", direction="credit",
+                        amount=_amount(m[1]), counterparty="card bill payment", occurred_on=_day(m[3], fallback), reference=None)
+    return None
+
+
+def _credit_card_purchase(r: dict) -> bool:
+    return r["kind"] in ("card_spend", "card_refund") and " card " in r["instrument"] and "debit card" not in r["instrument"]
+
+
+def _date(text: str) -> date:
+    for fmt in ("%d/%b/%Y", "%B %d, %Y", "%d-%m-%Y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(text.strip(), fmt).date()
+        except ValueError:
+            pass
+    raise ValueError(f"unknown date {text!r}")
+
+
+def parse_statement(subject: str, body: str, received: datetime) -> dict | None:
+    """Bill amount and due date from a credit card statement email; None when they are only in the PDF (HDFC)."""
+    text = re.sub(r"\s+", " ", body)
+    if "FIRST" in subject and (m := re.search(r"ending with X*(\d{4}).*?Statement Date (\S+) Total Amount Due ([\d,.]+)"
+                                               r".*?Payment Due Date (\S+)", text)):
+        return dict(card=f"IDFC card {m[1]}", name="IDFC FIRST Power Plus", statement_on=_date(m[2]),
+                    total_due=_amount(m[3]), min_due=None, due_on=_date(m[4]))
+    if "ICICI" in subject and (m := re.search(r"Payment due by (\w+ \d{1,2}, \d{4}) ICICI Bank Credit Card XX(\d{4}) "
+                                               r"Minimum Amount Due: " + _AMT + " Total Amount Due: " + _AMT, text)):
+        period_end = re.search(r"to (\w+ \d{1,2}, \d{4})", subject)
+        return dict(card=f"ICICI card {m[2]}", name=re.sub(r" Credit Card Statement.*", "", subject).replace(" Bank", ""),
+                    statement_on=_date(period_end[1]) if period_end else received.date(),
+                    total_due=_amount(m[4]), min_due=_amount(m[3]), due_on=_date(m[1]))
     return None
 
 
@@ -143,7 +191,7 @@ def sync(days: int = 2, verbose: bool = False) -> dict:
                 counts["not_a_transaction"] += 1
                 continue
             if txn["kind"] == "upi_debit" and CARD_BILL_PAYEE.search(txn["counterparty"] or ""):
-                txn["kind"] = "card_bill_payment"  # paying a card bill; the card purchases are counted instead
+                txn["kind"] = "card_bill_payment"  # paying a card bill: this is the spending, not the card purchases
             txn.update(gmail_id=gmail_id, subject=msg["subject"], occurred_at=received, is_self=_is_self(txn, settings))
             conn.execute(
                 """INSERT INTO transactions (gmail_id, bank, instrument, kind, direction, amount, counterparty,
@@ -153,9 +201,77 @@ def sync(days: int = 2, verbose: bool = False) -> dict:
                    ON CONFLICT (gmail_id) DO NOTHING""", txn)
             conn.commit()  # keep progress if a later message hits Google's rate limit
             counts["added"] += 1
+        counts["statements_added"] = _sync_statements(service, conn, days)
     if verbose:
         print(counts)
     return counts
+
+
+def _sync_statements(service, conn, days: int) -> int:
+    ids = [m["id"] for m in service.users().messages().list(
+        userId="me", q=f"{STATEMENT_QUERY} newer_than:{days}d", maxResults=50).execute().get("messages", [])]
+    known = {r[0] for r in conn.execute("SELECT gmail_id FROM card_statements WHERE gmail_id = ANY(%s)", (ids,))}
+    added = 0
+    for gmail_id in ids:
+        if gmail_id in known:
+            continue
+        msg = _read_politely(service, gmail_id)
+        received = datetime.strptime(msg["received"], "%Y-%m-%d %H:%M").replace(tzinfo=TZ)
+        statement = parse_statement(msg["subject"], msg["body"], received)
+        if statement is None:
+            continue
+        conn.execute(
+            """INSERT INTO card_statements (gmail_id, card, name, statement_on, total_due, min_due, due_on)
+               VALUES (%(gmail_id)s, %(card)s, %(name)s, %(statement_on)s, %(total_due)s, %(min_due)s, %(due_on)s)
+               ON CONFLICT (gmail_id) DO NOTHING""", statement | {"gmail_id": gmail_id})
+        conn.commit()
+        added += 1
+    return added
+
+
+def cards(today: date | None = None) -> list[dict]:
+    """Each credit card: its latest bill, the part payments made towards it since the statement, what is
+    left before the due date, and the purchases since the statement (they go on the next bill)."""
+    today = today or date.today()
+    with psycopg.connect(config.DB_DSN, row_factory=dict_row) as conn:
+        statements = conn.execute(
+            "SELECT DISTINCT ON (card) card, name, statement_on, total_due, min_due, due_on FROM card_statements "
+            "ORDER BY card, statement_on DESC").fetchall()
+        purchases = conn.execute(
+            f"SELECT instrument, kind, occurred_on, amount, counterparty FROM transactions WHERE {CREDIT_CARD_PURCHASE} "
+            "AND occurred_on >= %s ORDER BY occurred_on DESC, occurred_at DESC", (today - timedelta(days=90),)).fetchall()
+        payments = conn.execute(
+            "SELECT occurred_on, amount, counterparty FROM transactions WHERE kind = 'card_bill_payment' "
+            "AND occurred_on >= %s ORDER BY occurred_on DESC, occurred_at DESC", (today - timedelta(days=90),)).fetchall()
+    out = {s["card"]: dict(s) for s in statements}
+    for r in purchases:
+        out.setdefault(r["instrument"], {"card": r["instrument"], "name": None, "statement_on": None,
+                                         "total_due": None, "min_due": None, "due_on": None})
+    result = []
+    for c in sorted(out.values(), key=lambda c: (c["due_on"] is None, c["due_on"] or date.max, c["card"])):
+        bank = c["card"].split()[0]
+        # No statement (HDFC sends it only as a PDF): show the last 30 days instead of the billing cycle.
+        since_day = c["statement_on"] or today - timedelta(days=30)
+        paid = [p for p in payments if p["occurred_on"] > since_day and
+                next((b for b, rx in CARD_PAYEE_BANK if rx.search(p["counterparty"] or "")), None) == bank]
+        bought = [r for r in purchases if r["instrument"] == c["card"] and r["occurred_on"] > since_day]
+        paid_total = round(float(sum(p["amount"] for p in paid)), 2)
+        due = float(c["total_due"]) if c["total_due"] is not None else None
+        result.append({
+            "card": c["card"], "name": c["name"] or f"{bank} credit card", "bank": bank, "last4": c["card"].split()[-1],
+            "statement_on": str(c["statement_on"]) if c["statement_on"] else None,
+            "since": str(since_day),
+            "total_due": due, "min_due": float(c["min_due"]) if c["min_due"] is not None else None,
+            "due_on": str(c["due_on"]) if c["due_on"] else None,
+            "paid": paid_total,
+            "left": round(max(due - paid_total, 0.0), 2) if due is not None else None,
+            "extra": round(max(paid_total - due, 0.0), 2) if due is not None else 0.0,
+            "payments": [{"date": str(p["occurred_on"]), "amount": float(p["amount"])} for p in paid],
+            "purchases": [{"date": str(r["occurred_on"]), "amount": float(r["amount"]), "merchant": r["counterparty"] or "",
+                           "refund": r["kind"] == "card_refund"} for r in bought],
+            "purchases_total": round(float(sum(-r["amount"] if r["kind"] == "card_refund" else r["amount"] for r in bought)), 2),
+        })
+    return result
 
 
 def summary(start: str, end: str | None = None) -> dict:
@@ -167,8 +283,8 @@ def summary(start: str, end: str | None = None) -> dict:
             """SELECT occurred_on, instrument, kind, direction, amount, counterparty, is_self
                FROM transactions WHERE occurred_on BETWEEN %s AND %s ORDER BY occurred_on, occurred_at""",
             (first, last)).fetchall()
-    spent = [r for r in rows if r["direction"] == "debit" and not r["is_self"] and r["kind"] != "card_bill_payment"]
-    refunds = [r for r in rows if r["kind"] == "card_refund"]
+    spent = [r for r in rows if r["direction"] == "debit" and not r["is_self"] and not _credit_card_purchase(r)]
+    refunds = [r for r in rows if r["kind"] == "card_refund" and not _credit_card_purchase(r)]
     received = [r for r in rows if r["kind"] in ("upi_credit", "deposit_credit") and not r["is_self"]]
     total = lambda items: round(float(sum(r["amount"] for r in items)), 2)
     line = lambda r: f"{r['occurred_on']} {r['instrument']} {r['kind']} ₹{r['amount']:,.2f} {r['counterparty'] or ''}".strip()
@@ -180,13 +296,16 @@ def summary(start: str, end: str | None = None) -> dict:
         "received_total": total(received),
         "own_account_transfers_total": total([r for r in rows if r["is_self"]]),
         "card_bill_payments_total": total([r for r in rows if r["kind"] == "card_bill_payment"]),
-        "note": "Totals come from HDFC and ICICI alert emails only; cash and other banks are not included.",
+        "credit_card_purchases_total": total([r for r in rows if r["kind"] == "card_spend" and _credit_card_purchase(r)]),
+        "note": "Totals come from HDFC, ICICI and IDFC alert emails only; cash and other banks are not included. "
+                "Credit cards count when the bill is paid, not per purchase.",
     }
 
 
 # Categories from the merchant name, first match wins; anything else that looks like a person's
 # name or a UPI id is "Sent to people". Extend the lists as new merchants show up.
 CATEGORIES = [
+    ("Credit card bills", CARD_BILL_PAYEE.pattern),  # before Shopping: "Amazon Pay Credit Card Bill" is not shopping
     ("Food & dining", r"zomato|eternal limited|swiggy|caf[eé]|restaurant|hotel|\btea\b|bakery|bakes|food|delicacy|"
                       r"dhaba|biryani|juice|\bmess\b|kitchen|militery|military|pizza|burger|coffee|chai|chaha|tiffin|"
                       r"\bbun\b|\bqsr\b|paan|\bpan shop|\bkfc\b|ahaara|\beat"),
@@ -229,9 +348,8 @@ def insights(start: str, end: str) -> dict:
     prev_first = first - timedelta(days=span)
     with psycopg.connect(config.DB_DSN, row_factory=dict_row) as conn:
         rows = conn.execute(
-            """SELECT occurred_on, kind, amount, counterparty FROM transactions
-               WHERE occurred_on BETWEEN %s AND %s AND direction = 'debit' AND NOT is_self
-                 AND kind <> 'card_bill_payment'""", (first - timedelta(days=60), last)).fetchall()
+            f"""SELECT occurred_on, kind, amount, counterparty FROM transactions
+               WHERE occurred_on BETWEEN %s AND %s AND {SPENDING}""", (first - timedelta(days=60), last)).fetchall()
     now = [r for r in rows if r["occurred_on"] >= first]
     before = [r for r in rows if prev_first <= r["occurred_on"] < first]
     history = {(r["counterparty"] or "").strip().lower() for r in rows if r["occurred_on"] < first}
@@ -250,12 +368,12 @@ def insights(start: str, end: str) -> dict:
     typical = amounts[len(amounts) // 2] if amounts else 0.0
     unusual = [f"{r['occurred_on']} ₹{r['amount']:,.2f} {r['counterparty'] or ''} ({category(r['counterparty'])})"
                for r in sorted(now, key=lambda r: r["amount"], reverse=True)
-               if float(r["amount"]) >= max(5000.0, typical * 10)][:5]
+               if r["kind"] != "card_bill_payment" and float(r["amount"]) >= max(5000.0, typical * 10)][:5]
     new = sorted({(r["counterparty"] or "").strip() for r in now
                   if (r["counterparty"] or "").strip() and (r["counterparty"] or "").strip().lower() not in history})
     return {"period": f"{first} to {last}", "compared_with": f"{prev_first} to {first - timedelta(days=1)}",
             "by_category": cats, "unusual_payments": unusual, "new_merchants": new[:10],
-            "note": "From HDFC and ICICI alert emails only; categories are guessed from merchant names."}
+            "note": "From HDFC, ICICI and IDFC alert emails only; categories are guessed from merchant names."}
 
 
 _MONEY_WORDS = re.compile(r"\b(spen[dt]|spending|expenses?|paid|pay(ment)?s?|transactions?|debited|credited|"

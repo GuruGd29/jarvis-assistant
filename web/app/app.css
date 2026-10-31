@@ -55,6 +55,7 @@ svg { display: block; }
 /* type */
 .h1 { font: 700 30px/1.15 var(--font); letter-spacing: -.02em; margin: 10px 2px 2px; }
 .sub { font: 400 15px var(--font); color: var(--text-2); margin: 0 2px 14px; }
+.h1 + .seg { margin-top: 12px; }
 .sec { display: flex; justify-content: space-between; align-items: baseline; font: 600 13px var(--font); color: var(--text-2); margin: 22px 2px 8px; }
 .sec button { color: var(--text); font-weight: 500; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
 .muted { color: var(--text-2); }
@@ -150,6 +151,12 @@ button.row:active, .tap:active { background: var(--surface-2); }
 .composer { border-radius: 24px; padding: 10px 8px 8px 16px; display: flex; align-items: flex-end; gap: 8px; }
 .composer textarea { flex: 1; resize: none; font-size: 16px; line-height: 1.4; max-height: 140px; padding: 7px 0; overflow-y: hidden; scrollbar-width: thin; }
 .composer textarea::placeholder { color: var(--text-3); }
+.composer textarea { min-height: calc(1.4em + 14px); }  /* one full line even if sized while hidden */
+.composer textarea:focus-visible { outline: none; }
+/* while the phone keyboard is open: no tab bar, message box just above the keyboard */
+body.typing { --tabbar-h: 0px; --bottom: 0px; }
+body.typing .tabbar, body.typing .sugg { display: none; }
+body.typing .dock { padding-bottom: 8px; }
 .send { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: var(--on-primary); flex: none; }
 .send svg { width: 18px; height: 18px; }
 .view.chat::after { display: none; }
