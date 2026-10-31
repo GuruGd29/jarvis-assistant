@@ -7,6 +7,7 @@ import argparse
 import json
 import re
 import sys
+from pathlib import Path
 from functools import lru_cache
 
 import numpy as np
@@ -121,6 +122,8 @@ def _quick_reply(message: str) -> str | None:
         from . import learn  # the weekly memory clean-up, approved by the user's own reply
 
         return learn.apply_review([int(n) for n in re.findall(r"\d+", m[1])] or None)
+    if re.fullmatch(r"\s*(sync|refresh|update)\s+(my\s+)?(google\s+)?drive(\s+folder)?\s*[.!]?\s*", message or "", re.I):
+        return _start_drive_sync()
     if m := re.fullmatch(r"\s*restore\s*#?(\d+)\s*[.!]?\s*", message or "", re.I):
         from . import learn
 
@@ -137,6 +140,17 @@ def _quick_reply(message: str) -> str | None:
         return f"Dose #{number} ({dose['name']} {dose['dose'] or ''}, due {dose['due']}) marked {dose['status']}."
     except ValueError as error:
         return f"Could not record that: {error}"
+
+
+def _start_drive_sync() -> str:
+    """Copy the Drive folder in the background (it can take minutes); the result arrives in Activity."""
+    import subprocess
+
+    bin_dir = Path(sys.executable).parent
+    subprocess.Popen(f'"{bin_dir}/jarvis-drive-sync" | "{bin_dir}/jarvis-notify" reports --one', shell=True,
+                     start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return ("Started syncing the Google Drive folder \"Jarvis\". New and changed files become searchable in a minute "
+            "or two; the result will appear in Activity.")
 
 
 def serve() -> None:
