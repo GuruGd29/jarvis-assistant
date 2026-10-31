@@ -5,9 +5,12 @@
 import asyncio
 import contextlib
 import json
+import logging
 import os
 from pathlib import Path
 
+import httpx
+import psycopg
 import uvicorn
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
@@ -25,6 +28,7 @@ APP_DIR = config.SYSTEM_DIR / "web" / "app"
 PORT = int(os.environ.get("JARVIS_WEB_PORT", "8791"))
 # A reply keeps running after the phone leaves the app; these keep the background tasks alive until done.
 _RUNNING: set[asyncio.Task] = set()
+log = logging.getLogger("jarvis.web")
 
 
 def _json(payload, status: int = 200) -> JSONResponse:
@@ -238,6 +242,28 @@ async def push_test(request: Request) -> Response:
 
 # --- static files ---------------------------------------------------------------------------------
 
+async def health(request: Request) -> Response:
+    """For monitoring: the database, Hermes and the model server. 200 when all answer, 503 otherwise."""
+    checks = {}
+
+    def database():
+        with notify.connect() as conn:
+            conn.execute("SELECT 1")
+    try:
+        await run_in_threadpool(database)
+        checks["database"] = "ok"
+    except Exception as error:
+        checks["database"] = f"down ({type(error).__name__})"
+    async with httpx.AsyncClient(timeout=5) as client:
+        for name, url in (("hermes", f"{hermes.HERMES}/health"), ("ollama", f"{config.OLLAMA_URL}/api/version")):
+            try:
+                checks[name] = "ok" if (await client.get(url)).status_code == 200 else "error"
+            except httpx.HTTPError as error:
+                checks[name] = f"down ({type(error).__name__})"
+    ok = all(v == "ok" for v in checks.values())
+    return _json({"ok": ok, **checks}, 200 if ok else 503)
+
+
 async def index(request: Request) -> Response:
     return FileResponse(APP_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
@@ -284,6 +310,7 @@ routes = [
     Route("/api/push/key", push_key), Route("/api/push/subscribe", push_subscribe, methods=["POST"]),
     Route("/api/push/unsubscribe", push_unsubscribe, methods=["POST"]),
     Route("/api/push/test", push_test, methods=["POST"]),
+    Route("/api/health", health),
     Mount("/static", StaticFiles(directory=str(APP_DIR)), name="static"),
 ]
 async def _keep_today_fresh() -> None:
@@ -301,10 +328,25 @@ async def lifespan(app):
     task.cancel()
 
 
-app = Starlette(routes=routes, middleware=[Middleware(SecurityHeaders)], lifespan=lifespan)
+async def server_error(request: Request, error: Exception) -> Response:
+    """Every unexpected failure becomes a short, clear message for the app, with the details in the log."""
+    if isinstance(error, psycopg.OperationalError):
+        log.warning("database unavailable on %s: %s", request.url.path, error)
+        return _error("Jarvis's database isn't answering. It usually comes back within a minute.", 503)
+    if isinstance(error, (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout)):
+        log.warning("Hermes unavailable on %s: %s", request.url.path, error)
+        return _error("Jarvis is restarting. Try again in a minute.", 503)
+    log.exception("unexpected error on %s %s", request.method, request.url.path)
+    return _error("Something went wrong on the Mac. The details were logged.", 500)
+
+
+app = Starlette(routes=routes, middleware=[Middleware(SecurityHeaders)], lifespan=lifespan,
+                exception_handlers={Exception: server_error})
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per Hermes/Ollama request would grow the log forever
     uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="warning", proxy_headers=True)
 
 

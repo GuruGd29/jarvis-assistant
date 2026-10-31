@@ -160,6 +160,8 @@ def notify(kind: str, title: str, body: str, data: dict | None = None) -> dict:
     settings = get_settings()
     want_push = settings["push"].get(kind, False) and not _quiet_now(settings)
     with connect() as conn:
+        # Activity keeps 90 days; older entries go as new ones arrive.
+        conn.execute("DELETE FROM activity WHERE created_at < now() - interval '90 days'")
         row = conn.execute("INSERT INTO activity (kind, title, body, data) VALUES (%s, %s, %s, %s) RETURNING id",
                            (kind, title[:120], body[:2000], Jsonb(data or {}))).fetchone()
         pushed = False
