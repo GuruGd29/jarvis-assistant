@@ -6,6 +6,7 @@ Usage:
 """
 import argparse
 import hashlib
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -81,6 +82,38 @@ def index_file(conn: psycopg.Connection, path: Path) -> str:
                 [(document_id, i, c.heading, c.page, c.text, v) for i, (c, v) in enumerate(zip(chunks, vectors))],
             )
     return f"{'updated' if row else 'added'} ({len(chunks)} chunks)"
+
+
+# Files sent to the Telegram bot: Hermes caches them and notes "saved at: <path>" in the message.
+_ATTACHMENT = re.compile(r"(?:sent a (?:text )?document: '([^']+)'.*?saved at: |User sent (?:an image|a file): )"
+                         r"(\S+/\.hermes/cache/(?:documents|images|files)/[^\s\]]+)", re.S)
+_DOMAIN_HINTS = [("health", r"blood|lab|report|prescription|medical|hospital|doctor|scan|test result|health|மருத்துவ"),
+                 ("finance", r"bill|invoice|receipt|statement|bank|salary|payslip|tax|itr|loan|emi|பில்"),
+                 ("notes", r"\bnote|idea|list|todo")]
+IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
+
+
+def save_attachments(message: str) -> list[dict]:
+    """Copy files the user sent on Telegram into ~/Jarvis/<domain>/telegram/ and index them now."""
+    import shutil
+
+    saved = []
+    for display, cached in _ATTACHMENT.findall(message or ""):
+        source = Path(cached)
+        if not source.is_file():
+            continue
+        domain = next((d for d, hint in _DOMAIN_HINTS if re.search(hint, message, re.I)), "documents")
+        name = re.sub(r"[^\w.\- ()]", "_", Path(display or source.name).name).strip() or source.name
+        target = config.DATA_ROOT / domain / "telegram" / f"{datetime.now():%Y-%m-%d} {name}"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        status = "saved (photos are not searchable yet: no text recognition)"
+        if is_indexable(target):
+            with psycopg.connect(config.DB_DSN) as conn:
+                register_vector(conn)
+                status = index_file(conn, target)
+        saved.append({"file": str(target.relative_to(config.DATA_ROOT.parent)), "domain": domain, "status": status})
+    return saved
 
 
 def remove_missing(conn: psycopg.Connection) -> int:

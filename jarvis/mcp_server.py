@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 from mcp.server.mcpserver import MCPServer
 
-from . import calendars, config, health, mail, money, pending, tasks
+from . import calendars, config, health, mail, money, pending, renewals, tasks
 from .search import list_documents, search
 
 mcp = MCPServer("jarvis-rag", instructions="Jarvis tools: the user's files in ~/Jarvis, calendars and tasks.")
@@ -85,6 +85,13 @@ def confirm_calendar_event(pending_id: int) -> dict:
 
 
 @mcp.tool()
+def iphone_reminders() -> dict:
+    """The user's open iPhone (iCloud) Reminders with due dates, read-only. Different from Jarvis's own
+    tasks (list_tasks); mention both when the user asks what they have to do."""
+    return calendars.iphone_reminders()
+
+
+@mcp.tool()
 def add_task(title: str, due_on: str | None = None, remind_at: str | None = None,
              priority: int = 2, notes: str | None = None) -> dict:
     """Add a task or reminder. due_on YYYY-MM-DD; remind_at local "YYYY-MM-DD HH:MM" for a Telegram
@@ -134,6 +141,21 @@ def spending_summary(start_date: str, end_date: str | None = None) -> dict:
     it already excludes transfers between the user's own accounts and credit card bill payments,
     and subtracts card refunds. Never add up amounts yourself."""
     return money.summary(start_date, end_date)
+
+
+@mcp.tool()
+def spending_insights(start_date: str, end_date: str) -> dict:
+    """Spending by category (food, travel, shopping, people, bills...) for start_date..end_date
+    (YYYY-MM-DD), against the same number of days before, plus unusually large payments and new
+    merchants. Quote totals as given; categories are guessed from merchant names."""
+    return money.insights(start_date, end_date)
+
+
+@mcp.tool()
+def upcoming_renewals(days: int = 60) -> list[dict]:
+    """Bills, subscriptions, insurance and documents that renew or expire in the next `days` days,
+    found in the user's files (with amount and source file)."""
+    return renewals.upcoming(max(1, min(days, 3700)))
 
 
 @mcp.tool()
