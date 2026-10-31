@@ -31,7 +31,7 @@ ollama create qwen3-4b-instruct-64k -f tests/ci/Modelfile
 git clone -q --filter=blob:none https://github.com/NousResearch/hermes-agent.git "$RUNNER_TEMP/hermes-agent"
 git -C "$RUNNER_TEMP/hermes-agent" checkout -q "$HERMES_COMMIT"
 python -m venv "$RUNNER_TEMP/hermes-venv"
-"$RUNNER_TEMP/hermes-venv/bin/pip" install -q "$RUNNER_TEMP/hermes-agent"
+"$RUNNER_TEMP/hermes-venv/bin/pip" install -q -e "$RUNNER_TEMP/hermes-agent"  # Hermes only supports editable installs from source
 mkdir -p "$HERMES_HOME/plugins/jarvis"
 cp hermes/plugins/jarvis/__init__.py hermes/plugins/jarvis/plugin.yaml "$HERMES_HOME/plugins/jarvis/"
 cp hermes/SOUL.md "$HERMES_HOME/SOUL.md"
