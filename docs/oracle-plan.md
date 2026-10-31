@@ -95,6 +95,44 @@ is common for free A1 servers.
 
 ---
 
+## Security on the server (built in during Phases 2–4)
+
+On the Mac the app is only reachable on home Wi-Fi, so it runs without these. On a public server
+every layer below is on from day one. Sign-in inside the app is decided at the move (VPN alone,
+or VPN plus pairing each device once).
+
+**1. Network: nothing to attack from the internet**
+- Only WireGuard (UDP 51820) is open; SSH, the app, Open WebUI, Postgres, Ollama and Hermes listen on
+  `127.0.0.1` or the VPN address only. Oracle's security list and the server firewall both enforce it.
+- Docker publishes ports to `127.0.0.1` / the VPN address only (Docker bypasses the firewall otherwise).
+- Telegram needs no open port (Jarvis calls out to Telegram).
+
+**2. Server: hard to break into**
+- SSH keys only, no passwords, no root login, SSH reachable only over the VPN; `fail2ban`.
+- Automatic security updates; a non-admin user runs Jarvis; secrets readable by that user only.
+- Nightly encrypted backups (restic) to Oracle Object Storage; restore tested.
+
+**3. The web app: safe even if someone reaches it**
+- Requests from other websites are refused (a required app header plus `Origin` / `Sec-Fetch-Site`
+  checks), so a malicious page you open cannot use the app through your browser.
+- Only the app's own host names are accepted (blocks DNS-rebinding tricks).
+- Notification sign-ups accepted only for Apple / Google / Mozilla push services, so nobody can make
+  the server call other addresses.
+- Size limits on every request, a limit on replies running at once, and rate limits.
+- Strict browser security headers (no framing, no outside scripts, HTTPS only).
+- Optional sign-in: pair each phone once with a 6-digit code; a long-lived, HttpOnly cookie after that.
+
+**4. Jarvis itself**
+- Still read-only for email; calendar changes still need your "yes".
+- Emails and files remain "data, not instructions" for the model (prompt-injection guard).
+- Hermes API key replaced with a long random one; Telegram stays limited to your account.
+
+**5. Checks before going live**
+- `pip-audit` on all Python packages, image updates for Docker, and a port scan from outside to confirm
+  only WireGuard answers.
+
+---
+
 ## Risks to know
 
 - **Idle reclaim:** Oracle can reclaim Always Free servers that stay almost idle (low CPU) for

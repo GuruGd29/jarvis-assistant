@@ -12,7 +12,8 @@ import argparse
 import base64
 import json
 import sys
-from datetime import date, datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import psycopg
 from psycopg.rows import dict_row
@@ -33,6 +34,7 @@ DEFAULTS = {
     "quiet": {"on": False, "from": "23:00", "to": "07:00"},
     "telegram_until": "2026-11-07",   # keep Telegram copies for a week while the app is new
 }
+TZ = ZoneInfo(config.TIMEZONE)  # quiet hours and dates follow the user, not the server clock
 VAPID_KEY = config.SECRETS_DIR / "vapid-private.pem"
 # Push services want a contact in the token; the GitHub no-reply address is public already and not a mailbox.
 VAPID_SUB = "mailto:177310711+GuruGd29@users.noreply.github.com"
@@ -66,7 +68,9 @@ def save_settings(changes: dict) -> dict:
             datetime.strptime(value, "%H:%M")  # raises on a bad time
             current["quiet"][edge] = value
     if "telegram" in changes:
-        current["telegram_until"] = DEFAULTS["telegram_until"] if changes["telegram"] else ""
+        # Turning it back on later gives another week of copies (the default date may have passed).
+        week = (datetime.now(TZ).date() + timedelta(days=7)).isoformat()
+        current["telegram_until"] = max(DEFAULTS["telegram_until"], week) if changes["telegram"] else ""
     with connect() as conn:
         conn.execute("""INSERT INTO app_settings (key, value) VALUES ('notifications', %s)
                         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()""",
@@ -76,14 +80,14 @@ def save_settings(changes: dict) -> dict:
 
 def telegram_copy_on(settings: dict | None = None) -> bool:
     until = (settings or get_settings()).get("telegram_until") or ""
-    return bool(until) and date.today().isoformat() <= until
+    return bool(until) and datetime.now(TZ).date().isoformat() <= until
 
 
 def _quiet_now(settings: dict) -> bool:
     quiet = settings["quiet"]
     if not quiet["on"]:
         return False
-    now = datetime.now().strftime("%H:%M")
+    now = datetime.now(TZ).strftime("%H:%M")
     start, end = quiet["from"], quiet["to"]
     return start <= now < end if start < end else (now >= start or now < end)
 

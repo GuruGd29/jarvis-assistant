@@ -47,18 +47,52 @@ def mark_medicine(medication_id: int, hhmm: str, status: str) -> dict:
     return {"ok": True}
 
 
+# Google + iCloud take ~5 s to read, so Today uses a copy at most AGENDA_STALE old and refreshes it in the
+# background (the server also refreshes it every few minutes).
+AGENDA_STALE = 120
+_agenda = {"day": None, "value": None, "at": 0.0, "busy": False}
+_agenda_lock = threading.Lock()
+
+
+def _read_agenda(day: date) -> None:
+    try:
+        value = calendars.list_events(*calendars.day_range(day, 8))
+        _agenda.update(day=day, value=value, at=time.time())
+    finally:
+        _agenda["busy"] = False
+
+
+def agenda(day: date, wait: bool = True) -> dict | None:
+    with _agenda_lock:
+        fresh = _agenda["day"] == day and time.time() - _agenda["at"] <= AGENDA_STALE
+        start = not fresh and not _agenda["busy"]
+        if start:
+            _agenda["busy"] = True
+    usable = _agenda["day"] == day and _agenda["value"] is not None
+    if start and (usable or not wait):
+        threading.Thread(target=_read_agenda, args=(day,), daemon=True).start()
+    elif start:
+        _read_agenda(day)                       # nothing usable yet (first open, or a new day): wait once
+    deadline = time.time() + 30
+    while wait and not (_agenda["day"] == day and _agenda["value"] is not None) and time.time() < deadline:
+        time.sleep(0.2)                         # another request is already reading
+    if _agenda["day"] == day and _agenda["value"] is not None:
+        return _agenda["value"]
+    return {"events": [], "errors": {"calendars": "took too long to answer"}, "sources": calendars.configured_sources()}
+
+
 def today() -> dict:
     now = datetime.now(health.TZ)
     day = now.date()
-    agenda = calendars.list_events(*calendars.day_range(day, 8))
+    agenda_now = agenda(day)
     open_tasks = tasks.list_tasks("open")
     week_end = (day + timedelta(days=7)).isoformat()
     due_soon = [t for t in open_tasks if t.get("due_on") and t["due_on"] <= week_end]
     spent = money.summary(str(day))
     return {
         "date": day.isoformat(), "greeting": _greeting(now),
-        "events": [_event(e) for e in agenda["events"]][:12],
-        "calendar_errors": list(agenda["errors"]), "calendars_connected": bool(agenda["sources"]),
+        "events": [_event(e) for e in agenda_now["events"]][:12],
+        "calendar_errors": list(agenda_now["errors"]), "calendars_connected": bool(agenda_now["sources"]),
         "tasks": [{"id": t["id"], "title": t["title"], "due_on": t.get("due_on"), "remind_at": t.get("remind_at"),
                    "priority": t.get("priority"), "notes": t.get("notes")} for t in open_tasks],
         "due_soon": len(due_soon),

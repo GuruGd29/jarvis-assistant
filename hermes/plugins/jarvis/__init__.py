@@ -195,10 +195,12 @@ def format_passages(results: list[dict[str, Any]]) -> tuple[str, int]:
     relevant = [r for r in results if r.get("score", -99) >= MIN_SCORE][:MAX_PASSAGES]
     if not relevant:
         return (
-            "[Jarvis file search: nothing in the user's ~/Jarvis files matches this message. "
-            "For email, calendar or tasks use those tools instead. If it asks about the user's own records, "
-            "say they are not in their files; do not guess. General questions (advice, how-to, explanations) "
-            "need no files: answer them normally.]",
+            # Leads with the common case: the small model refused stories and advice when this note opened with
+            # "nothing matches ... say it is not in their files".
+            "[Jarvis file search found nothing related in the user's files. Most messages need no files: write, "
+            "explain, translate, brainstorm, advise, calculate or chat normally from your own knowledge. For email, "
+            "calendar or tasks use those tools. Only if the message asks about the user's own records (their "
+            "policies, bills, reports, documents) say those are not in their files instead of guessing.]",
             0,
         )
     lines = [
