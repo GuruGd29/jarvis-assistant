@@ -193,6 +193,10 @@ async def money_view(request: Request) -> Response:
     return _json(await run_in_threadpool(data.money_view, period))
 
 
+async def cards_view(request: Request) -> Response:
+    return _json(await run_in_threadpool(data.cards_view))
+
+
 async def more(request: Request) -> Response:
     return _json(await run_in_threadpool(data.more))
 
@@ -304,7 +308,7 @@ routes = [
     Route("/api/today", today), Route("/api/iphone-reminders", iphone_reminders),
     Route("/api/tasks/{tid:int}/done", task_done, methods=["POST"]),
     Route("/api/medicine", medicine, methods=["POST"]),
-    Route("/api/money", money_view), Route("/api/more", more),
+    Route("/api/money", money_view), Route("/api/cards", cards_view), Route("/api/more", more),
     Route("/api/settings", settings, methods=["GET", "PUT"]),
     Route("/api/activity", activity, methods=["GET", "POST"]),
     Route("/api/push/key", push_key), Route("/api/push/subscribe", push_subscribe, methods=["POST"]),

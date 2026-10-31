@@ -179,13 +179,15 @@ def format_money(s: dict[str, Any]) -> str:
     lines = [f"[Jarvis money (EXACT, computed from the user's bank alert emails) for {s['period']}. Quote these totals "
              "as given and never add amounts yourself.]",
              f"Spending total: ₹{s['spending_total']:,.2f} ({len(s['spending'])} payments; already excludes transfers "
-             "between the user's own accounts and card bill payments, and subtracts refunds)"]
+             "between the user's own accounts; a credit card counts when its bill is paid, so card bill payments are "
+             "included and individual credit card purchases are not)"]
     lines += [f"- {item}" for item in s["spending"][:15]]
     if len(s["spending"]) > 15:
         lines.append(f"- ...and {len(s['spending']) - 15} more")
     lines.append(f"Refunds: ₹{s['refunds_total']:,.2f} | Received from others: ₹{s['received_total']:,.2f} | "
                  f"Own-account transfers: ₹{s['own_account_transfers_total']:,.2f} | "
-                 f"Card bill payments: ₹{s['card_bill_payments_total']:,.2f}")
+                 f"Card bill payments (counted in spending): ₹{s['card_bill_payments_total']:,.2f} | "
+                 f"Credit card purchases (not counted until the bill is paid): ₹{s['credit_card_purchases_total']:,.2f}")
     lines.append(s["note"])
     return "\n".join(lines)
 

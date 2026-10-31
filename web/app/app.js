@@ -106,7 +106,7 @@ const KIND_LABEL = { reminders: "Reminder", renewals: "Bills & renewals", proble
 // ---------- state ----------
 const S = {
   route: "chat", chatId: null, chats: [], msgs: [], streaming: null, drawer: false,
-  today: null, todayErr: null, iphone: null, money: {}, period: "week", moneyErr: null,
+  today: null, todayErr: null, iphone: null, money: {}, period: "week", moneyErr: null, moneyTab: "spending", cards: null, cardSel: null,
   more: null, settings: null, activity: null, unread: 0, pushState: "unknown",
 };
 
@@ -156,7 +156,9 @@ async function load(name) {
     if (name === "today") { S.today = await api("/api/today"); S.todayErr = null; loadIphone(); }
     if (name === "money") { // keep each answer under the period it was asked for, even if they arrive out of order
       const period = S.period;
-      S.money[period] = await api(`/api/money?period=${period}`); S.moneyErr = null;
+      if (S.moneyTab === "cards") S.cards = await api("/api/cards");
+      else S.money[period] = await api(`/api/money?period=${period}`);
+      S.moneyErr = null;
     }
     if (name === "more") { S.more = await api("/api/more"); await loadActivity(false); }
     if (name === "settings") { S.settings = await api("/api/settings"); await refreshPushState(); }
@@ -238,8 +240,9 @@ function msgHtml(m, i) {
 function viewChat() {
   const title = S.chatId ? (S.chats.find(c => c.id === S.chatId)?.title || "Jarvis") : "Jarvis";
   const hour = new Date().getHours();
-  const hello = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const welcome = `<div class="welcome"><h2>${hello}, Guru.</h2><p>Ask about your day, money, bills, health records or anything else, in English or Tamil.</p></div>`;
+  // night is 9 pm to 5 am, the same as the Today screen
+  const hello = hour >= 21 || hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const welcome = `<div class="welcome"><h2>${hello}, Guru.</h2></div>`;
   const sugg = !S.msgs.length ? `<div class="sugg">
       <button data-act="ask" data-v="Plan my day: events, tasks, bills and medicines.">Plan my day<small>events, tasks, bills</small></button>
       <button data-act="ask" data-v="How much did I spend this week, by category?">This week's spending<small>by category</small></button>
@@ -406,9 +409,12 @@ function spark(points) {
 }
 function viewMoney() {
   const m = S.money[S.period];
+  const pick = `<div class="seg" role="tablist">${[["spending", "Spending"], ["cards", "Cards"]].map(([k, n]) =>
+    `<button class="${k === S.moneyTab ? "on" : ""}" data-act="money-tab" data-v="${k}" role="tab" aria-selected="${k === S.moneyTab}">${n}</button>`).join("")}</div>`;
+  if (S.moneyTab === "cards") return viewCards(pick);
   const seg = `<div class="seg" role="tablist">${[["today", "Today"], ["week", "Week"], ["month", "Month"], ["year", "Year"]].map(([k, n]) =>
     `<button class="${k === S.period ? "on" : ""}" data-act="period" data-v="${k}" role="tab" aria-selected="${k === S.period}">${n}</button>`).join("")}</div>`;
-  const head = `<div class="h1">Money</div><div class="sub">From HDFC + ICICI alert emails</div>${seg}`;
+  const head = `<div class="h1">Money</div>${pick}${seg}`;
   if (!m) return `<section class="view"><div class="scroll">${head}${S.moneyErr ? `<div class="card empty">${esc(S.moneyErr)} <button class="btn s" data-act="reload">Try again</button></div>`
     : `<div class="card big"><div class="skel" style="width:35%"></div><div class="skel" style="height:30px;width:60%"></div><div class="skel"></div></div>`}</div></section>`;
   const ch = change(m.spent, m.previous);
@@ -433,7 +439,46 @@ function viewMoney() {
     <div class="sec">By category</div><div class="card">${cats || '<div class="empty">No payments in this period.</div>'}</div>
     ${unusual ? `<div class="sec">Unusually large</div><div class="card">${unusual}</div>` : ""}
     ${m.new_merchants.length ? `<div class="sec">New this period</div><div class="card"><div class="empty">${m.new_merchants.map(esc).join(", ")}</div></div>` : ""}
-    <div class="note">${esc(m.note)} Categories are guessed from merchant names.</div>
+  </div></section>`;
+}
+
+function viewCards(pick) {
+  const head = `<div class="h1">Money</div>${pick}`;
+  const c = S.cards;
+  if (!c) return `<section class="view"><div class="scroll">${head}${S.moneyErr ? `<div class="card empty">${esc(S.moneyErr)} <button class="btn s" data-act="reload">Try again</button></div>`
+    : `<div class="card big"><div class="skel" style="width:35%"></div><div class="skel" style="height:30px;width:60%"></div><div class="skel"></div></div>`}</div></section>`;
+  if (!c.cards.length) return `<section class="view"><div class="scroll">${head}<div class="card empty">No credit cards found yet.</div></div></section>`;
+  const k = c.cards.find(x => x.card === S.cardSel) || c.cards[0];
+  const switcher = `<div class="seg" role="tablist">${c.cards.map(x =>
+    `<button class="${x === k ? "on" : ""}" data-act="card" data-v="${esc(x.card)}" role="tab" aria-selected="${x === k}">${esc(x.bank)} ··${esc(x.last4)}</button>`).join("")}</div>`;
+
+  let top;
+  if (k.total_due === null) {
+    top = `<div class="k">${esc(k.name)} ·· ${esc(k.last4)}</div><div class="n">${inr(k.purchases_total)}</div>
+      <div class="d">spent in the last 30 days · bill amount is only in the statement PDF</div>
+      <div class="kpis"><div><b>${inr0(k.paid)}</b><span>paid, 30 days</span></div><div><b>${k.payments.length}</b><span>payments</span></div></div>`;
+  } else {
+    const days = Math.round((new Date(`${k.due_on}T00:00`) - new Date(`${c.today}T00:00`)) / 864e5);
+    const when = days < 0 ? `${-days} day${days === -1 ? "" : "s"} overdue` : days === 0 ? "due today" : `due in ${days} day${days === 1 ? "" : "s"}`;
+    const pct = Math.min(100, k.total_due > 0 ? k.paid / k.total_due * 100 : 100);
+    const status = k.left > 0
+      ? `<div class="d" style="color:${days <= 3 ? "var(--up)" : "var(--text-2)"}">${dayLabel(k.due_on)} · ${when}</div>`
+      : `<div class="d" style="color:var(--down)">Bill fully paid${k.extra > 0 ? ` · ${inr0(k.extra)} extra goes to the next bill` : ""}</div>`;
+    top = `<div class="k">${esc(k.name)} ·· ${esc(k.last4)} · ${k.left > 0 ? "left to pay" : "this bill"}</div>
+      <div class="n">${k.left > 0 ? inr(k.left) : "Paid"}</div>${status}
+      <div class="bar" style="margin-top:12px"><i style="width:${pct.toFixed(1)}%;background:var(--down)"></i></div>
+      <div class="kpis"><div><b>${inr0(k.total_due)}</b><span>bill</span></div><div><b>${inr0(k.paid)}</b><span>paid so far</span></div>
+        <div><b>${k.min_due === null ? "–" : inr0(k.min_due)}</b><span>minimum</span></div></div>`;
+  }
+  const since = dayLabel(k.since);
+  const pays = k.payments.map(p => `<div class="row"><div class="m"><div class="t">Part payment</div><div class="s">${dayLabel(p.date)}</div></div><span class="v">${inr0(p.amount)}</span></div>`).join("");
+  const buys = k.purchases.map(b => `<div class="row"><div class="m"><div class="t">${esc(b.merchant || "Purchase")}</div><div class="s">${dayLabel(b.date)}${b.refund ? " · refund" : ""}</div></div>
+    <span class="v" style="${b.refund ? "color:var(--down)" : ""}">${b.refund ? "−" : ""}${inr(b.amount).replace(/\.00$/, "")}</span></div>`).join("");
+  const window_ = k.statement_on ? `since the statement (${since})` : "in the last 30 days";
+  return `<section class="view"><div class="scroll">${head}${switcher}
+    <div class="card big">${top}</div>
+    <div class="sec">${k.statement_on ? "Payments towards this bill" : "Payments in the last 30 days"}</div><div class="card">${pays || '<div class="empty">No payments yet for this bill.</div>'}</div>
+    <div class="sec">Spends ${window_} · ${inr0(k.purchases_total)}</div><div class="card">${buys || '<div class="empty">No spends on this card since then.</div>'}</div>
   </div></section>`;
 }
 
@@ -600,6 +645,8 @@ document.addEventListener("click", async e => {
       speechSynthesis.speak(u);
       break;
     }
+    case "money-tab": S.moneyTab = v; render(false); load("money"); break;
+    case "card": S.cardSel = v; render(false); break;
     case "period": S.period = v; render(false); load("money"); break; // cached figures show at once, then refresh
     case "task": { // tap to tick, tap again to undo; ticked tasks stay listed until Today reloads
       const task = S.today.tasks.find(t => t.id === +v);
@@ -644,6 +691,19 @@ document.addEventListener("change", e => {
 document.addEventListener("input", e => {
   if (e.target.id === "box") { draft = e.target.value; autosize(e.target); updateSend(); }
 });
+// iOS keeps the page full height under the keyboard and scrolls it instead, leaving a gap:
+// while typing, size the app to the visible area so the message box sits on the keyboard.
+function fitKeyboard() {
+  const typing = document.body.classList.contains("typing") && window.visualViewport;
+  $("#app").style.height = typing ? `${visualViewport.height}px` : "";
+  if (typing) window.scrollTo(0, 0);
+}
+if (isTouch) {
+  document.addEventListener("focusin", e => { if (e.target.id === "box") { document.body.classList.add("typing"); fitKeyboard(); } });
+  document.addEventListener("focusout", e => { if (e.target.id === "box") { document.body.classList.remove("typing"); fitKeyboard(); } });
+  window.visualViewport?.addEventListener("resize", fitKeyboard);
+  window.visualViewport?.addEventListener("scroll", fitKeyboard);
+}
 document.addEventListener("keydown", e => {
   if (e.target.id === "box" && e.key === "Enter" && !e.shiftKey && !isTouch && !e.isComposing) { e.preventDefault(); send(draft); }
   if (e.key === "Escape" && S.drawer) { S.drawer = false; renderDrawer(); }

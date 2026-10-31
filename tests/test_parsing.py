@@ -43,6 +43,29 @@ class MoneyCategories(unittest.TestCase):
         for name, expected in cases.items():
             self.assertEqual(money.category(name), expected, name)
 
+    def test_card_bills(self):
+        self.assertEqual(money.category("Amazon Pay Credit Card Bill Payments"), "Credit card bills")
+        self.assertEqual(money.category("ccbillpay.1234@idfcbank"), "Credit card bills")
+        purchase = {"kind": "card_spend", "instrument": "ICICI card 1111"}
+        self.assertTrue(money._credit_card_purchase(purchase))
+        self.assertFalse(money._credit_card_purchase(purchase | {"instrument": "HDFC debit card 2222"}))
+
+    def test_statements(self):
+        from datetime import datetime
+        idfc = money.parse_statement(
+            "Your FIRST Power Plus Credit Card Statement",
+            "Credit Card ending with XXXX1234 has been ... Statement Date 19/Oct/2026 Total Amount Due 1,250.50 "
+            "Rewards Earned* 10 Payment Due Date 03/Nov/2026", datetime(2026, 10, 20))
+        self.assertEqual((idfc["card"], idfc["total_due"], idfc["due_on"]), ("IDFC card 1234", 1250.5, date(2026, 11, 3)))
+        icici = money.parse_statement(
+            "Amazon Pay ICICI Bank Credit Card Statement for the period September 19, 2026 to October 18, 2026",
+            "Payment due by November 5, 2026 ICICI Bank Credit Card XX5678 Minimum Amount Due: ₹100.00 "
+            "Total Amount Due: ₹2,000.00", datetime(2026, 10, 19))
+        self.assertEqual((icici["card"], icici["name"], icici["min_due"], icici["total_due"], icici["statement_on"]),
+                         ("ICICI card 5678", "Amazon Pay ICICI", 100.0, 2000.0, date(2026, 10, 18)))
+        self.assertIsNone(money.parse_statement("Your HDFC Bank - Swiggy HDFC Bank Credit Card Statement", "PDF attached",
+                                                datetime(2026, 10, 3)))
+
     def test_change_labels(self):
         self.assertEqual(_change(1250, 1000), " (↑ 25%)")
         self.assertEqual(_change(5000, 1000), " (×5)")
