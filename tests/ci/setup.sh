@@ -48,6 +48,7 @@ nohup .venv/bin/jarvis-web > "$RUNNER_TEMP/web.log" 2>&1 &
 for _ in $(seq 60); do curl -s http://127.0.0.1:8791/api/health >/dev/null && break; sleep 1; done
 curl -s http://127.0.0.1:8791/api/health; echo
 
-# Load the chat model once so the first test is not charged for the cold start.
-curl -s http://127.0.0.1:11434/api/generate -d '{"model": "qwen3-4b-instruct-64k", "prompt": "hi", "stream": false}' >/dev/null
+# One untimed chat through Hermes, so the first test case is not charged for the cold start
+# (loading the model and reading Hermes's long system prompt took 24 minutes on the first reply).
+.venv/bin/python tests/ci/run_tests.py --only CB-01 --out "$RUNNER_TEMP/warmup" >/dev/null 2>&1 || true
 echo "setup done"
