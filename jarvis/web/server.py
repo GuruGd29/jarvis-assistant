@@ -286,16 +286,17 @@ routes = [
     Route("/api/push/test", push_test, methods=["POST"]),
     Mount("/static", StaticFiles(directory=str(APP_DIR)), name="static"),
 ]
-async def _keep_reminders_fresh() -> None:
-    """Read iPhone Reminders at start-up and every few minutes, so Today never waits on the Reminders app."""
+async def _keep_today_fresh() -> None:
+    """Read iPhone Reminders and the calendars at start-up and every couple of minutes, so Today never waits on them."""
     while True:
         await run_in_threadpool(data.iphone_reminders, False)
-        await asyncio.sleep(data.REMINDERS_STALE)
+        await run_in_threadpool(data.agenda, data.tasks.today(), False)
+        await asyncio.sleep(data.AGENDA_STALE)
 
 
 @contextlib.asynccontextmanager
 async def lifespan(app):
-    task = asyncio.create_task(_keep_reminders_fresh())
+    task = asyncio.create_task(_keep_today_fresh())
     yield
     task.cancel()
 

@@ -183,7 +183,8 @@ button.row:active, .tap:active { background: var(--surface-2); }
 .big .text { font: 400 15px/1.5 var(--font); margin-top: 4px; }
 .kpis { display: flex; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; gap: 8px; }
 .kpis div { flex: 1; min-width: 0; }
-.kpis b { display: block; font: 650 15px var(--font); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* shrinks on narrow phones (iPhone SE) so large amounts never spill into the next column */
+.kpis b { display: block; font: 650 clamp(12.5px, 3.9vw, 15px) var(--font); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .kpis span { font: 400 12px var(--font); color: var(--text-2); }
 .spark { width: 100%; height: 46px; margin-top: 10px; }
 .catrow { padding: 11px 14px; }

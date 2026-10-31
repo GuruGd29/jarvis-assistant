@@ -122,7 +122,7 @@ document.getElementById("app").innerHTML = `
 function renderTabs() {
   const tabs = [["chat", "Chat"], ["today", "Today"], ["money", "Money"], ["more", "More"]];
   const main = ["settings", "activity", "renewals"].includes(S.route) ? "more" : S.route;
-  const todayBadge = S.today ? S.today.tasks.filter(t => t.due_on && t.due_on <= todayISO()).length
+  const todayBadge = S.today ? S.today.tasks.filter(t => !t.done && t.due_on && t.due_on <= todayISO()).length
     + S.today.medicines.filter(m => m.past && m.status === "due").length : 0;
   $("#tabbar").innerHTML = tabs.map(([k, n]) => {
     const badge = k === "today" && todayBadge ? todayBadge : k === "more" && S.unread ? S.unread : 0;
@@ -154,7 +154,10 @@ function render(animate = true) {
 async function load(name) {
   try {
     if (name === "today") { S.today = await api("/api/today"); S.todayErr = null; loadIphone(); }
-    if (name === "money") { S.money[S.period] = await api(`/api/money?period=${S.period}`); S.moneyErr = null; }
+    if (name === "money") { // keep each answer under the period it was asked for, even if they arrive out of order
+      const period = S.period;
+      S.money[period] = await api(`/api/money?period=${period}`); S.moneyErr = null;
+    }
     if (name === "more") { S.more = await api("/api/more"); await loadActivity(false); }
     if (name === "settings") { S.settings = await api("/api/settings"); await refreshPushState(); }
     if (name === "activity") { S.activity = await api("/api/activity", { method: "POST" }); S.unread = 0; }
@@ -189,6 +192,31 @@ async function openChat(id) {
   }
   render();
   api("/api/chats").then(list => { S.chats = list; renderDrawer(); }).catch(() => {});
+  refreshChat();
+}
+
+// A reply that was stopped or cut off (iPhone ends connections when you leave the app) still finishes on
+// the Mac; fetch the saved chat again until the answer is there.
+async function refreshChat() {
+  const id = S.chatId, last = S.msgs[S.msgs.length - 1];
+  if (!id || S.streaming || !last || last.role !== "assistant" || !last.error) return false;
+  try {
+    const fresh = (await api(`/api/chats/${encodeURIComponent(id)}`)).messages;
+    if (S.chatId !== id || S.streaming) return false;
+    if (fresh.length && fresh[fresh.length - 1].role === "assistant") {
+      S.msgs = fresh;
+      if (S.route === "chat") render(false);
+      return true;
+    }
+  } catch { /* offline: try again later */ }
+  return false;
+}
+function watchForReply(id) {
+  let tries = 0;
+  const timer = setInterval(async () => {
+    tries += 1;
+    if (S.chatId !== id || tries > 36 || await refreshChat()) clearInterval(timer);
+  }, 5000);
 }
 
 function msgHtml(m, i) {
@@ -299,10 +327,11 @@ async function send(text) {
     if (reply.pending) { reply.pending = false; if (!reply.text) reply.error = "The reply was cut off. Try again."; }
   } catch (e) {
     reply.pending = false;
-    if (e.name === "AbortError") { if (!reply.text) reply.error = "Stopped. Jarvis keeps working on it; open this chat again in a moment to see the answer."; }
-    else reply.error = e.message || "Can't reach Jarvis.";
+    reply.error = e.name === "AbortError" ? "Stopped. Jarvis is still finishing this answer; it will appear here."
+      : "The connection dropped. Jarvis is still finishing this answer; it will appear here.";
   }
   S.streaming = null;
+  if (reply.error) watchForReply(S.chatId);
   const chat = S.chats.find(c => c.id === S.chatId);
   if (chat && chat.title === "New chat") chat.title = text.slice(0, 60);
   render(false);
@@ -324,7 +353,7 @@ function viewToday() {
   const head = `<div class="h1">Today</div><div class="sub">${new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}${T ? ` · ${esc(T.greeting)}, Guru` : ""}</div>`;
   if (S.todayErr && !T) return `<section class="view"><div class="scroll">${head}<div class="card empty">${esc(S.todayErr)} <button class="btn s" data-act="reload">Try again</button></div></div></section>`;
   if (!T) return `<section class="view"><div class="scroll">${head}<div class="card big"><div class="skel" style="width:40%"></div><div class="skel"></div><div class="skel" style="width:70%"></div></div></div></section>`;
-  const dueToday = T.tasks.filter(t => t.due_on && t.due_on <= todayISO()).length;
+  const dueToday = T.tasks.filter(t => !t.done && t.due_on && t.due_on <= todayISO()).length;
   const medsLeft = T.medicines.filter(m => m.status === "due").length;
   const iph = S.iphone && S.iphone.available ? S.iphone.open_reminders : null;
   const nextRenewal = T.renewals[0];
@@ -339,9 +368,9 @@ function viewToday() {
       <span class="vline ${e.day === T.date ? "" : "dim"}"></span><div class="m"><div class="t">${esc(e.title)}</div>
       <div class="s">${e.time ? `${esc(e.time)}${e.end ? `–${esc(e.end)}` : ""}` : "All day"}${e.where ? ` · ${esc(e.where)}` : ""} · ${e.source === "apple" ? "iPhone" : "Google"}</div></div></div>`).join("")
     : `<div class="empty">${T.calendars_connected ? "Nothing on your calendars in the next 7 days." : "No calendar connected yet."}</div>`;
-  const tasks = T.tasks.map(t => `<button class="row" data-act="task" data-v="${t.id}"><span class="check"></span><div class="m"><div class="t wrap">${esc(t.title)}</div>
+  const tasks = T.tasks.map(t => `<button class="row ${t.done ? "done" : ""}" data-act="task" data-v="${t.id}" aria-pressed="${!!t.done}"><span class="check">${t.done ? I.ok : ""}</span><div class="m"><div class="t wrap">${esc(t.title)}</div>
       <div class="s">Jarvis task${t.due_on ? ` · due ${dayLabel(t.due_on)}` : ""}${t.remind_at ? ` · reminder ${esc(t.remind_at.slice(11))}` : ""}</div></div>
-      ${t.priority === 1 ? '<span class="tag" style="color:var(--up)">High</span>' : ""}</button>`).join("");
+      ${t.priority === 1 && !t.done ? '<span class="tag" style="color:var(--up)">High</span>' : ""}</button>`).join("");
   const iphRows = iph ? iph.slice(0, 8).map(r => `<div class="row"><div class="m"><div class="t wrap">${esc(r.title)}</div>
       <div class="s">iPhone Reminders${r.due ? ` · ${dayLabel(r.due.slice(0, 10))}` : ""}${r.list && r.list !== "Reminders" ? ` · ${esc(r.list)}` : ""}</div></div></div>`).join("") : "";
   const iphState = !S.iphone ? `<div class="row"><div class="m"><div class="s">Loading iPhone Reminders…</div></div></div>`
@@ -439,7 +468,9 @@ function viewMore() {
 async function refreshPushState() {
   if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) { S.pushState = "unsupported"; return; }
   if (Notification.permission === "denied") { S.pushState = "denied"; return; }
-  const reg = await navigator.serviceWorker.ready;
+  // If the service worker never starts, show the page anyway instead of waiting forever.
+  const reg = await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 4000))]);
+  if (!reg) { S.pushState = "unsupported"; return; }
   const sub = await reg.pushManager.getSubscription();
   S.pushState = sub ? "on" : "off";
 }
@@ -528,12 +559,15 @@ document.addEventListener("click", async e => {
   if (!el) return;
   const v = el.dataset.v;
   switch (el.dataset.act) {
-    case "go": navigate(`#${v}`); break;
+    // The Chat tab returns to the conversation you were in, not a blank chat.
+    case "go": navigate(v === "chat" && S.chatId ? `#chat/${S.chatId}` : `#${v}`); break;
     case "reload": load(S.route); break;
     case "drawer-open": S.drawer = true; renderDrawer(); break;
     case "drawer-close": S.drawer = false; renderDrawer(); break;
     case "new-chat": if (S.streaming) { toast("Wait for the reply to finish"); break; } S.drawer = false; renderDrawer(); S.chatId = null; S.msgs = []; navigate("#chat", true); break;
-    case "open-chat": S.drawer = false; renderDrawer(); navigate(`#chat/${v}`); break;
+    case "open-chat":
+      if (S.streaming && v !== S.chatId) { toast("Wait for the reply to finish"); break; }
+      S.drawer = false; renderDrawer(); navigate(`#chat/${v}`); break;
     case "delete-chat":
       if (!confirm("Delete this chat? This can't be undone.")) break;
       try {
@@ -567,15 +601,15 @@ document.addEventListener("click", async e => {
       break;
     }
     case "period": S.period = v; render(false); load("money"); break; // cached figures show at once, then refresh
-    case "task": {
+    case "task": { // tap to tick, tap again to undo; ticked tasks stay listed until Today reloads
       const task = S.today.tasks.find(t => t.id === +v);
-      el.classList.add("done"); el.querySelector(".check").innerHTML = I.ok;
+      if (!task) break;
+      const done = !task.done;
+      task.done = done; render(false);
       try {
-        await api(`/api/tasks/${+v}/done`, { method: "POST", body: { done: true } });
-        S.today.tasks = S.today.tasks.filter(t => t.id !== +v);
-        toast(`Done: ${task ? task.title : "task"}`);
-        setTimeout(() => { if (S.route === "today") render(false); }, 450);
-      } catch (err) { toast(err.message); el.classList.remove("done"); el.querySelector(".check").innerHTML = ""; }
+        await api(`/api/tasks/${+v}/done`, { method: "POST", body: { done } });
+        toast(done ? `Done: ${task.title} · tap again to undo` : "Marked not done");
+      } catch (err) { task.done = !done; render(false); toast(err.message); }
       break;
     }
     case "med": {
@@ -626,6 +660,7 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible") return;
   if (["today", "money", "more", "activity"].includes(S.route)) load(S.route);
   else loadActivity(false).then(renderTabs).catch(() => {});
+  if (S.route === "chat") refreshChat();
 });
 addEventListener("hashchange", route);
 addEventListener("online", () => setOffline(false));
