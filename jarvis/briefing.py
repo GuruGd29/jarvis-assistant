@@ -194,9 +194,7 @@ def task_sync() -> None:
 
 
 def google_check() -> None:
-    """Daily: warn on Telegram before the Testing-mode Google sign-in expires, or once it has."""
-    from datetime import datetime, timezone
-
+    """Daily: say so when Jarvis can no longer reach Google (a revoked or broken sign-in)."""
     if not calendars.GOOGLE_TOKEN.exists():
         return
     fix = "Re-connect it: run  ~/jarvis-system/.venv/bin/jarvis-auth google  on your Mac (about 30 seconds)."
@@ -205,11 +203,8 @@ def google_check() -> None:
     except Exception as error:
         print(f"⚠️ Jarvis can't reach your Google Calendar ({type(error).__name__}). {fix}")
         return
-    if calendars.GOOGLE_SIGNED_IN_AT.exists():
-        signed_in = datetime.fromisoformat(calendars.GOOGLE_SIGNED_IN_AT.read_text().strip())
-        days_left = calendars.GOOGLE_TESTING_DAYS - (datetime.now(timezone.utc) - signed_in).days
-        if days_left <= 1:
-            print(f"⏳ Jarvis's Google Calendar sign-in expires within a day. {fix}")
+    # The Google app is published ("In production"), so sign-ins no longer expire after GOOGLE_TESTING_DAYS;
+    # the check above still reports a sign-in that stops working.
 
 
 def reminders() -> None:
