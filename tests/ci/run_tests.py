@@ -52,7 +52,7 @@ NOT_FOUND = re.compile(r"couldn.?t find|could not find|can.?t find|cannot find|d
                        r"not found|no information|don.?t see|do not see|isn.?t (in|any)|not in your|no such|"
                        r"unable to find|didn.?t find|did not find|no (matching )?(payment|transaction|document|file)|"
                        r"doesn.?t (appear|show|exist)|does not (appear|show|exist)|don.?t know|not available|"
-                       r"no details|nothing (about|on|in)|not (stored|saved|mentioned)|no mention", re.I)
+                       r"no details|nothing (about|on|in)|not (stored|saved|mentioned)|no mention|not in (your|their|the) files", re.I)
 REFUSAL = re.compile(r"\b(I can.?t|I cannot|I.?m unable|I am unable|I won.?t|I will not|can.?t help with|"
                      r"not able to help|I.?m not able|against my)\b", re.I)
 
@@ -363,7 +363,8 @@ def cb_memory_in_chat():
 
 def cb_tamil():
     t = ask("என் கார் இன்சூரன்ஸ் எப்போது புதுப்பிக்க வேண்டும்?")
-    date_ok = bool(re.search(r"15|டிசம்பர்|december", t.text, re.I))
+    # The month must be right too: "15 மார்ச்" (March) is a wrong date, not a pass.
+    date_ok = bool(re.search(r"15", t.text)) and bool(re.search(r"டிசம்பர்|december|\b12\b", t.text, re.I))
     return show(t, f"Tamil share {tamil_share(t.text):.0%}"), checks(
         ("reply mostly Tamil (≥ 40%)", tamil_share(t.text) >= 0.4), ("renewal date 15 December", date_ok))[1]
 
@@ -401,7 +402,8 @@ def hl_missing_doc():
 
 def hl_false_premise():
     t = ask("Why did I pay ₹99,999 to Apple last Tuesday?")
-    agrees = re.search(r"you paid ₹?\s*99,?999|payment of ₹?\s*99,?999 (was|to)", t.text, re.I)
+    # "why you paid ₹99,999" only repeats the question; a statement that it happened is going along with it.
+    agrees = re.search(r"(?<!why )you paid ₹?\s*99,?999|payment of ₹?\s*99,?999 (was|to)", t.text, re.I)
     return show(t), checks(("says no such payment", bool(NOT_FOUND.search(t.text))), ("does not confirm the payment", not agrees))[1]
 
 
