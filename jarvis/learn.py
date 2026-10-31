@@ -35,6 +35,7 @@ _SENSITIVE = re.compile(r"\b(passwords?|passcode|otp|pin|cvv|api[ -]?key|token)\
 # "remember to ..." is a reminder for the task tools, not a fact.
 _REMEMBER = re.compile(r"^\s*(?:please\s+)?(?:remember|note)\s+(?!to\b|me\b)(?:that\s+)?(.{4,})$", re.I | re.S)
 _FORGET = re.compile(r"^\s*(?:please\s+)?forget\s+(?!it\b)(?:that\s+|about\s+)?(.{3,})$", re.I | re.S)
+_ONE_DAY = re.compile(r"\b(today|tonight|tomorrow|yesterday|this (morning|afternoon|evening))\b", re.I)
 _ASK_ALL = re.compile(r"\bwhat (?:do|did) you (?:know|remember) about me\b|\bwhat have you (?:learned|learnt)\b", re.I)
 
 _EXTRACT_PROMPT = """You maintain a personal assistant's long-term memory about its user.
@@ -135,7 +136,10 @@ def _extract(entries: list[dict], day) -> tuple[list[str], str]:
     })
     response.raise_for_status()
     found = json.loads(response.json()["response"])
-    facts = [f for f in found.get("facts", []) if isinstance(f, str) and 8 <= len(f) <= 200]
+    # "User has a dental appointment tomorrow" is about one day, not a lasting fact, and turns false
+    # by the next one; the calendar and tasks hold such things.
+    facts = [f for f in found.get("facts", []) if isinstance(f, str) and 8 <= len(f) <= 200
+             and not _ONE_DAY.search(f)]
     summary = found.get("summary") if isinstance(found.get("summary"), str) else ""
     return facts, summary.strip()[:400]
 

@@ -6,6 +6,7 @@ Credentials live in ~/jarvis-system/secrets/ and are written only by `jarvis-aut
   icloud.json         created by `jarvis-auth icloud` (Apple ID + app-specific password)
 """
 import json
+import re
 import uuid
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -178,6 +179,42 @@ def list_events(start: datetime, end: datetime) -> dict:
 def day_range(day: date, days: int = 1) -> tuple[datetime, datetime]:
     start = datetime.combine(day, datetime.min.time(), TZ)
     return start, start + timedelta(days=days)
+
+
+# A calendar question in English, Tamil or Tanglish, and the days it asks about; used to fetch the
+# agenda before the model replies, so it needs no tool call. Tamil vowel signs are not \w, so no \b there.
+_CALENDAR_WORDS = re.compile(r"\b(calendar|schedule|agenda|meetings?|appointments?|events?|busy)\b"
+                             r"|காலண்டர்|அட்டவணை|சந்திப்பு|மீட்டிங்|அப்பாயின்ட்|நிகழ்ச்சி|நிகழ்வு", re.I)
+_DAY_AFTER = re.compile(r"day after tomorrow|naa?lai?\s*maru\s*naa?l|நாளை மறுநாள்", re.I)
+_TOMORROW = re.compile(r"tomorrow|\bnaa?lai?(ku|kku)?\b|நாளை", re.I)
+_NEXT_WEEK = re.compile(r"(next|adutha|அடுத்த)\s*(week|vaa?ram|வாரம்)", re.I)
+_THIS_WEEK = re.compile(r"\bweek\b|\bvaa?ra[mt]|வாரம்|வாரத்", re.I)
+_WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def agenda_for_text(text: str, today: date | None = None) -> dict | None:
+    """The agenda a calendar question asks about (default today), or None if it is not about the calendar."""
+    if not _CALENDAR_WORDS.search(text or ""):
+        return None
+    today = today or datetime.now(TZ).date()
+    low = text.lower()
+    weekday = next((i for i, name in enumerate(_WEEKDAYS) if name in low), None)
+    if _DAY_AFTER.search(low):
+        first, days, when = today + timedelta(days=2), 1, "the day after tomorrow"
+    elif _TOMORROW.search(low):
+        first, days, when = today + timedelta(days=1), 1, "TOMORROW"
+    elif _NEXT_WEEK.search(low):
+        first, days, when = today + timedelta(days=7 - today.weekday()), 7, "next week"
+    elif _THIS_WEEK.search(low):
+        first, days, when = today, 7 - today.weekday(), "the rest of this week"
+    elif weekday is not None:
+        first, days, when = today + timedelta(days=(weekday - today.weekday()) % 7), 1, _WEEKDAYS[weekday].title()
+    else:
+        first, days, when = today, 1, "TODAY"
+    last = first + timedelta(days=days - 1)
+    # The small model mixes up "today" and "tomorrow" when it only sees a date, so say both.
+    label = f"{when}, {first:%a %d %b}" + (f" to {last:%a %d %b}" if days > 1 else "")
+    return {"period": label, **list_events(*day_range(first, days))}
 
 
 def create_event(source: str, title: str, start: datetime, end: datetime, calendar: str | None = None,

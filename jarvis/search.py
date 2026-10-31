@@ -165,6 +165,13 @@ def serve() -> None:
                 sys.stdout.write(json.dumps(reply, default=str) + "\n")
                 sys.stdout.flush()
                 continue
+            if request.get("op") == "calendar":  # the agenda for a calendar question, for the plugin's prefetch
+                from .calendars import agenda_for_text
+
+                reply = {"id": request.get("id"), "results": agenda_for_text(request.get("message", ""))}
+                sys.stdout.write(json.dumps(reply, default=str) + "\n")
+                sys.stdout.flush()
+                continue
             if request.get("op") == "money":  # exact totals for a money question, for the plugin's prefetch
                 from .money import period_from_text, summary
 
