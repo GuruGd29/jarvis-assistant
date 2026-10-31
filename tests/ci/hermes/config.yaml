@@ -1,0 +1,70 @@
+# Hermes config for the weekly GitHub test run: the same agent settings as the real Jarvis
+# (~/.hermes/config.yaml), minus messaging platforms, web search, voice and anything with a key.
+# __VENV__ is replaced by setup.sh.
+_config_version: 51
+agent:
+  execution_guidance: false
+  task_completion_guidance: false
+  parallel_tool_call_guidance: false
+  max_turns: 500
+  reasoning_effort: none
+  verbose: false
+compression:
+  enabled: true
+  threshold: 0.5
+  target_ratio: 0.2
+  protect_first_n: 3
+  protect_last_n: 20
+  progress_notices: false
+display:
+  streaming: true
+gateway:
+  api_server:
+    max_concurrent_runs: 4
+mcp_servers:
+  jarvis-rag:
+    command: __VENV__/bin/jarvis-mcp
+    args: []
+    timeout: 300
+memory:
+  memory_char_limit: 2200
+  memory_enabled: true
+  nudge_interval: 10
+  prefetch_spill_enabled: false
+  provider: jarvis
+  user_char_limit: 1375
+  user_profile_enabled: true
+model:
+  base_url: http://127.0.0.1:11434/v1
+  context_length: 65536
+  default: qwen3-4b-instruct-64k
+  provider: ollama-launch
+platform_toolsets:
+  api_server:
+    - memory
+    - session_search
+    - skills
+providers:
+  ollama-launch:
+    api: http://127.0.0.1:11434/v1
+    default_model: qwen3-4b-instruct-64k
+    models:
+      - qwen3-4b-instruct-64k
+    name: Ollama
+streaming:
+  enabled: false
+stt:
+  enabled: false
+telemetry:
+  shared_metrics:
+    enabled: false
+    send: false
+tools:
+  tool_search:
+    enabled: "off"
+toolsets:
+  - memory
+  - session_search
+  - skills
+updates:
+  check: false

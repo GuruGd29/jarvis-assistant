@@ -4,6 +4,6 @@
 set -eu
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$repo/hermes/plugins/jarvis" "$repo/hermes/scripts"
-cp "$HOME/.hermes/plugins/jarvis/__init__.py" "$repo/hermes/plugins/jarvis/"
+cp "$HOME/.hermes/plugins/jarvis/__init__.py" "$HOME/.hermes/plugins/jarvis/plugin.yaml" "$repo/hermes/plugins/jarvis/"
 cp "$HOME/.hermes/SOUL.md" "$repo/hermes/"
 cp "$HOME"/.hermes/scripts/jarvis-*.sh "$repo/hermes/scripts/"
