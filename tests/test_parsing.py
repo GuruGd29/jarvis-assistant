@@ -138,3 +138,21 @@ class Notifications(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DriveSync(unittest.TestCase):
+    def test_sync_drive_command(self):
+        with mock.patch.object(search, "_start_drive_sync", return_value="started") as start:
+            for text in ("sync drive", "Sync my Google Drive", "refresh drive folder!"):
+                self.assertEqual(search._quick_reply(text), "started", text)
+            self.assertIsNone(search._quick_reply("what is in my drive"))
+            self.assertEqual(start.call_count, 3)
+
+    def test_local_paths(self):
+        from jarvis import config, drive
+        doc = {"name": "Policy", "mimeType": "application/vnd.google-apps.document"}
+        self.assertEqual(drive._local_path(doc, ("Health", "2026")), config.DATA_ROOT / "health" / "Drive" / "2026" / "Policy.docx")
+        pdf = {"name": "bill.pdf", "mimeType": "application/pdf"}
+        self.assertEqual(drive._local_path(pdf, ()), config.DATA_ROOT / "documents" / "Drive" / "bill.pdf")
+        self.assertIsNone(drive._local_path({"name": "photo.jpg", "mimeType": "image/jpeg"}, ()))
+

@@ -18,6 +18,7 @@ GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/calendar.events",  # create events (only after the user approves)
     "https://www.googleapis.com/auth/gmail.readonly",   # read and sort mail; Jarvis cannot send, draft or delete
+    "https://www.googleapis.com/auth/drive.readonly",   # copy the Drive folder "Jarvis"; cannot change Drive
 ]
 GOOGLE_CLIENT = config.SECRETS_DIR / "google-client.json"
 GOOGLE_TOKEN = config.SECRETS_DIR / "google-token.json"
@@ -48,11 +49,13 @@ def _event(source: str, calendar: str, title: str, start, end, location: str | N
 # --- Google ------------------------------------------------------------------
 
 def google_credentials():
-    """The shared Google sign-in (calendar + Gmail), refreshed and saved when needed."""
+    """The shared Google sign-in (calendar, Gmail, Drive), refreshed and saved when needed."""
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
 
-    creds = Credentials.from_authorized_user_file(str(GOOGLE_TOKEN), GOOGLE_SCOPES)
+    # Use the scopes the user actually granted (saved in the token), so a sign-in made before a scope
+    # was added keeps working for everything else.
+    creds = Credentials.from_authorized_user_file(str(GOOGLE_TOKEN))
     if not creds.valid and creds.refresh_token:
         creds.refresh(Request())
         GOOGLE_TOKEN.write_text(creds.to_json())

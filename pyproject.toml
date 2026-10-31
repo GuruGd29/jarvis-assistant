@@ -37,6 +37,7 @@ jarvis-task-sync = "jarvis.briefing:task_sync"
 jarvis-reminders = "jarvis.briefing:reminders"
 jarvis-google-check = "jarvis.briefing:google_check"
 jarvis-money-sync = "jarvis.money:main"
+jarvis-drive-sync = "jarvis.drive:main"
 jarvis-learn = "jarvis.learn:main"
 jarvis-memory-review = "jarvis.learn:weekly_review"
 
