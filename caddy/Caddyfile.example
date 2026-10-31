@@ -11,6 +11,14 @@ https://your-mac.local:3443, https://192.168.1.10:3443, https://localhost:3443 {
 	reverse_proxy 127.0.0.1:3000
 }
 
+# The Jarvis web app (Home Screen app). Replies stream, so responses are flushed straight away.
+https://your-mac.local:3444, https://192.168.1.10:3444, https://localhost:3444 {
+	tls internal
+	reverse_proxy 127.0.0.1:8791 {
+		flush_interval -1
+	}
+}
+
 # Plain http only to hand out the CA certificate (public, not secret) for installing on the phone.
 http://:3080 {
 	root * /opt/homebrew/var/lib/caddy/pki/authorities/local

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Starts the Jarvis web app server at login and restarts it if it stops. Install (replaces /Users/YOU with your home folder):
+     sed "s|/Users/YOU|$HOME|g" ~/jarvis-system/bin/com.jarvis.web.plist > ~/Library/LaunchAgents/com.jarvis.web.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.jarvis.web.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.jarvis.web</string>
+  <key>ProgramArguments</key><array><string>/Users/YOU/jarvis-system/.venv/bin/jarvis-web</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/opt/homebrew/bin</string></dict>
+  <key>StandardOutPath</key><string>/Users/YOU/jarvis-system/logs/web.log</string>
+  <key>StandardErrorPath</key><string>/Users/YOU/jarvis-system/logs/web.log</string>
+</dict>
+</plist>

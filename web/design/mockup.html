@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jarvis design mockup</title>
+<style>
+/* Design mockup for the Jarvis web app (sample data). ?theme=light|dark  &screen=chat|today|money|more|lock  or &board=1 */
+:root {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", sans-serif;
+  --radius-xl: 28px; --radius-lg: 22px; --radius-md: 16px; --radius-sm: 12px;
+}
+[data-theme="light"] {
+  --bg-1: #eef1ff; --bg-2: #fff4ec;
+  --blob-a: rgba(124, 136, 255, .55); --blob-b: rgba(255, 166, 120, .45); --blob-c: rgba(94, 214, 199, .40);
+  --glass: rgba(255, 255, 255, .55); --glass-strong: rgba(255, 255, 255, .72); --glass-weak: rgba(255, 255, 255, .34);
+  --glass-edge: rgba(255, 255, 255, .85); --glass-edge-dim: rgba(255, 255, 255, .45);
+  --shadow: 0 10px 30px rgba(40, 45, 90, .12), 0 1px 2px rgba(40, 45, 90, .08);
+  --text: #11131a; --text-2: rgba(17, 19, 26, .62); --text-3: rgba(17, 19, 26, .40);
+  --accent: #4f5bff; --accent-2: #7a5cff; --accent-text: #ffffff;
+  --green: #1aa36b; --orange: #e8730c; --red: #e5484d; --separator: rgba(17, 19, 26, .08);
+}
+[data-theme="dark"] {
+  --bg-1: #070a14; --bg-2: #0d1022;
+  --blob-a: rgba(91, 104, 255, .45); --blob-b: rgba(203, 92, 255, .30); --blob-c: rgba(32, 201, 176, .28);
+  --glass: rgba(255, 255, 255, .08); --glass-strong: rgba(255, 255, 255, .13); --glass-weak: rgba(255, 255, 255, .05);
+  --glass-edge: rgba(255, 255, 255, .22); --glass-edge-dim: rgba(255, 255, 255, .10);
+  --shadow: 0 10px 34px rgba(0, 0, 0, .45), 0 1px 2px rgba(0, 0, 0, .4);
+  --text: #f4f6ff; --text-2: rgba(244, 246, 255, .62); --text-3: rgba(244, 246, 255, .38);
+  --accent: #7c86ff; --accent-2: #a68bff; --accent-text: #ffffff;
+  --green: #3ddc97; --orange: #ffa94d; --red: #ff6b6b; --separator: rgba(255, 255, 255, .08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { font-family: var(--font); color: var(--text); -webkit-font-smoothing: antialiased; }
+body { background: #d9dce6; }
+body.board { display: flex; gap: 36px; padding: 48px; align-items: flex-start; background: var(--board-bg, #e6e8ef); }
+[data-theme="dark"] body.board, body.board[data-theme="dark"] { --board-bg: #05060b; }
+
+/* ---------- device ---------- */
+.device { width: 390px; height: 844px; position: relative; overflow: hidden; flex: none;
+  background: linear-gradient(160deg, var(--bg-1), var(--bg-2)); }
+.board .device { border-radius: 52px; box-shadow: 0 0 0 11px #0b0b0f, 0 0 0 12px #2a2a33, 0 40px 80px rgba(0,0,0,.35); }
+.board .label { font: 600 15px var(--font); color: #6b6f80; text-align: center; margin-top: 26px; letter-spacing: .02em; }
+.device::before, .device::after { content: ""; position: absolute; border-radius: 50%; filter: blur(50px); pointer-events: none; }
+.device::before { width: 340px; height: 340px; left: -120px; top: 60px; background: var(--blob-a); }
+.device::after { width: 300px; height: 300px; right: -110px; top: 420px; background: var(--blob-b); }
+.blob-c { position: absolute; width: 260px; height: 260px; left: 90px; bottom: -80px; border-radius: 50%;
+  background: var(--blob-c); filter: blur(55px); pointer-events: none; }
+.status { height: 50px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 30px 8px 36px;
+  font: 600 16px var(--font); position: relative; z-index: 5; }
+.status .icons { display: flex; gap: 6px; align-items: center; }
+.island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 124px; height: 36px;
+  border-radius: 20px; background: #000; z-index: 6; }
+.screen { position: absolute; inset: 0; padding-top: 50px; overflow: hidden; z-index: 2; }
+.scroll { height: 100%; overflow: hidden; padding: 4px 18px 140px; }
+
+/* ---------- liquid glass ---------- */
+.glass { position: relative; background: var(--glass); border-radius: var(--radius-lg);
+  backdrop-filter: blur(28px) saturate(180%); -webkit-backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--glass-edge), inset 0 -1px 0 var(--glass-edge-dim); }
+.glass::before { /* specular sheen along the top edge */
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,0) 38%); opacity: .55; }
+[data-theme="dark"] .glass::before { opacity: .18; }
+.glass.strong { background: var(--glass-strong); }
+.glass.pill { border-radius: 999px; }
+
+/* ---------- typography ---------- */
+.large-title { font: 700 34px/1.1 var(--font); letter-spacing: -.02em; margin: 6px 4px 2px; }
+.subtitle { font: 500 15px var(--font); color: var(--text-2); margin: 0 4px 14px; }
+.section { font: 600 13px var(--font); color: var(--text-2); text-transform: uppercase; letter-spacing: .06em;
+  margin: 18px 6px 8px; display: flex; justify-content: space-between; }
+.section a { color: var(--accent); text-transform: none; letter-spacing: 0; font-weight: 600; font-size: 14px; }
+
+/* ---------- top bar ---------- */
+.topbar { display: flex; align-items: center; gap: 12px; padding: 8px 16px 10px; position: relative; z-index: 4; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  background: radial-gradient(circle at 30% 25%, #a5adff, var(--accent) 55%, var(--accent-2));
+  box-shadow: 0 6px 16px rgba(79, 91, 255, .35), inset 0 1px 0 rgba(255,255,255,.6); font: 700 17px var(--font); }
+.topbar .title { font: 650 18px var(--font); }
+.topbar .sub { font: 500 12.5px var(--font); color: var(--text-2); display: flex; align-items: center; gap: 5px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(61,220,151,.18); }
+.icon-btn { width: 40px; height: 40px; display: grid; place-items: center; margin-left: auto; }
+
+/* ---------- chat ---------- */
+.chat { padding: 4px 14px 210px; display: flex; flex-direction: column; gap: 10px; }
+.day { align-self: center; font: 600 12px var(--font); color: var(--text-2); padding: 5px 12px; margin: 4px 0; }
+.msg { max-width: 82%; padding: 11px 14px; font: 400 16px/1.38 var(--font); }
+.msg.me { align-self: flex-end; color: var(--accent-text); border-radius: 22px 22px 6px 22px;
+  background: linear-gradient(160deg, var(--accent), var(--accent-2));
+  box-shadow: 0 8px 22px rgba(79, 91, 255, .30), inset 0 1px 0 rgba(255,255,255,.35); }
+.msg.jarvis { align-self: flex-start; border-radius: 22px 22px 22px 6px; }
+.meta { font: 500 11.5px var(--font); color: var(--text-3); margin-top: 3px; }
+.me + .meta { align-self: flex-end; margin-right: 6px; }
+.card-in { margin-top: 9px; border-radius: 14px; padding: 10px 12px; background: var(--glass-weak);
+  box-shadow: inset 0 0 0 1px var(--separator); font-size: 14.5px; display: flex; gap: 10px; align-items: center; }
+.card-in b { font-weight: 650; }
+.voice { display: flex; align-items: center; gap: 10px; }
+.play { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.25); display: grid; place-items: center; }
+.wave { display: flex; gap: 2.5px; align-items: center; height: 26px; }
+.wave i { width: 3px; border-radius: 3px; background: rgba(255,255,255,.85); }
+.transcript { font: 400 13.5px/1.35 var(--font); opacity: .85; margin-top: 6px; font-style: italic; }
+.chips { position: absolute; left: 0; right: 0; bottom: 172px; display: flex; gap: 8px; padding: 0 14px; z-index: 4; }
+.chip { padding: 9px 13px; font: 600 14px var(--font); white-space: nowrap; border-radius: 999px; }
+.composer { position: absolute; left: 12px; right: 12px; bottom: 108px; height: 56px; display: flex; align-items: center;
+  gap: 6px; padding: 0 7px; z-index: 4; }
+.composer .field { flex: 1; font: 400 16.5px var(--font); color: var(--text-3); padding-left: 4px; }
+.round { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.round.accent { background: linear-gradient(160deg, var(--accent), var(--accent-2)); color: #fff;
+  box-shadow: 0 6px 16px rgba(79, 91, 255, .4), inset 0 1px 0 rgba(255,255,255,.45); }
+.round.plain { background: var(--glass-weak); box-shadow: inset 0 0 0 1px var(--separator); }
+.typing { display: flex; gap: 4px; padding: 14px 16px; }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
+
+/* ---------- tab bar ---------- */
+.tabbar { position: absolute; left: 18px; right: 18px; bottom: 30px; height: 66px; display: flex; align-items: center;
+  justify-content: space-around; padding: 0 6px; z-index: 5; }
+.tab { flex: 1; height: 54px; border-radius: 999px; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 2px; font: 600 10.5px var(--font); color: var(--text-2); }
+.tab svg { width: 24px; height: 24px; }
+.tab.active { color: var(--accent); background: var(--glass-strong);
+  box-shadow: inset 0 1px 0 var(--glass-edge), 0 4px 14px rgba(40, 45, 90, .10); }
+.badge { position: absolute; margin: -22px 0 0 22px; min-width: 17px; height: 17px; border-radius: 9px; background: var(--red);
+  color: #fff; font: 700 10.5px/17px var(--font); text-align: center; padding: 0 4px; }
+.home-ind { position: absolute; bottom: 9px; left: 50%; transform: translateX(-50%); width: 134px; height: 5px;
+  border-radius: 3px; background: var(--text); opacity: .85; z-index: 6; }
+
+/* ---------- cards / rows ---------- */
+.card { padding: 16px; }
+.card + .card { margin-top: 12px; }
+.hero { padding: 18px 18px 16px; }
+.hero .hello { font: 650 21px var(--font); }
+.hero .line { font: 400 15px/1.45 var(--font); color: var(--text-2); margin-top: 6px; }
+.hero .stats { display: flex; gap: 8px; margin-top: 14px; }
+.stat { flex: 1; padding: 10px 11px; border-radius: 14px; background: var(--glass-weak); box-shadow: inset 0 0 0 1px var(--separator); }
+.stat b { display: block; font: 700 19px var(--font); }
+.stat span { font: 500 12px var(--font); color: var(--text-2); }
+.list { padding: 4px 0; }
+.row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; position: relative; }
+.row + .row::before { content: ""; position: absolute; top: 0; left: 58px; right: 0; height: 1px; background: var(--separator); }
+.ico { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; flex: none; color: #fff; }
+.ico svg { width: 18px; height: 18px; }
+.row .main { flex: 1; min-width: 0; }
+.row .t { font: 500 16px var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .s { font: 400 13.5px var(--font); color: var(--text-2); margin-top: 1px; }
+.row .r { font: 600 14px var(--font); color: var(--text-2); }
+.check { width: 24px; height: 24px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--text-3); flex: none; }
+.btns { display: flex; gap: 6px; }
+.btn { padding: 7px 13px; border-radius: 999px; font: 650 13.5px var(--font); }
+.btn.go { background: var(--accent); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
+.btn.soft { background: var(--glass-weak); box-shadow: inset 0 0 0 1px var(--separator); color: var(--text-2); }
+.pill-tag { font: 650 12px var(--font); padding: 3px 8px; border-radius: 999px; }
+
+/* ---------- money ---------- */
+.segment { display: flex; padding: 3px; margin: 0 2px 14px; }
+.segment span { flex: 1; text-align: center; padding: 8px 0; border-radius: 999px; font: 600 14px var(--font); color: var(--text-2); }
+.segment span.on { background: var(--glass-strong); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,.08), inset 0 1px 0 var(--glass-edge); }
+.total { padding: 20px 18px; }
+.total .k { font: 500 14px var(--font); color: var(--text-2); }
+.total .v { font: 700 40px/1.1 var(--font); letter-spacing: -.02em; margin-top: 4px; }
+.total .d { margin-top: 8px; font: 600 14px var(--font); }
+.spark { margin-top: 14px; height: 54px; width: 100%; }
+.cat { padding: 12px 16px; }
+.cat .top { display: flex; justify-content: space-between; align-items: baseline; font: 500 15.5px var(--font); }
+.cat .top b { font-weight: 650; }
+.bar { height: 8px; border-radius: 6px; background: var(--separator); margin-top: 8px; overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 6px; }
+.chg { font: 600 12.5px var(--font); margin-left: 6px; }
+
+/* ---------- more ---------- */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tile { padding: 16px; height: 112px; display: flex; flex-direction: column; justify-content: space-between; }
+.tile .tt { font: 650 16px var(--font); }
+.tile .ts { font: 500 13px var(--font); color: var(--text-2); }
+.toggle { width: 51px; height: 31px; border-radius: 999px; background: var(--green); position: relative; flex: none;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.12); }
+.toggle::after { content: ""; position: absolute; width: 27px; height: 27px; border-radius: 50%; top: 2px; right: 2px;
+  background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+.toggle.off { background: var(--separator); }
+.toggle.off::after { right: auto; left: 2px; }
+
+/* ---------- lock screen ---------- */
+.lock .time { text-align: center; font: 700 86px/1 var(--font); letter-spacing: -.03em; margin-top: 34px; }
+.lock .date { text-align: center; font: 600 19px var(--font); color: var(--text-2); margin-top: 6px; }
+.notifs { position: absolute; left: 12px; right: 12px; top: 330px; display: flex; flex-direction: column; gap: 9px; }
+.notif { display: flex; gap: 11px; padding: 13px 14px; border-radius: 24px; }
+.notif .appi { width: 38px; height: 38px; border-radius: 10px; flex: none; display: grid; place-items: center; color: #fff;
+  background: radial-gradient(circle at 30% 25%, #a5adff, var(--accent) 55%, var(--accent-2)); font: 700 17px var(--font); }
+.notif .h { display: flex; justify-content: space-between; font: 650 15px var(--font); }
+.notif .h span { font: 500 13px var(--font); color: var(--text-2); }
+.notif .b { font: 400 14.5px/1.35 var(--font); margin-top: 2px; }
+.notif .acts { display: flex; gap: 6px; margin-top: 8px; }
+.lockbar { position: absolute; bottom: 44px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 46px; }
+</style>
+</head>
+<body>
+<script>
+// Icons: simple line glyphs in the spirit of SF Symbols.
+const I = {
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z"/></svg>',
+  today: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  money: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5h10M7 9h10M7 5c4 0 6 1.6 6 4s-2 4-6 4h-.5L14 20"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/></svg>',
+  mic: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
+  plus: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  play: '<svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><path d="M7 4.5v15l12-7.5z"/></svg>',
+  bell: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><rect x="4" y="5.5" width="16" height="14" rx="3"/><path d="M4 10h16M9 3.5v3M15 3.5v3"/></svg>',
+  pill: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><rect x="3" y="8" width="18" height="8" rx="4" transform="rotate(-35 12 12)"/><path d="M9.5 8.7l5 6.6"/></svg>',
+  renew: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M19 8a7.5 7.5 0 0 0-13.5 1M5 16a7.5 7.5 0 0 0 13.5-1M19 3.5V8h-4.5M5 20.5V16h4.5"/></svg>',
+  task: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  apple: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M8 6.5h11M8 12h11M8 17.5h11"/><circle cx="4.5" cy="6.5" r=".8" fill="#fff"/><circle cx="4.5" cy="12" r=".8" fill="#fff"/><circle cx="4.5" cy="17.5" r=".8" fill="#fff"/></svg>',
+  food: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5M16 21V3c2.5 1.5 3.5 4 3.5 7.5H16"/></svg>',
+  plane: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><path d="M21 15.5v-2l-8-5V4a1.5 1.5 0 0 0-3 0v4.5l-8 5v2l8-2.5v4.5l-2.5 2v1.5l4-1 4 1V20l-2.5-2v-4.5z"/></svg>',
+  people: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5.2a3.5 3.5 0 0 1 0 6.6M18.5 14.5a6.5 6.5 0 0 1 3 5.5"/></svg>',
+  bag: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12.5H6zM9 8V6.5a3 3 0 0 1 6 0V8"/></svg>',
+  card: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1"><rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="M3 10h18"/></svg>',
+  doc: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6zM14 3v4h4"/></svg>',
+  brain: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M9 4.5a3 3 0 0 0-3 3 3 3 0 0 0-1.5 5.5A3 3 0 0 0 9 18v1.5M15 4.5a3 3 0 0 1 3 3 3 3 0 0 1 1.5 5.5A3 3 0 0 1 15 18v1.5M9 4.5a3 3 0 0 1 6 0V19.5"/></svg>',
+  gear: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>',
+  search: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>',
+  chev: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+};
+const status = `<div class="island"></div><div class="status"><span>9:41</span><span class="icons">
+  <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+  <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 2.2c2.3 0 4.4.9 6 2.4l1.2-1.3A10.2 10.2 0 0 0 8 .4 10.2 10.2 0 0 0 .8 3.3L2 4.6a8.4 8.4 0 0 1 6-2.4Zm0 3.6c1.3 0 2.5.5 3.4 1.3l1.2-1.3A6.6 6.6 0 0 0 8 4a6.6 6.6 0 0 0-4.6 1.8l1.2 1.3A4.9 4.9 0 0 1 8 5.8ZM8 9.4l1.9-2a2.9 2.9 0 0 0-3.8 0Z"/></svg>
+  <svg width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="18" height="9" rx="2" fill="currentColor"/><rect x="24.5" y="4.5" width="1.6" height="4" rx=".8" fill="currentColor" opacity=".5"/></svg></span></div>`;
+const tabbar = (on) => `<div class="tabbar glass pill">${[["chat","Chat"],["today","Today"],["money","Money"],["more","More"]]
+  .map(([k, n]) => `<div class="tab ${k === on ? "active" : ""}">${I[k]}${k === "today" ? '<span class="badge">3</span>' : ""}<span>${n}</span></div>`).join("")}</div><div class="home-ind"></div>`;
+const wave = [8,14,20,12,22,16,9,18,24,13,7,15,21,11,17,8,12,19,10,6].map(h => `<i style="height:${h}px"></i>`).join("");
+const ico = (svg, c) => `<div class="ico" style="background:${c}">${svg}</div>`;
+
+const screens = {
+chat: () => `${status}<div class="screen">
+  <div class="topbar"><div class="avatar">J</div><div><div class="title">Jarvis</div>
+    <div class="sub"><span class="dot"></span>Online · replies in ~5 s</div></div>
+    <div class="icon-btn glass pill">${I.search}</div></div>
+  <div class="chat">
+    <div class="day glass pill">Today</div>
+    <div class="msg me">What's on my calendar tomorrow?</div><div class="meta">9:12</div>
+    <div class="msg jarvis glass">You're free tomorrow, Sunday 1 Nov 🎉
+      <div class="card-in">${ico(I.renew, "linear-gradient(160deg,#ff9f43,#ff6b6b)")}<div><b>Heads-up:</b> Gym membership renews on 1 Dec (₹9,000)</div></div></div>
+    <div class="msg me"><div class="voice"><div class="play">${I.play}</div><div class="wave">${wave}</div><span style="font-size:13px;opacity:.85">0:04</span></div>
+      <div class="transcript">“intha maasam saapaattukku evlo selavu?”</div></div><div class="meta">9:14 · voice</div>
+    <div class="msg jarvis glass">இந்த மாதம் உணவுக்கு <b>₹4,590</b> செலவு, 27 முறை. கடந்த மாதத்தை விட 24% அதிகம்.</div>
+    <div class="msg jarvis glass typing"><i></i><i style="opacity:.7"></i><i style="opacity:.45"></i></div>
+  </div>
+  <div class="chips"><span class="chip glass">☀️ My day</span><span class="chip glass">💸 This week</span><span class="chip glass">🔔 Renewals</span></div>
+  <div class="composer glass pill"><div class="round plain">${I.plus}</div><div class="field">Message Jarvis…</div><div class="round accent">${I.mic}</div></div>
+  ${tabbar("chat")}</div>`,
+
+today: () => `${status}<div class="screen"><div class="scroll">
+  <div class="large-title">Today</div><div class="subtitle">Saturday, 31 October</div>
+  <div class="glass hero"><div class="hello">Good evening, Guru 👋</div>
+    <div class="line">No more events today. 2 things are due this week, and Netflix renews on Thursday.</div>
+    <div class="stats"><div class="stat"><b>₹6,781</b><span>spent today</span></div><div class="stat"><b>2</b><span>tasks due</span></div><div class="stat"><b>9</b><span>reminders</span></div></div></div>
+  <div class="section">Next up <a>Calendar</a></div>
+  <div class="glass list">
+    <div class="row">${ico(I.cal, "linear-gradient(160deg,#5b8cff,#4f5bff)")}<div class="main"><div class="t">Diwali / Deepavali</div><div class="s">Sun 8 Nov · All day</div></div></div>
+  </div>
+  <div class="section">To do <a>See all 11</a></div>
+  <div class="glass list">
+    <div class="row"><div class="check"></div><div class="main"><div class="t">Re-connect Google Calendar</div><div class="s">Due Tue 3 Nov</div></div><span class="pill-tag" style="background:rgba(229,72,77,.14);color:var(--red)">High</span></div>
+    <div class="row"><div class="check"></div><div class="main"><div class="t">L&amp;T finance EMI</div><div class="s">iPhone Reminders · Tue 3 Nov</div></div>${I.chev}</div>
+  </div>
+  <div class="section">Medicines</div>
+  <div class="glass list">
+    <div class="row">${ico(I.pill, "linear-gradient(160deg,#3ddc97,#1aa36b)")}<div class="main"><div class="t">Vitamin D3</div><div class="s">60000 IU · 9 pm</div></div><div class="btns"><span class="btn soft">Skip</span><span class="btn go">Taken</span></div></div>
+  </div>
+  </div>${tabbar("today")}</div>`,
+
+money: () => `${status}<div class="screen"><div class="scroll">
+  <div class="large-title">Money</div><div class="subtitle">HDFC + ICICI alerts</div>
+  <div class="segment glass pill"><span>Today</span><span class="on">Week</span><span>Month</span><span>Year</span></div>
+  <div class="glass total"><div class="k">Spent this week · 26 payments</div><div class="v">₹1,01,347</div>
+    <div class="d" style="color:var(--orange)">↑ 25% vs last week</div>
+    <svg class="spark" viewBox="0 0 320 54" preserveAspectRatio="none"><defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".35"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+      <path d="M0 44 L46 40 L92 46 L138 30 L184 36 L230 22 L276 8 L320 14 L320 54 L0 54Z" fill="url(#g)"/><path d="M0 44 L46 40 L92 46 L138 30 L184 36 L230 22 L276 8 L320 14" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linejoin="round"/></svg></div>
+  <div class="section">By category</div>
+  <div class="glass list">
+    <div class="cat"><div class="top"><span>✈️ Travel &amp; fuel</span><b>₹67,941</b></div><div class="bar"><i style="width:100%;background:linear-gradient(90deg,#5b8cff,#4f5bff)"></i></div></div>
+    <div class="cat"><div class="top"><span>💳 Loans &amp; credit <span class="chg" style="color:var(--green)">↓ 25%</span></span><b>₹16,544</b></div><div class="bar"><i style="width:24%;background:linear-gradient(90deg,#c08cff,#7a5cff)"></i></div></div>
+    <div class="cat"><div class="top"><span>👥 Sent to people <span class="chg" style="color:var(--green)">↓ 71%</span></span><b>₹14,867</b></div><div class="bar"><i style="width:22%;background:linear-gradient(90deg,#3ddc97,#1aa36b)"></i></div></div>
+    <div class="cat"><div class="top"><span>🍽️ Food &amp; dining <span class="chg" style="color:var(--orange)">↑ 24%</span></span><b>₹1,182</b></div><div class="bar"><i style="width:6%;background:linear-gradient(90deg,#ffb36b,#ff8a3d)"></i></div></div>
+  </div>
+  <div class="section">Unusually large</div>
+  <div class="glass list">
+    <div class="row">${ico(I.plane, "linear-gradient(160deg,#5b8cff,#4f5bff)")}<div class="main"><div class="t">Amazon Pay · Flights</div><div class="s">Sun 25 Oct · ICICI card</div></div><div class="r">₹67,941</div></div>
+  </div>
+  </div>${tabbar("money")}</div>`,
+
+more: () => `${status}<div class="screen"><div class="scroll">
+  <div class="large-title">More</div><div class="subtitle">Files, memory and settings</div>
+  <div class="tiles">
+    <div class="glass tile"><div style="color:var(--accent)">${I.doc}</div><div><div class="tt">Files</div><div class="ts">Upload PDFs &amp; photos</div></div></div>
+    <div class="glass tile"><div style="color:#a35cff">${I.brain}</div><div><div class="tt">Memory</div><div class="ts">19 facts · 1 to review</div></div></div>
+    <div class="glass tile"><div style="color:var(--orange)">${I.bell}</div><div><div class="tt">Renewals</div><div class="ts">Netflix in 5 days</div></div></div>
+    <div class="glass tile"><div style="color:var(--text-2)">${I.gear}</div><div><div class="tt">Settings</div><div class="ts">Voice, quiet hours</div></div></div>
+  </div>
+  <div class="section">Notifications</div>
+  <div class="glass list">
+    <div class="row"><div class="main"><div class="t">Morning brief</div><div class="s">Every day at 7:30</div></div><div class="toggle"></div></div>
+    <div class="row"><div class="main"><div class="t">Reminders &amp; medicines</div><div class="s">When they're due</div></div><div class="toggle"></div></div>
+    <div class="row"><div class="main"><div class="t">Bills &amp; renewals</div><div class="s">30 and 2 days before</div></div><div class="toggle"></div></div>
+    <div class="row"><div class="main"><div class="t">Weekly &amp; monthly reports</div><div class="s">Sun 7 pm · 1st at 9 am</div></div><div class="toggle"></div></div>
+    <div class="row"><div class="main"><div class="t">Also send to Telegram</div><div class="s">Until Sat 7 Nov</div></div><div class="toggle"></div></div>
+    <div class="row"><div class="main"><div class="t">Quiet hours</div><div class="s">11 pm – 7 am</div></div><div class="toggle off"></div></div>
+  </div>
+  </div>${tabbar("more")}</div>`,
+
+lock: () => `${status}<div class="screen lock">
+  <div class="time">7:30</div><div class="date">Sunday, 1 November</div>
+  <div class="notifs">
+    <div class="notif glass"><div class="appi">J</div><div style="flex:1"><div class="h">Jarvis <span>now</span></div>
+      <div class="b"><b>☀️ Good morning, Guru!</b> No events today · 14 unread emails · Spent ₹6,781 yesterday</div></div></div>
+    <div class="notif glass"><div class="appi">J</div><div style="flex:1"><div class="h">Jarvis <span>9:00 am</span></div>
+      <div class="b">🔔 Gym membership renews in 30 days (Tue 1 Dec), ₹9,000.</div></div></div>
+    <div class="notif glass"><div class="appi">J</div><div style="flex:1"><div class="h">Jarvis <span>9:00 pm</span></div>
+      <div class="b">💊 Time for Vitamin D3 60000 IU</div>
+      <div class="acts"><span class="btn soft">Skip</span><span class="btn go">Taken</span></div></div></div>
+  </div>
+  <div class="lockbar"><div class="round glass">${'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3h6l-1 6h3l-6 12 1-8H9z"/></svg>'}</div><div class="round glass">${'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="3"/><circle cx="12" cy="12.5" r="3.5"/></svg>'}</div></div>
+  <div class="home-ind"></div></div>`,
+};
+
+const q = new URLSearchParams(location.search);
+const theme = q.get("theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+document.documentElement.dataset.theme = theme;
+const names = { lock: "Notifications", chat: "Chat", today: "Today", money: "Money", more: "More" };
+if (q.get("board")) {
+  document.body.classList.add("board");
+  document.body.innerHTML = Object.keys(names).map(k =>
+    `<div><div class="device"><div class="blob-c"></div>${screens[k]()}</div><div class="label">${names[k]}</div></div>`).join("");
+} else {
+  const k = q.get("screen") || "chat";
+  document.body.innerHTML = `<div class="device"><div class="blob-c"></div>${screens[k]()}</div>`;
+}
+</script>
+</body>
+</html>

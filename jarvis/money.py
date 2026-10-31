@@ -189,8 +189,9 @@ def summary(start: str, end: str | None = None) -> dict:
 CATEGORIES = [
     ("Food & dining", r"zomato|eternal limited|swiggy|caf[eé]|restaurant|hotel|\btea\b|bakery|bakes|food|delicacy|"
                       r"dhaba|biryani|juice|\bmess\b|kitchen|militery|military|pizza|burger|coffee|chai|chaha|tiffin|"
-                      r"\bbun\b|\bqsr\b|paan|\beat"),
-    ("Groceries", r"super ?market|milk|nandini|bigbasket|blinkit|zepto|dmart|instamart|fresh|grocer|vegetable|fruit"),
+                      r"\bbun\b|\bqsr\b|paan|\bpan shop|\bkfc\b|ahaara|\beat"),
+    ("Groceries", r"super ?market|milk|nandini|bigbasket|blinkit|zepto|dmart|instamart|fresh|grocer|vegetable|fruit|"
+               r"\begg\b|coconut|flower"),
     ("Travel & fuel", r"flight|makemytrip|redbus|irctc|\buber\b|\bola\b|rapido|metro|fuel|petrol|indigo|air ?india|"
                       r"\bcabs?\b|travel"),
     ("Shopping", r"amazon|flipkart|myntra|ajio|meesho|gift|stories|high ?street|\bmall\b|trends|decathlon|clothing|"

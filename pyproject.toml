@@ -16,6 +16,10 @@ dependencies = [
   "recurring-ical-events",
   "google-api-python-client",
   "google-auth-oauthlib",
+  "starlette",
+  "uvicorn",
+  "pywebpush",
+  "py-vapid",
 ]
 
 [project.scripts]
@@ -26,6 +30,8 @@ jarvis-auth = "jarvis.auth:main"
 jarvis-briefing = "jarvis.briefing:briefing"
 jarvis-weekly = "jarvis.briefing:weekly"
 jarvis-monthly = "jarvis.briefing:monthly"
+jarvis-web = "jarvis.web.server:main"
+jarvis-notify = "jarvis.web.notify:main"
 jarvis-renewal-alerts = "jarvis.renewals:alerts"
 jarvis-task-sync = "jarvis.briefing:task_sync"
 jarvis-reminders = "jarvis.briefing:reminders"
