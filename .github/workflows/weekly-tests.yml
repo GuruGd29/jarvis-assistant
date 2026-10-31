@@ -1,0 +1,85 @@
+# Weekly test run: builds a throwaway Jarvis on a GitHub runner (fake data, the real code, Hermes and
+# the Qwen3 4B model) and runs tests/ci/run_tests.py. No secrets are used and none of the owner's data
+# is involved, so the public logs and reports are safe to share.
+name: Weekly tests
+
+on:
+  schedule:
+    - cron: "30 20 * * 6"   # Sunday 02:00 India time (Saturday 20:30 UTC)
+  workflow_dispatch:
+  push:
+    branches: [ci-tests]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-tests
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      JARVIS_CI: "1"
+      JARVIS_DB_HOST: 127.0.0.1
+      JARVIS_DB_PORT: "5433"
+      JARVIS_DB_NAME: jarvis
+      JARVIS_DB_USER: jarvis
+      JARVIS_DB_PASSWORD: ci-only-throwaway
+      JARVIS_TIMEZONE: Asia/Kolkata
+      TZ: Asia/Kolkata
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: jarvis
+          POSTGRES_PASSWORD: ci-only-throwaway
+          POSTGRES_DB: jarvis
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U jarvis" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ollama/models
+            models
+          key: models-qwen3-4b-2507-bge-m3-v1
+
+      - name: Build the test Jarvis
+        run: tests/ci/setup.sh
+
+      - name: Unit tests
+        run: .venv/bin/python -m unittest discover tests -v
+
+      - name: Test cases
+        id: cases
+        continue-on-error: true
+        run: .venv/bin/python tests/ci/run_tests.py --out reports
+
+      - name: Report on the run page
+        if: always()
+        run: |
+          if [ -f reports/report.md ]; then cat reports/report.md >> "$GITHUB_STEP_SUMMARY"; else echo "No report was written." >> "$GITHUB_STEP_SUMMARY"; fi
+          cp "$RUNNER_TEMP"/*.log reports/ 2>/dev/null || true
+
+      - name: Upload the report (HTML + CSV + logs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-test-report
+          path: reports/
+          retention-days: 90
+
+      - name: Fail when a test case failed
+        if: steps.cases.outcome == 'failure'
+        run: exit 1
