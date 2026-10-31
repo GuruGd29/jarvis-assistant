@@ -161,14 +161,16 @@ def format_emails(results: list[dict[str, Any]], query: str) -> str:
 def format_calendar(a: dict[str, Any]) -> str:
     if not a["sources"]:
         return "[Jarvis calendar: no calendar is connected, so this is NOT an empty day. Tell the user to run jarvis-auth.]"
-    lines = [f"[Jarvis calendar (EXACT, Google + Apple) for {a['period']}: all of the user's events in that period. "
-             "Answer from this list; for other dates call mcp__jarvis_rag__calendar_agenda.]"]
+    # Without "complete, do not look it up again" the model re-checked weeks and empty days with a tool call.
+    lines = [f"[Jarvis calendar (EXACT, Google + Apple, read just now) for {a['period']}: this is the COMPLETE list "
+             "of the user's events in that period, even if it is empty. Answer from it directly; do not call "
+             "calendar_agenda for these dates (only for other dates).]"]
     for e in a["events"]:
         when = f"{e['start'][:10]} all day" if e["all_day"] else f"{e['start'][:10]} {e['start'][-5:]}-{(e['end'] or '')[-5:]}"
         where = f" @ {e['location']}" if e.get("location") else ""
         lines.append(f"- {when} {e['title']}{where} ({e['source']})")
     if not a["events"]:
-        lines.append("- no events")
+        lines.append("- no events: the user's calendar is free for that whole period")
     lines += [f"- WARNING: could not read the {source} calendar; say the list may be incomplete." for source in a["errors"]]
     return "\n".join(lines)
 
@@ -267,9 +269,37 @@ class JarvisMemoryProvider(MemoryProvider):
                 logger.info("Jarvis pending action %s approved by the user", approved)
         except Exception as error:
             logger.warning("Jarvis approval check failed: %s", error)
+        self._attachment_note = self._save_attachments(message)
+
+    def _save_attachments(self, text: str) -> Optional[str]:
+        """Files sent on Telegram (Hermes notes their cached path in the message) go into ~/Jarvis and the index.
+        Called from turn start and again from prefetch, whichever sees the note first; each file is saved once."""
+        if "/.hermes/cache/" not in (text or ""):
+            return None
+        seen = self.__dict__.setdefault("_saved_attachment_paths", set())
+        paths = set(re.findall(r"\S+/\.hermes/cache/\S+", text)) - seen
+        if not paths:
+            return None
+        seen.update(paths)
+        try:
+            # Embedding a long PDF takes a while, so this one gets more time than the lookups.
+            saved = self._search.request({"op": "attachments", "message": text}, timeout=60.0).get("results")
+        except Exception as error:
+            logger.warning("Jarvis could not save the attachment: %s", error)
+            return None
+        if not saved:
+            return None
+        lines = ["[Jarvis saved the file(s) the user sent into their ~/Jarvis folder; searchable ones are indexed now. "
+                 "Tell the user briefly where each was saved. Do not try to extract the text yourself.]"]
+        lines += [f"- {s['file']}: {s['status']}" for s in saved]
+        return "\n".join(lines)
 
     def prefetch(self, query: str, *, session_id: str = "") -> str:
+        attachment_note = getattr(self, "_attachment_note", None) or self._save_attachments(query)
+        self._attachment_note = None
         block = self._context(query)
+        if attachment_note:
+            block = attachment_note + ("\n\n" + block if block else "")
         # The 4B model drifts into English when the blocks above are English; a note next to the question holds it.
         # Tamil script costs about four times the tokens of English, so a long Tamil reply takes a minute or more.
         if block and _TAMIL_SCRIPT.search(query or ""):

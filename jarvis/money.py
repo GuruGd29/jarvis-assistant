@@ -184,6 +184,79 @@ def summary(start: str, end: str | None = None) -> dict:
     }
 
 
+# Categories from the merchant name, first match wins; anything else that looks like a person's
+# name or a UPI id is "Sent to people". Extend the lists as new merchants show up.
+CATEGORIES = [
+    ("Food & dining", r"zomato|eternal limited|swiggy|caf[eé]|restaurant|hotel|\btea\b|bakery|bakes|food|delicacy|"
+                      r"dhaba|biryani|juice|\bmess\b|kitchen|militery|military|pizza|burger|coffee|chai|chaha|tiffin|"
+                      r"\bbun\b|\bqsr\b|paan|\beat"),
+    ("Groceries", r"super ?market|milk|nandini|bigbasket|blinkit|zepto|dmart|instamart|fresh|grocer|vegetable|fruit"),
+    ("Travel & fuel", r"flight|makemytrip|redbus|irctc|\buber\b|\bola\b|rapido|metro|fuel|petrol|indigo|air ?india|"
+                      r"\bcabs?\b|travel"),
+    ("Shopping", r"amazon|flipkart|myntra|ajio|meesho|gift|stories|high ?street|\bmall\b|trends|decathlon|clothing|"
+                 r"fashion"),
+    ("Bills & subscriptions", r"airtel|\bjio\b|vodafone|bescom|electric|broadband|netflix|spotify|google|apple|oracle|"
+                              r"ctrlx|recharge|insurance|hostinger|\baws\b"),
+    ("Loans & credit", r"\bemi\b|loan|slice|credit card|\blic\b"),
+    ("Cash withdrawals", r"euronet|\batm\b|\bcash\b"),
+    ("Health", r"pharma|medical|hospital|clinic|apollo|medplus|diagnos|\blabs?\b"),
+    ("Entertainment", r"club|resort|\bpvr\b|inox|bookmyshow|movie|\bbar\b|tasmac"),
+]
+_CATEGORY_RES = [(name, re.compile(pattern, re.I)) for name, pattern in CATEGORIES]
+_BUSINESS = re.compile(r"\b(pvt|private|ltd|limited|llp|services|india|technologies|store|shop|centre|center|"
+                       r"enterprises|traders|agency)\b", re.I)
+
+
+def category(counterparty: str | None) -> str:
+    name = (counterparty or "").strip()
+    for label, pattern in _CATEGORY_RES:
+        if pattern.search(name):
+            return label
+    words = name.replace(".", " ").split()
+    if "@" in name or re.match(r"^(mr|mrs|ms|dr)\b", name, re.I) or (
+            1 <= len(words) <= 4 and len(name) >= 4 and not _BUSINESS.search(name)
+            and all(w.isalpha() for w in words)):
+        return "Sent to people"
+    return "Other"
+
+
+def insights(start: str, end: str) -> dict:
+    """Spending by category for start..end against the same number of days before it, plus unusual
+    payments (well above the usual size) and merchants not paid in the 60 days before."""
+    first, last = date.fromisoformat(start), date.fromisoformat(end)
+    span = (last - first).days + 1
+    prev_first = first - timedelta(days=span)
+    with psycopg.connect(config.DB_DSN, row_factory=dict_row) as conn:
+        rows = conn.execute(
+            """SELECT occurred_on, kind, amount, counterparty FROM transactions
+               WHERE occurred_on BETWEEN %s AND %s AND direction = 'debit' AND NOT is_self
+                 AND kind <> 'card_bill_payment'""", (first - timedelta(days=60), last)).fetchall()
+    now = [r for r in rows if r["occurred_on"] >= first]
+    before = [r for r in rows if prev_first <= r["occurred_on"] < first]
+    history = {(r["counterparty"] or "").strip().lower() for r in rows if r["occurred_on"] < first}
+
+    def by_category(items):
+        out: dict[str, float] = {}
+        for r in items:
+            out[category(r["counterparty"])] = out.get(category(r["counterparty"]), 0.0) + float(r["amount"])
+        return out
+
+    current, previous = by_category(now), by_category(before)
+    cats = [{"category": c, "total": round(t, 2), "previous": round(previous.get(c, 0.0), 2),
+             "payments": sum(1 for r in now if category(r["counterparty"]) == c)}
+            for c, t in sorted(current.items(), key=lambda kv: kv[1], reverse=True)]
+    amounts = sorted(float(r["amount"]) for r in rows)
+    typical = amounts[len(amounts) // 2] if amounts else 0.0
+    unusual = [f"{r['occurred_on']} ₹{r['amount']:,.2f} {r['counterparty'] or ''} ({category(r['counterparty'])})"
+               for r in sorted(now, key=lambda r: r["amount"], reverse=True)
+               if float(r["amount"]) >= max(5000.0, typical * 10)][:5]
+    new = sorted({(r["counterparty"] or "").strip() for r in now
+                  if (r["counterparty"] or "").strip() and (r["counterparty"] or "").strip().lower() not in history})
+    return {"period": f"{first} to {last}", "compared_with": f"{prev_first} to {first - timedelta(days=1)}",
+            "by_category": cats, "unusual_payments": unusual, "new_merchants": new[:10],
+            "note": "From HDFC and ICICI alert emails only; categories are guessed from merchant names."}
+
+
 _MONEY_WORDS = re.compile(r"\b(spen[dt]|spending|expenses?|paid|pay(ment)?s?|transactions?|debited|credited|"
                           r"received|money|upi|how much)\b"
                           # Tamil and Tanglish stems ("selavu", "kattinen"); Tamil vowel signs are not \w, so no \b there.

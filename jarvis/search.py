@@ -117,6 +117,14 @@ def _quick_reply(message: str) -> str | None:
     """Record a short reply to a reminder directly, so it never depends on the model calling a tool."""
     from . import health, tasks
 
+    if m := re.fullmatch(r"\s*clean\s*up((?:[\s,#]+\d+)*)\s*[.!]?\s*", message or "", re.I):
+        from . import learn  # the weekly memory clean-up, approved by the user's own reply
+
+        return learn.apply_review([int(n) for n in re.findall(r"\d+", m[1])] or None)
+    if m := re.fullmatch(r"\s*restore\s*#?(\d+)\s*[.!]?\s*", message or "", re.I):
+        from . import learn
+
+        return learn.restore_fact(int(m[1]))
     m = re.fullmatch(r"\s*(taken|took|skip|skipped|done)\s*#?(\d+)\s*[.!]?\s*", message or "", re.I)
     if not m:
         return None
@@ -165,6 +173,13 @@ def serve() -> None:
                 sys.stdout.write(json.dumps(reply, default=str) + "\n")
                 sys.stdout.flush()
                 continue
+            if request.get("op") == "attachments":  # files sent on Telegram: save into ~/Jarvis and index
+                from .ingest import save_attachments
+
+                reply = {"id": request.get("id"), "results": save_attachments(request.get("message", ""))}
+                sys.stdout.write(json.dumps(reply, default=str) + "\n")
+                sys.stdout.flush()
+                continue
             if request.get("op") == "calendar":  # the agenda for a calendar question, for the plugin's prefetch
                 from .calendars import agenda_for_text
 
@@ -173,10 +188,16 @@ def serve() -> None:
                 sys.stdout.flush()
                 continue
             if request.get("op") == "money":  # exact totals for a money question, for the plugin's prefetch
-                from .money import period_from_text, summary
+                from .money import insights, period_from_text, summary
 
                 period = period_from_text(request.get("message", ""))
-                reply = {"id": request.get("id"), "results": summary(*period) if period else None}
+                result = summary(*period) if period else None
+                if result and period[0] != period[1]:
+                    # "How much on food this month?": the plugin prints the note line, so categories ride on it.
+                    cats = insights(*period)["by_category"]
+                    result["note"] += "\nBy category (guessed from merchant names): " + "; ".join(
+                        f"{c['category']} ₹{c['total']:,.2f} ({c['payments']} payments)" for c in cats)
+                reply = {"id": request.get("id"), "results": result}
                 sys.stdout.write(json.dumps(reply, default=str) + "\n")
                 sys.stdout.flush()
                 continue

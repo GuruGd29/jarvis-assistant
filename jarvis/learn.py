@@ -5,7 +5,9 @@ module turns queued messages into short facts and a dated summary of each chat w
 relevant ones again before each reply. "remember ...", "forget ..." and "what do you know about
 me" are handled straight away, without waiting for the queue.
 
-Usage: jarvis-learn    process the queue (Hermes cron, nightly at 02:30; prints nothing)
+Usage: jarvis-learn            process the queue (Hermes cron, nightly at 02:30; prints nothing)
+       jarvis-memory-review    weekly: suggest facts to archive; nothing changes until the user replies
+                               "clean up" (or "clean up 3 7"); "restore 12" brings one back
 """
 import json
 import re
@@ -166,6 +168,104 @@ def learn_from_queue() -> None:
             if summary and substantial and not _SENSITIVE.search(summary):
                 remember(summary, f"chat {day}", kind="episode")
     batch.unlink()
+
+
+# --- Weekly clean-up: suggested by the model, applied only after the user agrees -----------------
+REVIEW_FILE = config.SYSTEM_DIR / "state" / "memory-review.json"
+REVIEW_VALID_DAYS = 7
+MAX_SHARE_REMOVED = 0.4   # never suggest removing more than this share of all facts at once
+
+_REVIEW_PROMPT = """Below are facts a personal assistant remembers about its user, oldest first, as
+"#id (date) fact". Choose the ones to REMOVE:
+- duplicates or near-duplicates (keep the newer or more complete one, remove the other);
+- facts contradicted by a newer fact;
+- vague facts that say nothing concrete about the user (e.g. "User asked about X",
+  "User is concerned about someone");
+- one-time things that are over (e.g. an appointment on a past day).
+KEEP everything concrete and lasting: people, preferences, health, accounts, vehicles, routines.
+Give each reason in 2-5 words. Reply as JSON: {{"remove": [{{"id": 12, "reason": "duplicate of #15"}}]}},
+or {{"remove": []}}.
+
+Facts:
+{facts}
+"""
+
+
+def review_memory() -> list[dict]:
+    """Ask the model which facts to archive; saves the suggestion for the user's "clean up" reply."""
+    with _connect() as conn:
+        rows = conn.execute("SELECT id, fact, updated_at FROM facts WHERE kind = 'fact' ORDER BY updated_at").fetchall()
+    if len(rows) < 5:
+        return []
+    by_id = {r[0]: r[1] for r in rows}
+    listing = "\n".join(f"#{r[0]} ({r[2]:%d %b %Y}) {r[1]}" for r in rows)
+    response = httpx.post(f"{config.OLLAMA_URL}/api/generate", timeout=600, json={
+        "model": EXTRACT_MODEL, "prompt": _REVIEW_PROMPT.format(facts=listing), "format": "json",
+        "stream": False, "keep_alive": "2h", "options": {"temperature": 0}})
+    response.raise_for_status()
+    picked = json.loads(response.json()["response"]).get("remove", [])
+    suggestions, seen = [], set()
+    for item in picked if isinstance(picked, list) else []:
+        fact_id = item.get("id") if isinstance(item, dict) else None
+        if isinstance(fact_id, int) and fact_id in by_id and fact_id not in seen:
+            seen.add(fact_id)
+            suggestions.append({"id": fact_id, "fact": by_id[fact_id], "reason": str(item.get("reason", ""))[:80]})
+    for fact_id, fact in by_id.items():  # one-day facts are always suggested
+        if fact_id not in seen and _ONE_DAY.search(fact):
+            suggestions.append({"id": fact_id, "fact": fact, "reason": "about one day only"})
+    suggestions = suggestions[:max(1, int(len(rows) * MAX_SHARE_REMOVED))]
+    REVIEW_FILE.write_text(json.dumps({"made": datetime.now().isoformat(), "suggestions": suggestions}))
+    return suggestions
+
+
+def weekly_review() -> None:
+    """Hermes cron: the suggestion as a Telegram message; prints nothing when memory is tidy."""
+    suggestions = review_memory()
+    if not suggestions:
+        return
+    lines = [f"🧹 Memory clean-up: {len(suggestions)} fact{'s' if len(suggestions) != 1 else ''} look outdated or duplicated"]
+    lines += [f"  #{s['id']} {s['fact']} ({s['reason']})" for s in suggestions]
+    lines.append('\nReply "clean up" to archive all of them, "clean up 12 15" for only some, or ignore this to keep '
+                 'everything. Archived facts can come back with "restore 12".')
+    print("\n".join(lines))
+
+
+def apply_review(ids: list[int] | None = None) -> str:
+    """Archive the suggested facts (all, or only `ids`); only facts in this week's suggestion qualify."""
+    if not REVIEW_FILE.exists():
+        return "There is no memory clean-up waiting."
+    review = json.loads(REVIEW_FILE.read_text())
+    if (datetime.now() - datetime.fromisoformat(review["made"])).days > REVIEW_VALID_DAYS:
+        return "That memory clean-up suggestion has expired; a new one comes on Sunday."
+    allowed = {s["id"]: s["reason"] for s in review["suggestions"]}
+    chosen = [i for i in (ids or list(allowed)) if i in allowed]
+    if not chosen:
+        return "None of those numbers were in this week's clean-up list."
+    with _connect() as conn:
+        for fact_id in chosen:
+            conn.execute("""INSERT INTO facts_archive (id, fact, source, kind, embedding, created_at, updated_at, reason)
+                            SELECT id, fact, source, kind, embedding, created_at, updated_at, %s FROM facts WHERE id = %s
+                            ON CONFLICT (id) DO NOTHING""", (allowed[fact_id], fact_id))
+            conn.execute("DELETE FROM facts WHERE id = %s", (fact_id,))
+    remaining = [s for s in review["suggestions"] if s["id"] not in chosen]
+    if remaining:
+        REVIEW_FILE.write_text(json.dumps({**review, "suggestions": remaining}))
+    else:
+        REVIEW_FILE.unlink()
+    return f"Archived {len(chosen)} fact{'s' if len(chosen) != 1 else ''}: " + ", ".join(f"#{i}" for i in chosen) \
+        + '. Say "restore <number>" to bring one back.'
+
+
+def restore_fact(fact_id: int) -> str:
+    with _connect() as conn:
+        row = conn.execute("SELECT fact FROM facts_archive WHERE id = %s", (fact_id,)).fetchone()
+        if not row:
+            return f"No archived fact #{fact_id}."
+        conn.execute("""INSERT INTO facts (id, fact, source, kind, embedding, created_at, updated_at)
+                        SELECT id, fact, source, kind, embedding, created_at, updated_at FROM facts_archive WHERE id = %s
+                        ON CONFLICT (id) DO NOTHING""", (fact_id,))
+        conn.execute("DELETE FROM facts_archive WHERE id = %s", (fact_id,))
+    return f"Restored #{fact_id}: {row[0]}"
 
 
 def main() -> None:

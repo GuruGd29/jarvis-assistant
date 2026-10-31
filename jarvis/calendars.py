@@ -26,6 +26,7 @@ GOOGLE_SIGNED_IN_AT = config.SECRETS_DIR / "google-signed-in-at"
 GOOGLE_TESTING_DAYS = 7
 ICLOUD_SECRET = config.SECRETS_DIR / "icloud.json"
 ICLOUD_URL = "https://caldav.icloud.com"
+TASKS_CALENDAR = "Jarvis Tasks"
 
 
 def _event(source: str, calendar: str, title: str, start, end, location: str | None) -> dict:
@@ -106,7 +107,9 @@ def _icloud_calendars():
     client = caldav.DAVClient(url=ICLOUD_URL, username=secret["username"], password=secret["password"])
     wanted = set(secret.get("calendars") or [])
     calendars = client.principal().calendars()
-    return [c for c in calendars if not wanted or c.get_display_name() in wanted]
+    # "Jarvis Tasks" mirrors Jarvis's own task list (sync_tasks_to_icloud); reading it back would show tasks twice.
+    return [c for c in calendars if (not wanted or c.get_display_name() in wanted)
+            and c.get_display_name() != TASKS_CALENDAR]
 
 
 def _icloud_events(start: datetime, end: datetime) -> list[dict]:
@@ -147,6 +150,112 @@ def _icloud_create(calendar_name: str | None, title: str, start: datetime, end: 
     ical.add_component(event)
     target.save_event(ical.to_ical().decode())
     return {"source": "apple", "calendar": target.get_display_name(), "id": uid}
+
+
+def sync_tasks_to_icloud(open_tasks: list[dict]) -> dict:
+    """Mirror open Jarvis tasks that have a date into the iCloud calendar "Jarvis Tasks" (created if
+    missing), so they show on the iPhone. One way: only events Jarvis made in that calendar are ever
+    changed or removed; a task with a reminder time is a 15-minute event, otherwise all day."""
+    import caldav
+    from icalendar import Calendar, Event
+
+    secret = json.loads(ICLOUD_SECRET.read_text())
+    principal = caldav.DAVClient(url=ICLOUD_URL, username=secret["username"], password=secret["password"]).principal()
+    target = next((c for c in principal.calendars() if c.get_display_name() == TASKS_CALENDAR), None)
+    if target is None:
+        target = principal.make_calendar(name=TASKS_CALENDAR, supported_calendar_component_set=["VEVENT"])
+
+    wanted = {}
+    for t in open_tasks:
+        if not (t.get("due_on") or t.get("remind_at")):
+            continue
+        event = Event()
+        event.add("uid", f"jarvis-task-{t['id']}@jarvis")
+        event.add("summary", f"☑️ {t['title']}" + (" ❗" if t.get("priority") == 1 else ""))
+        if t.get("remind_at"):
+            begin = datetime.strptime(t["remind_at"], "%Y-%m-%d %H:%M").replace(tzinfo=TZ)
+            event.add("dtstart", begin)
+            event.add("dtend", begin + timedelta(minutes=15))
+        else:
+            day = date.fromisoformat(t["due_on"])
+            event.add("dtstart", day)
+            event.add("dtend", day + timedelta(days=1))
+        event.add("dtstamp", datetime.now(TZ))
+        event.add("description", f"Jarvis task #{t['id']}" + (f"\n{t['notes']}" if t.get("notes") else "")
+                  + f"\nReply \"done {t['id']}\" to Jarvis when finished.")
+        ical = Calendar()
+        ical.add("prodid", "-//Jarvis//EN")
+        ical.add("version", "2.0")
+        ical.add_component(event)
+        wanted[str(event["uid"])] = ical
+
+    added = updated = removed = 0
+    existing = {}
+    for found in target.events():
+        uid = str(found.icalendar_component.get("uid", ""))
+        if uid.startswith("jarvis-task-"):
+            existing[uid] = found
+    for uid, ical in wanted.items():
+        new_event = ical.walk("VEVENT")[0]
+        old = existing.get(uid)
+        if old is not None:
+            old_event = old.icalendar_component
+            same = all(str(old_event.get(k)) == str(new_event.get(k)) for k in ("summary", "description")) \
+                and old_event.get("dtstart").to_ical() == new_event.get("dtstart").to_ical()
+            if same:
+                continue
+            old.delete()
+            updated += 1
+        else:
+            added += 1
+        target.save_event(ical.to_ical().decode())
+    for uid, old in existing.items():
+        if uid not in wanted:  # done, cancelled or no longer dated
+            old.delete()
+            removed += 1
+    return {"added": added, "updated": updated, "removed": removed, "calendar": TASKS_CALENDAR}
+
+
+# --- iPhone Reminders (Mac only) --------------------------------------------
+# Apple keeps upgraded iCloud Reminders out of CalDAV, so they are read through the Mac's Reminders
+# app. This works only on a Mac where the user allowed access; on a server it reports that instead.
+_REMINDERS_JS = """
+const app = Application('Reminders');
+const out = [];
+for (const l of app.lists()) {
+  const r = l.reminders.whose({completed: false});
+  const names = r.name(), dues = r.dueDate(), notes = r.body();
+  for (let i = 0; i < names.length; i++)
+    out.push({list: l.name(), title: names[i], due: dues[i] ? dues[i].toISOString() : null, notes: notes[i] || null});
+}
+JSON.stringify(out);
+"""
+_REMINDERS_CACHE: dict = {}
+REMINDERS_CACHE_SECONDS = 300  # reading Reminders takes ~12 s, so repeat questions reuse the last read
+
+
+def iphone_reminders() -> dict:
+    import shutil
+    import subprocess
+    import time
+
+    if shutil.which("osascript") is None:
+        return {"available": False, "reason": "iPhone Reminders can only be read on the Mac."}
+    if time.time() - _REMINDERS_CACHE.get("at", 0) > REMINDERS_CACHE_SECONDS:
+        done = subprocess.run(["osascript", "-l", "JavaScript", "-e", _REMINDERS_JS],
+                              capture_output=True, text=True, timeout=60)
+        if done.returncode != 0:
+            return {"available": False, "reason": f"Reminders app refused: {done.stderr.strip()[:200]}"}
+        items = []
+        for r in json.loads(done.stdout):
+            due = r.pop("due")
+            if due:
+                local = datetime.fromisoformat(due.replace("Z", "+00:00")).astimezone(TZ)
+                r["due"] = f"{local:%Y-%m-%d}" if (local.hour, local.minute) == (0, 0) else f"{local:%Y-%m-%d %H:%M}"
+            items.append(r)
+        items.sort(key=lambda r: r.get("due") or "9999")
+        _REMINDERS_CACHE.update(at=time.time(), items=items)
+    return {"available": True, "open_reminders": _REMINDERS_CACHE["items"]}
 
 
 # --- Public ------------------------------------------------------------------

@@ -1,12 +1,16 @@
 """Text for Hermes cron jobs, sent to Telegram as-is.
 
   jarvis-briefing    the morning briefing, as a finished message
+  jarvis-weekly      the Sunday evening summary of the week, as a finished message
+  jarvis-monthly     the money report for last month, on the 1st
+  jarvis-task-sync   copies dated Jarvis tasks into the iCloud calendar "Jarvis Tasks"; prints only on failure
   jarvis-reminders   reminders that are due now; prints nothing when none are due
 """
+import re
 from collections import Counter
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
-from . import calendars, health, mail, money, tasks
+from . import calendars, health, mail, money, renewals, tasks
 
 
 def _task_line(t: dict) -> str:
@@ -83,6 +87,110 @@ def briefing() -> None:
         if items:
             lines.append(f"\n{heading}\n" + "\n".join(_task_line(t) for t in items))
     print("\n".join(lines))
+
+
+def weekly() -> None:
+    """Sunday evening: the past seven days and the week ahead, from the same sources as the briefing."""
+    today = tasks.today()
+    week_start = today - timedelta(days=6)
+    lines = [f"📊 Your week, Guru: {week_start:%d %b} – {today:%d %b}"]
+
+    try:
+        week = money.summary(str(week_start), str(today))
+        before = money.summary(str(week_start - timedelta(days=7)), str(week_start - timedelta(days=1)))
+        spent, previous = week["spending_total"], before["spending_total"]
+        change = _change(spent, previous, " vs the week before")
+        lines.append(f"\n💸 Spent ₹{spent:,.2f} in {len(week['spending'])} payments{change}")
+        lines += _insight_lines(money.insights(str(week_start), str(today)), top=4)
+    except Exception as error:
+        lines.append(f"\n💸 Spending unavailable ({type(error).__name__})")
+
+    done = tasks.list_tasks("done")
+    lines.append(f"\n✅ Done this week: {len(done)} task{'s' if len(done) != 1 else ''}")
+    lines += [f"  • {t['title']}" for t in done[:5]]
+    overdue = tasks.list_tasks("overdue")
+    if overdue:
+        lines.append("\n⚠️ Still overdue\n" + "\n".join(_task_line(t) for t in overdue))
+
+    try:
+        if health.list_medications():
+            a = health.adherence(7)
+            missed = f", {len(a['not_answered'])} not answered" if a["not_answered"] else ""
+            lines.append(f"\n💊 Medicines: {a['taken']} taken, {a['skipped']} skipped{missed}")
+    except Exception as error:
+        lines.append(f"\n💊 Medicines unavailable ({type(error).__name__})")
+
+    agenda = calendars.list_events(*calendars.day_range(today + timedelta(days=1), 7))
+    lines.append("\n📅 Coming up")
+    for event in agenda["events"]:
+        day = date.fromisoformat(event["start"][:10])
+        when = f"{day:%a %d %b}" + ("" if event["all_day"] else f" {event['start'][-5:]}")
+        lines.append(f"  • {when} {event['title']}")
+    if not agenda["events"]:
+        lines.append("  • nothing on the calendar")
+    upcoming = tasks.list_tasks("upcoming")
+    if upcoming:
+        lines.append("\n🗓️ Due next week\n" + "\n".join(_task_line(t) for t in upcoming))
+    try:
+        soon = renewals.upcoming(14, today)
+        if soon:
+            lines.append("\n🔔 Renewals in the next 2 weeks")
+            lines += [f"  • {date.fromisoformat(r['date']):%a %d %b} {r['item']} {r['what']}"
+                      + (f" ({r['amount']})" if r["amount"] else "") for r in soon]
+    except Exception as error:
+        lines.append(f"\n🔔 Renewals unavailable ({type(error).__name__})")
+    print("\n".join(lines))
+
+
+def _change(now: float, before: float, versus: str = "") -> str:
+    """" (↑ 25%)", or " (×8)" for big jumps; nothing when the earlier amount is too small to compare."""
+    if before < 1000:
+        return ""
+    if now >= 3 * before:
+        return f" (×{now / before:.0f}{versus})"
+    pct = (now - before) / before * 100
+    return f" ({'↑' if pct >= 0 else '↓'} {abs(pct):.0f}%{versus})"
+
+
+def _insight_lines(i: dict, top: int) -> list[str]:
+    """Category totals with the change from the period before, then unusual and new payments."""
+    lines = []
+    for c in i["by_category"][:top]:
+        lines.append(f"  • {c['category']}: ₹{c['total']:,.0f}{_change(c['total'], c['previous'])}")
+    if i["unusual_payments"]:
+        lines.append("  Unusually large: " + "; ".join(
+            re.sub(r"^\d{4}-\d{2}-\d{2} ", "", u).split(" (")[0] for u in i["unusual_payments"][:3]))
+    return lines
+
+
+def monthly() -> None:
+    """On the 1st: last month by category against the month before, unusual payments and new merchants."""
+    first_of_this = tasks.today().replace(day=1)
+    last_month_end = first_of_this - timedelta(days=1)
+    start = last_month_end.replace(day=1)
+    i = money.insights(str(start), str(last_month_end))
+    # The headline uses the exact spending total (refunds subtracted), the same figure Jarvis quotes.
+    total = money.summary(str(start), str(last_month_end))["spending_total"]
+    before_start = (start - timedelta(days=1)).replace(day=1)
+    previous = money.summary(str(before_start), str(start - timedelta(days=1)))["spending_total"]
+    change = _change(total, previous, f" vs {before_start:%B}")
+    lines = [f"📈 {start:%B} money report, Guru", f"\n💸 Spent ₹{total:,.2f}{change}", "\nBy category"]
+    lines += _insight_lines(i, top=8)
+    if i["new_merchants"]:
+        lines.append(f"\n🆕 New this month: {', '.join(i['new_merchants'][:8])}")
+    lines.append("\n(HDFC and ICICI alert emails only; categories are guessed from merchant names.)")
+    print("\n".join(lines))
+
+
+def task_sync() -> None:
+    if "apple" not in calendars.configured_sources():
+        return
+    try:
+        calendars.sync_tasks_to_icloud(tasks.list_tasks("open"))
+    except Exception as error:
+        # Every 15 minutes: say it once an hour at most, not on every failed run.
+        if datetime.now().minute < 15:
+            print(f"⚠️ Jarvis couldn't copy your tasks to the iPhone calendar ({type(error).__name__}).")
 
 
 def google_check() -> None:
