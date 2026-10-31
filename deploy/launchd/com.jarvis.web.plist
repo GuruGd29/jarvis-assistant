@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Starts the Jarvis web app server at login and restarts it if it stops. Install (replaces /Users/YOU with your home folder):
-     sed "s|/Users/YOU|$HOME|g" ~/jarvis-system/bin/com.jarvis.web.plist > ~/Library/LaunchAgents/com.jarvis.web.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.jarvis.web.plist -->
+     sed "s|/Users/YOU|$HOME|g" ~/jarvis-system/deploy/launchd/com.jarvis.web.plist > ~/Library/LaunchAgents/com.jarvis.web.plist && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.jarvis.web.plist -->
 <plist version="1.0">
 <dict>
   <key>Label</key><string>com.jarvis.web</string>
