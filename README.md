@@ -265,8 +265,10 @@ Jarvis runs a small model on ordinary hardware, so expect a short pause rather t
 | Machine | Typical reply |
 |---|---|
 | MacBook Pro (M1 Pro, 32 GB) | 3–8 seconds once warm |
-| GitHub test machine (4 x86 cores, no GPU) | about 40 seconds (median); first words after about 28 seconds |
-| Oracle Always Free (2 ARM cores) | measured in every weekly run: see the latest report |
+| ARM server, model limited to 2 cores (set up like Oracle Always Free) | about 1.5 minutes (median); first words after about 75 seconds; the slowest about 6 minutes |
+
+The ARM numbers come from the weekly test run, which measures them again every week (see the latest report). A real
+Oracle server may be a little faster or slower.
 
 The first reply after a restart takes longer while the model loads. Scheduled briefings are put together without
 the model, so they arrive on time even on a slow server.
