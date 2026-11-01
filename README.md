@@ -265,13 +265,14 @@ Jarvis runs a small model on ordinary hardware, so expect a short pause rather t
 | Machine | Typical reply |
 |---|---|
 | MacBook Pro (M1 Pro, 32 GB) | 3–8 seconds once warm |
-| ARM server, model limited to 2 cores (set up like Oracle Always Free) | about 1.5 minutes (median); first words after about 75 seconds; the slowest about 6 minutes |
+| ARM server, model limited to 2 cores (set up like Oracle Always Free) | about 50 seconds (median); first words after about 30 seconds; 9 in 10 replies within about 2.5 minutes |
 
 The ARM numbers come from the weekly test run, which measures them again every week (see the latest report). A real
 Oracle server may be a little faster or slower.
 
-The first reply after a restart takes longer while the model loads. Scheduled briefings are put together without
-the model, so they arrive on time even on a slow server.
+After a restart the model has to read Jarvis's instructions once, which takes several minutes on a 2-core server.
+The keep-warm job does that in the background within 20 minutes; a message sent before then waits for it.
+Scheduled briefings are put together without the model, so they arrive on time even on a slow server.
 
 ## Honest limits
 

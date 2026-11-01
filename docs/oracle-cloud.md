@@ -60,7 +60,7 @@ to 20 GB).
 - **Idle servers.** Oracle may reclaim an Always Free server that stays almost idle for a week. Jarvis's regular jobs
   usually keep it busy enough. If Oracle warns you, upgrading the account to *Pay As You Go* stops this and still
   charges nothing within the free limits. Nightly backups mean nothing is lost either way.
-- **Memory.** Jarvis uses about 8–9 GB of the 12 GB, which leaves room, but not for a second large model.
+- **Memory.** Jarvis uses about 9–10 GB of the 12 GB with every model loaded (measured in the weekly test run), which leaves room, but not for a second large model.
 - **Speed.** Replies are slower than on a Mac, because there's no GPU. Scheduled reminders and briefings don't
   depend on the model's speed.
 - **Updates.** `cd ~/jarvis-system && git pull && ./install.sh`. Ubuntu security updates install themselves when
