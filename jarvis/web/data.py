@@ -181,9 +181,9 @@ def money_view(period: str) -> dict:
         "period": period, "label": label, "spent": now["spending_total"], "payments": len(now["spending"]),
         "previous": before["spending_total"], "refunds": now["refunds_total"], "received": now["received_total"],
         "own_transfers": now["own_account_transfers_total"], "card_bills": now["card_bill_payments_total"],
-        "categories": insights["by_category"], "unusual": insights["unusual_payments"],
+        "categories": insights["by_category"], "unusual": insights["unusual_rows"],
         "new_merchants": insights["new_merchants"], "points": points, "note": now["note"],
-        "card_purchases": now["credit_card_purchases_total"],
+        "card_purchases": now["credit_card_purchases_total"], "small": money.small_amount(),
     }
 
 

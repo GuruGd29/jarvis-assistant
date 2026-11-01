@@ -6,11 +6,15 @@
   jarvis-task-sync   copies dated Jarvis tasks into the iCloud calendar "Jarvis Tasks"; prints only on failure
   jarvis-reminders   reminders that are due now; prints nothing when none are due
 """
-import re
 from collections import Counter
 from datetime import date, datetime, timedelta
 
-from . import calendars, health, mail, money, renewals, tasks
+from . import calendars, config, health, mail, money, renewals, tasks
+
+
+def _name() -> str:
+    """", Priya" when the owner's name is set (JARVIS_OWNER_NAME), else nothing."""
+    return f", {config.OWNER_NAME}" if config.OWNER_NAME else ""
 
 
 def _task_line(t: dict) -> str:
@@ -23,7 +27,7 @@ def briefing() -> None:
     """Written here rather than by the model: the Mac often wakes only briefly at 7:30, and a
     model reply that outlasts the wake-up fails, while this takes seconds."""
     today = tasks.today()
-    lines = [f"☀️ Good morning, Guru! {today:%A %d %B}"]
+    lines = [f"☀️ Good morning{_name()}! {today:%A %d %B}"]
 
     start, end = calendars.day_range(today)
     agenda = calendars.list_events(start, end)
@@ -74,7 +78,7 @@ def briefing() -> None:
     try:
         yesterday = money.summary(str(today - timedelta(days=1)))
         count = len(yesterday["spending"])
-        lines.append(f"\n💸 Yesterday you spent ₹{yesterday['spending_total']:,.2f} ({count} payment{'s' if count != 1 else ''})")
+        lines.append(f"\n💸 Yesterday you spent {config.money(yesterday['spending_total'])} ({count} payment{'s' if count != 1 else ''})")
     except Exception as error:
         lines.append(f"\n💸 Spending unavailable ({type(error).__name__})")
 
@@ -93,14 +97,14 @@ def weekly() -> None:
     """Sunday evening: the past seven days and the week ahead, from the same sources as the briefing."""
     today = tasks.today()
     week_start = today - timedelta(days=6)
-    lines = [f"📊 Your week, Guru: {week_start:%d %b} – {today:%d %b}"]
+    lines = [f"📊 Your week{_name()}: {week_start:%d %b} – {today:%d %b}"]
 
     try:
         week = money.summary(str(week_start), str(today))
         before = money.summary(str(week_start - timedelta(days=7)), str(week_start - timedelta(days=1)))
         spent, previous = week["spending_total"], before["spending_total"]
-        change = _change(spent, previous, " vs the week before")
-        lines.append(f"\n💸 Spent ₹{spent:,.2f} in {len(week['spending'])} payments{change}")
+        change = _change(spent, previous, " vs the week before", money.small_amount())
+        lines.append(f"\n💸 Spent {config.money(spent)} in {len(week['spending'])} payments{change}")
         lines += _insight_lines(money.insights(str(week_start), str(today)), top=4)
     except Exception as error:
         lines.append(f"\n💸 Spending unavailable ({type(error).__name__})")
@@ -142,9 +146,10 @@ def weekly() -> None:
     print("\n".join(lines))
 
 
-def _change(now: float, before: float, versus: str = "") -> str:
-    """" (↑ 25%)", or " (×8)" for big jumps; nothing when the earlier amount is too small to compare."""
-    if before < 1000:
+def _change(now: float, before: float, versus: str = "", small: float = 1000.0) -> str:
+    """" (↑ 25%)", or " (×8)" for big jumps; nothing when the earlier amount is too small to compare
+    (below `small`, from money.small_amount())."""
+    if before <= 0 or before < small:
         return ""
     if now >= 3 * before:
         return f" (×{now / before:.0f}{versus})"
@@ -154,12 +159,13 @@ def _change(now: float, before: float, versus: str = "") -> str:
 
 def _insight_lines(i: dict, top: int) -> list[str]:
     """Category totals with the change from the period before, then unusual and new payments."""
+    small = money.small_amount()
     lines = []
     for c in i["by_category"][:top]:
-        lines.append(f"  • {c['category']}: ₹{c['total']:,.0f}{_change(c['total'], c['previous'])}")
-    if i["unusual_payments"]:
+        lines.append(f"  • {c['category']}: {config.money(c['total'], decimals=False)}{_change(c['total'], c['previous'], small=small)}")
+    if i["unusual_rows"]:
         lines.append("  Unusually large: " + "; ".join(
-            re.sub(r"^\d{4}-\d{2}-\d{2} ", "", u).split(" (")[0] for u in i["unusual_payments"][:3]))
+            f"{config.money(u['amount'])} {u['counterparty'] or ''}".strip() for u in i["unusual_rows"][:3]))
     return lines
 
 
@@ -173,12 +179,12 @@ def monthly() -> None:
     total = money.summary(str(start), str(last_month_end))["spending_total"]
     before_start = (start - timedelta(days=1)).replace(day=1)
     previous = money.summary(str(before_start), str(start - timedelta(days=1)))["spending_total"]
-    change = _change(total, previous, f" vs {before_start:%B}")
-    lines = [f"📈 {start:%B} money report, Guru", f"\n💸 Spent ₹{total:,.2f}{change}", "\nBy category"]
+    change = _change(total, previous, f" vs {before_start:%B}", money.small_amount())
+    lines = [f"📈 {start:%B} money report{_name()}", f"\n💸 Spent {config.money(total)}{change}", "\nBy category"]
     lines += _insight_lines(i, top=8)
     if i["new_merchants"]:
         lines.append(f"\n🆕 New this month: {', '.join(i['new_merchants'][:8])}")
-    lines.append("\n(HDFC, ICICI and IDFC alert emails only; categories are guessed from merchant names.)")
+    lines.append("\n(Bank alert emails only; categories are guessed from merchant names.)")
     print("\n".join(lines))
 
 

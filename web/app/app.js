@@ -6,10 +6,15 @@ const $ = sel => document.querySelector(sel);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const isTouch = matchMedia("(pointer: coarse)").matches;
 const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-const inrFmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
-const inrRound = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
-const inr = n => `₹${inrFmt.format(Number(n) || 0)}`;
-const inr0 = n => `₹${inrRound.format(Number(n) || 0)}`;
+// The owner's name, number/date style and currency, from .env via a <meta> tag the server adds (server.py _profile).
+const P = (() => { try { return JSON.parse($('meta[name="jarvis-profile"]')?.content || "{}"); } catch { return {}; } })();
+const LOCALE = P.locale || "en-IN";
+const CURRENCY = P.currency || "INR";
+const moneyFmt = new Intl.NumberFormat(LOCALE, { style: "currency", currency: CURRENCY });
+const moneyRound = new Intl.NumberFormat(LOCALE, { style: "currency", currency: CURRENCY, minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtMoney = n => moneyFmt.format(Number(n) || 0);
+const fmtMoney0 = n => moneyRound.format(Number(n) || 0);
+const withName = text => P.name ? `${text}, ${esc(P.name)}` : text;
 const todayISO = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
 function dayLabel(iso) {
@@ -19,7 +24,7 @@ function dayLabel(iso) {
   if (diff === 1) return "Tomorrow";
   if (diff === -1) return "Yesterday";
   const year = d.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" };
-  return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", ...year });
+  return d.toLocaleDateString(LOCALE, { weekday: "short", day: "numeric", month: "short", ...year });
 }
 // Inside a sentence: "today", "tomorrow", "on Thu, 5 Nov".
 function dayInSentence(iso) {
@@ -31,10 +36,11 @@ function ago(iso) {
   if (s < 60) return "now";
   if (s < 3600) return `${Math.floor(s / 60)} min`;
   if (s < 86400) return `${Math.floor(s / 3600)} h`;
-  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return new Date(iso).toLocaleDateString(LOCALE, { day: "numeric", month: "short" });
 }
-function change(now, before) {
-  if (!before || before < 1000) return "";
+// No arrow when the earlier amount is below `small` (10 times the usual payment, from the server; fits any currency).
+function change(now, before, small = 1000) {
+  if (!before || before < small) return "";
   if (now >= 3 * before) return `×${Math.round(now / before)}`;
   const pct = Math.round(((now - before) / before) * 100);
   return `${pct >= 0 ? "↑" : "↓"} ${Math.abs(pct)}%`;
@@ -85,7 +91,9 @@ const sv = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="current
 const I = {
   chat: sv('<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z"/>'),
   today: sv('<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'),
-  money: sv('<path d="M7 5h10M7 9h10M7 5c4 0 6 1.6 6 4s-2 4-6 4h-.5L14 20"/>'),
+  // A rupee sign for INR, a wallet for every other currency.
+  money: CURRENCY === "INR" ? sv('<path d="M7 5h10M7 9h10M7 5c4 0 6 1.6 6 4s-2 4-6 4h-.5L14 20"/>')
+    : sv('<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10.5h18M15.5 15h2"/>'),
   more: sv('<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>'),
   menu: sv('<path d="M4 8h16M4 16h11"/>', 2), edit: sv('<path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6M17.5 3.5l3 3L12 15H9v-3z"/>', 1.9),
   send: sv('<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>', 2.3), stop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>',
@@ -242,7 +250,7 @@ function viewChat() {
   const hour = new Date().getHours();
   // night is 9 pm to 5 am, the same as the Today screen
   const hello = hour >= 21 || hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const welcome = `<div class="welcome"><h2>${hello}, Guru.</h2></div>`;
+  const welcome = `<div class="welcome"><h2>${withName(hello)}.</h2></div>`;
   const sugg = !S.msgs.length ? `<div class="sugg">
       <button data-act="ask" data-v="Plan my day: events, tasks, bills and medicines.">Plan my day<small>events, tasks, bills</small></button>
       <button data-act="ask" data-v="How much did I spend this week, by category?">This week's spending<small>by category</small></button>
@@ -250,7 +258,7 @@ function viewChat() {
       <button data-act="ask" data-v="Do I have any unread important emails?">Email<small>unread & important</small></button></div>` : "";
   return `<section class="view chat">
     <div class="cbar"><button class="ib" data-act="drawer-open" aria-label="Chats">${I.menu}</button>
-      <div class="ttl"><b>${esc(title)}</b><span>Qwen3 4B · on your Mac</span></div>
+      <div class="ttl"><b>${esc(title)}</b><span>Qwen3 4B · on your ${P.host === "mac" ? "Mac" : "own computer"}</span></div>
       <button class="ib" data-act="new-chat" aria-label="New chat">${I.edit}</button></div>
     <div class="thread" id="thread">${S.msgs.length ? S.msgs.map(msgHtml).join("") : welcome}</div>
     ${sugg}
@@ -353,7 +361,7 @@ function renderDrawer() {
 // ---------- today ----------
 function viewToday() {
   const T = S.today;
-  const head = `<div class="h1">Today</div><div class="sub">${new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}${T ? ` · ${esc(T.greeting)}, Guru` : ""}</div>`;
+  const head = `<div class="h1">Today</div><div class="sub">${new Date().toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long" })}${T ? ` · ${withName(esc(T.greeting))}` : ""}</div>`;
   if (S.todayErr && !T) return `<section class="view"><div class="scroll">${head}<div class="card empty">${esc(S.todayErr)} <button class="btn s" data-act="reload">Try again</button></div></div></section>`;
   if (!T) return `<section class="view"><div class="scroll">${head}<div class="card big"><div class="skel" style="width:40%"></div><div class="skel"></div><div class="skel" style="width:70%"></div></div></div></section>`;
   const dueToday = T.tasks.filter(t => !t.done && t.due_on && t.due_on <= todayISO()).length;
@@ -377,7 +385,7 @@ function viewToday() {
   const iphRows = iph ? iph.slice(0, 8).map(r => `<div class="row"><div class="m"><div class="t wrap">${esc(r.title)}</div>
       <div class="s">iPhone Reminders${r.due ? ` · ${dayLabel(r.due.slice(0, 10))}` : ""}${r.list && r.list !== "Reminders" ? ` · ${esc(r.list)}` : ""}</div></div></div>`).join("") : "";
   const iphState = !S.iphone ? `<div class="row"><div class="m"><div class="s">Loading iPhone Reminders…</div></div></div>`
-    : !S.iphone.available ? `<div class="row"><div class="m"><div class="s">${esc(S.iphone.reason || "iPhone Reminders unavailable")}</div></div></div>` : "";
+    : !S.iphone.available && !S.iphone.off ? `<div class="row"><div class="m"><div class="s">${esc(S.iphone.reason || "iPhone Reminders unavailable")}</div></div></div>` : "";
   const meds = T.medicines.length ? T.medicines.map(m => {
     const key = `data-med="${m.medication_id}" data-time="${esc(m.time)}"`;
     const status = m.status === "taken" ? "Taken ✓" : m.status === "skipped" ? "Skipped" : m.past ? "Due now" : `At ${esc(m.time)}`;
@@ -390,7 +398,7 @@ function viewToday() {
       <div class="s">${esc(r.what)} ${dayLabel(r.date)} · ${esc(r.source)}</div></div><span class="v">${esc(r.amount || "")}</span></div>`).join("");
   return `<section class="view"><div class="scroll">${head}
     <div class="card big"><div class="k">Summary</div><div class="text">${summary}.</div>
-      <div class="kpis"><div><b>${inr0(T.spent_today)}</b><span>spent today</span></div><div><b>${dueToday}</b><span>due today</span></div>
+      <div class="kpis"><div><b>${fmtMoney0(T.spent_today)}</b><span>spent today</span></div><div><b>${dueToday}</b><span>due today</span></div>
       <div><b>${iph ? iph.length : "–"}</b><span>reminders</span></div><div><b>${medsLeft}</b><span>doses left</span></div></div></div>
     ${T.calendar_errors.length ? `<div class="note">Couldn't read the ${esc(T.calendar_errors.join(" and "))} calendar, so the schedule may be incomplete.</div>` : ""}
     <div class="sec">Schedule · next 7 days</div><div class="card">${events}</div>
@@ -417,25 +425,22 @@ function viewMoney() {
   const head = `<div class="h1">Money</div>${pick}${seg}`;
   if (!m) return `<section class="view"><div class="scroll">${head}${S.moneyErr ? `<div class="card empty">${esc(S.moneyErr)} <button class="btn s" data-act="reload">Try again</button></div>`
     : `<div class="card big"><div class="skel" style="width:35%"></div><div class="skel" style="height:30px;width:60%"></div><div class="skel"></div></div>`}</div></section>`;
-  const ch = change(m.spent, m.previous);
+  const ch = change(m.spent, m.previous, m.small);
   const prevName = { today: "yesterday", week: "the week before", month: "the month before", year: "" }[m.period];
   const max = Math.max(...m.categories.map(c => c.total), 1);
   const cats = m.categories.map(c => {
-    const cc = change(c.total, c.previous);
+    const cc = change(c.total, c.previous, m.small);
     const share = m.spent > 0 ? Math.round(c.total / Math.max(m.spent, 1) * 100) : 0;
-    return `<div class="catrow"><div class="top"><span>${esc(c.category)}</span><b>${inr0(c.total)}</b></div>
+    return `<div class="catrow"><div class="top"><span>${esc(c.category)}</span><b>${fmtMoney0(c.total)}</b></div>
       <div class="meta"><span>${c.payments} payment${c.payments === 1 ? "" : "s"}${share ? ` · ${share}%` : ""}</span><span style="color:${cc.startsWith("↓") ? "var(--down)" : "var(--up)"}">${cc}</span></div>
       <div class="bar"><i style="width:${Math.max(2, c.total / max * 100).toFixed(1)}%"></i></div></div>`;
   }).join("");
-  const unusual = m.unusual.map(u => {
-    const parts = u.match(/^(\d{4}-\d{2}-\d{2}) ₹([\d,.]+) (.*?)(?: \(([^)]*)\))?$/);
-    return parts ? `<div class="row"><div class="m"><div class="t">${esc(parts[3] || "Payment")}</div><div class="s">${dayLabel(parts[1])}${parts[4] ? ` · ${esc(parts[4])}` : ""}</div></div><span class="v">₹${esc(parts[2].replace(/\.00$/, ""))}</span></div>` : "";
-  }).join("");
+  const unusual = m.unusual.map(u => `<div class="row"><div class="m"><div class="t">${esc(u.counterparty || "Payment")}</div><div class="s">${dayLabel(u.on)}${u.category ? ` · ${esc(u.category)}` : ""}</div></div><span class="v">${u.amount % 1 ? fmtMoney(u.amount) : fmtMoney0(u.amount)}</span></div>`).join("");
   return `<section class="view"><div class="scroll">${head}
-    <div class="card big"><div class="k">Spent · ${esc(m.label)}</div><div class="n">${inr(m.spent)}</div>
+    <div class="card big"><div class="k">Spent · ${esc(m.label)}</div><div class="n">${fmtMoney(m.spent)}</div>
       <div class="d">${ch ? `<span style="color:${ch.startsWith("↓") ? "var(--down)" : "var(--up)"}">${ch}</span> vs ${prevName} · ` : ""}${m.payments} payment${m.payments === 1 ? "" : "s"}</div>
       ${spark(m.points)}
-      <div class="kpis"><div><b>${inr0(m.refunds)}</b><span>refunds</span></div><div><b>${inr0(m.received)}</b><span>received</span></div><div><b>${inr0(m.own_transfers)}</b><span>own transfers</span></div></div></div>
+      <div class="kpis"><div><b>${fmtMoney0(m.refunds)}</b><span>refunds</span></div><div><b>${fmtMoney0(m.received)}</b><span>received</span></div><div><b>${fmtMoney0(m.own_transfers)}</b><span>own transfers</span></div></div></div>
     <div class="sec">By category</div><div class="card">${cats || '<div class="empty">No payments in this period.</div>'}</div>
     ${unusual ? `<div class="sec">Unusually large</div><div class="card">${unusual}</div>` : ""}
     ${m.new_merchants.length ? `<div class="sec">New this period</div><div class="card"><div class="empty">${m.new_merchants.map(esc).join(", ")}</div></div>` : ""}
@@ -454,31 +459,31 @@ function viewCards(pick) {
 
   let top;
   if (k.total_due === null) {
-    top = `<div class="k">${esc(k.name)} ·· ${esc(k.last4)}</div><div class="n">${inr(k.purchases_total)}</div>
+    top = `<div class="k">${esc(k.name)} ·· ${esc(k.last4)}</div><div class="n">${fmtMoney(k.purchases_total)}</div>
       <div class="d">spent in the last 30 days · bill amount is only in the statement PDF</div>
-      <div class="kpis"><div><b>${inr0(k.paid)}</b><span>paid, 30 days</span></div><div><b>${k.payments.length}</b><span>payments</span></div></div>`;
+      <div class="kpis"><div><b>${fmtMoney0(k.paid)}</b><span>paid, 30 days</span></div><div><b>${k.payments.length}</b><span>payments</span></div></div>`;
   } else {
     const days = Math.round((new Date(`${k.due_on}T00:00`) - new Date(`${c.today}T00:00`)) / 864e5);
     const when = days < 0 ? `${-days} day${days === -1 ? "" : "s"} overdue` : days === 0 ? "due today" : `due in ${days} day${days === 1 ? "" : "s"}`;
     const pct = Math.min(100, k.total_due > 0 ? k.paid / k.total_due * 100 : 100);
     const status = k.left > 0
       ? `<div class="d" style="color:${days <= 3 ? "var(--up)" : "var(--text-2)"}">${dayLabel(k.due_on)} · ${when}</div>`
-      : `<div class="d" style="color:var(--down)">Bill fully paid${k.extra > 0 ? ` · ${inr0(k.extra)} extra goes to the next bill` : ""}</div>`;
+      : `<div class="d" style="color:var(--down)">Bill fully paid${k.extra > 0 ? ` · ${fmtMoney0(k.extra)} extra goes to the next bill` : ""}</div>`;
     top = `<div class="k">${esc(k.name)} ·· ${esc(k.last4)} · ${k.left > 0 ? "left to pay" : "this bill"}</div>
-      <div class="n">${k.left > 0 ? inr(k.left) : "Paid"}</div>${status}
+      <div class="n">${k.left > 0 ? fmtMoney(k.left) : "Paid"}</div>${status}
       <div class="bar" style="margin-top:12px"><i style="width:${pct.toFixed(1)}%;background:var(--down)"></i></div>
-      <div class="kpis"><div><b>${inr0(k.total_due)}</b><span>bill</span></div><div><b>${inr0(k.paid)}</b><span>paid so far</span></div>
-        <div><b>${k.min_due === null ? "–" : inr0(k.min_due)}</b><span>minimum</span></div></div>`;
+      <div class="kpis"><div><b>${fmtMoney0(k.total_due)}</b><span>bill</span></div><div><b>${fmtMoney0(k.paid)}</b><span>paid so far</span></div>
+        <div><b>${k.min_due === null ? "–" : fmtMoney0(k.min_due)}</b><span>minimum</span></div></div>`;
   }
   const since = dayLabel(k.since);
-  const pays = k.payments.map(p => `<div class="row"><div class="m"><div class="t">Part payment</div><div class="s">${dayLabel(p.date)}</div></div><span class="v">${inr0(p.amount)}</span></div>`).join("");
+  const pays = k.payments.map(p => `<div class="row"><div class="m"><div class="t">Part payment</div><div class="s">${dayLabel(p.date)}</div></div><span class="v">${fmtMoney0(p.amount)}</span></div>`).join("");
   const buys = k.purchases.map(b => `<div class="row"><div class="m"><div class="t">${esc(b.merchant || "Purchase")}</div><div class="s">${dayLabel(b.date)}${b.refund ? " · refund" : ""}</div></div>
-    <span class="v" style="${b.refund ? "color:var(--down)" : ""}">${b.refund ? "−" : ""}${inr(b.amount).replace(/\.00$/, "")}</span></div>`).join("");
+    <span class="v" style="${b.refund ? "color:var(--down)" : ""}">${b.refund ? "−" : ""}${fmtMoney(b.amount).replace(/\.00$/, "")}</span></div>`).join("");
   const window_ = k.statement_on ? `since the statement (${since})` : "in the last 30 days";
   return `<section class="view"><div class="scroll">${head}${switcher}
     <div class="card big">${top}</div>
     <div class="sec">${k.statement_on ? "Payments towards this bill" : "Payments in the last 30 days"}</div><div class="card">${pays || '<div class="empty">No payments yet for this bill.</div>'}</div>
-    <div class="sec">Spends ${window_} · ${inr0(k.purchases_total)}</div><div class="card">${buys || '<div class="empty">No spends on this card since then.</div>'}</div>
+    <div class="sec">Spends ${window_} · ${fmtMoney0(k.purchases_total)}</div><div class="card">${buys || '<div class="empty">No spends on this card since then.</div>'}</div>
   </div></section>`;
 }
 
@@ -506,7 +511,7 @@ function viewMore() {
       ${info(I.file, "Files", M ? `${M.documents} documents indexed from your Jarvis folder` : "…")}
       ${info(I.list, "Tasks", M ? `${M.open_tasks} open Jarvis task${M.open_tasks === 1 ? "" : "s"}` : "…")}
     </div>
-    <div class="note">Jarvis runs on your Mac. Ask in chat “what do you know about me” to see your memory, or “forget …” to remove something.</div>
+    <div class="note">Jarvis runs on your own computer. Ask in chat “what do you know about me” to see your memory, or “forget …” to remove something.</div>
   </div></section>`;
 }
 
@@ -641,7 +646,7 @@ document.addEventListener("click", async e => {
       if (!("speechSynthesis" in window)) { toast("Reading aloud isn't available here"); break; }
       if (speechSynthesis.speaking) { speechSynthesis.cancel(); break; }
       const u = new SpeechSynthesisUtterance(m.text.replace(/[*#`_]/g, ""));
-      u.lang = /[஀-௿]/.test(m.text) ? "ta-IN" : "en-IN";
+      u.lang = /[஀-௿]/.test(m.text) ? "ta-IN" : LOCALE;
       speechSynthesis.speak(u);
       break;
     }

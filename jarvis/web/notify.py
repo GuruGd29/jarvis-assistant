@@ -36,8 +36,8 @@ DEFAULTS = {
 }
 TZ = ZoneInfo(config.TIMEZONE)  # quiet hours and dates follow the user, not the server clock
 VAPID_KEY = config.SECRETS_DIR / "vapid-private.pem"
-# Push services want a contact in the token; the GitHub no-reply address is public already and not a mailbox.
-VAPID_SUB = "mailto:177310711+GuruGd29@users.noreply.github.com"
+# Push services (Apple, Google, Mozilla) want a contact in the token: JARVIS_CONTACT_EMAIL, or the project page.
+VAPID_SUB = f"mailto:{config.CONTACT_EMAIL}" if config.CONTACT_EMAIL else "https://github.com/GuruGd29/jarvis-assistant"
 
 
 def connect() -> psycopg.Connection:

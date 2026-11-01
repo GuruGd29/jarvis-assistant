@@ -1,0 +1,16 @@
+# Jarvis's phone/web app server, on 127.0.0.1:8791 only (put HTTPS in front of it, see docs/remote-access.md).
+# install.sh fills in @USER@ and @HOME@ and copies this to /etc/systemd/system/. Logs: journalctl -u jarvis-web
+[Unit]
+Description=Jarvis - app server
+After=network-online.target postgresql.service jarvis-hermes.service
+Wants=network-online.target
+
+[Service]
+User=@USER@
+WorkingDirectory=@HOME@/jarvis-system
+ExecStart=@HOME@/jarvis-system/.venv/bin/jarvis-web
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
