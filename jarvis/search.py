@@ -16,6 +16,7 @@ from pgvector.psycopg import register_vector
 
 from . import config
 from .embed import embed
+from .safety import defang
 
 CANDIDATES = 30   # per retriever
 RERANK_POOL = 20  # fused candidates sent to the reranker
@@ -93,7 +94,7 @@ def search(query: str, domain: str | None = None, limit: int = 5) -> list[dict]:
             "heading": row[4],
             "page": row[5],
             "score": round(float(score), 3),
-            "text": row[6],
+            "text": defang(row[6]),
         }
         for row, score in ranked
     ]

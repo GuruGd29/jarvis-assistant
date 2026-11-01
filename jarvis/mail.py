@@ -12,6 +12,7 @@ from email.utils import parseaddr
 from zoneinfo import ZoneInfo
 
 from . import calendars, config
+from .safety import defang
 
 TZ = ZoneInfo(config.TIMEZONE)
 _BULK = {"CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS", "CATEGORY_UPDATES"}
@@ -45,13 +46,13 @@ def _summary(msg: dict) -> dict:
         "id": msg["id"],
         "from": name or address,
         "from_address": address,
-        "subject": _header(msg, "subject") or "(no subject)",
+        "subject": defang(_header(msg, "subject")) or "(no subject)",
         "received": received.strftime("%Y-%m-%d %H:%M"),
         "unread": "UNREAD" in labels,
         "bucket": _bucket(labels),
         # Marketing mail pads previews with invisible characters; drop them so they don't fill the prompt.
-        "snippet": re.sub(r"[͏​-‏⁠﻿­]|\s{2,}", " ",
-                          html.unescape(msg.get("snippet", ""))).strip()[:200],
+        "snippet": defang(re.sub(r"[͏​-‏⁠﻿­]|\s{2,}", " ",
+                                 html.unescape(msg.get("snippet", ""))).strip()[:200]),
     }
 
 
@@ -90,7 +91,7 @@ def read_message(message_id: str, max_chars: int = 4000, service=None) -> dict:
     msg = (service or _service()).users().messages().get(userId="me", id=message_id, format="full").execute()
     text = re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]{2,}", " ", _body_text(msg.get("payload", {})))).strip()
     return {**_summary(msg), "note": UNTRUSTED_NOTE,
-            "body": f"<<<EMAIL\n{text[:max_chars]}\nEMAIL>>>",
+            "body": f"<<<EMAIL\n{defang(text[:max_chars])}\nEMAIL>>>",
             "truncated": len(text) > max_chars}
 
 
