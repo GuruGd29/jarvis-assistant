@@ -190,8 +190,8 @@ def format_money(s: dict[str, Any]) -> str:
         lines.append(f"- ...and {len(s['spending']) - MAX_MONEY_LINES} more")
     lines.append(f"Refunds: {d['refunds_total']} | Received from others: {d['received_total']} | "
                  f"Own-account transfers: {d['own_account_transfers_total']} | "
-                 f"Card bill payments (in spending): {d['card_bill_payments_total']} | "
-                 f"Card purchases (not in spending): {d['credit_card_purchases_total']}")
+                 f"Card purchases (in spending): {d['credit_card_purchases_total']} | "
+                 f"Card bill payments (not in spending): {d['card_bill_payments_total']}")
     return "\n".join(lines)
 
 

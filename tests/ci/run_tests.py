@@ -199,7 +199,7 @@ def fn_statement():
 def fn_spending_rule():
     today = tasks.today()
     s = money.summary(str(today - timedelta(days=6)), str(today))
-    expected = 450 + 120 + 2300 + 8000 + 5000   # card purchases (1,999 + 649) are not counted until the bill is paid
+    expected = 450 + 120 + 2300 + 1999 + 649   # card purchases count; the bill payments (8,000 + 5,000) do not
     return f"spending_total ₹{s['spending_total']:,.2f} (expected ₹{expected:,.2f})", 100.0 if s["spending_total"] == expected else 0.0
 
 
@@ -521,8 +521,8 @@ CASES = [
          "₹200 card_spend on IDFC card 1234 on 31 Oct 2026", fn_idfc_alert),
     Case("FN-03", "Read a credit card statement email", "Functional", "None", ["Parse a sample ICICI statement email"],
          "Bill ₹2,000, minimum ₹100, due 5 Nov 2026, card 5678", fn_statement),
-    Case("FN-04", "Spending counts card bills, not card purchases", "Functional", SEEDED,
-         ["Sum spending for the last 7 days"], "UPI debits + card bill payments = ₹15,870; card purchases excluded", fn_spending_rule),
+    Case("FN-04", "Spending counts card purchases, not card bills", "Functional", SEEDED,
+         ["Sum spending for the last 7 days"], "UPI debits + card purchases = ₹5,518; card bill payments excluded", fn_spending_rule),
     Case("FN-05", "Credit card part payments and amount left", "Functional", SEEDED,
          ["Read the Cards summary for ICICI card 9001"], "Bill ₹20,000, paid ₹13,000 in 2 parts, ₹7,000 left, 2 spends", fn_card_progress),
     Case("FN-06", "Money periods in English, Tamil and Tanglish", "Functional", "None",

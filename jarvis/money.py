@@ -4,8 +4,8 @@ HDFC, ICICI and IDFC (India) have exact built-in readers. Alerts from any other 
 "alert_senders" are read by the local AI (money_ai.py), when JARVIS_MONEY_AI allows it.
 
 Totals are computed here, never by the model. "Spending" = debits that are not transfers between
-the user's own accounts (secrets/money.json) and not credit card purchases: a credit card counts when
-its bill is paid, so the bill payment is the spending and the purchases on the card are left out.
+the user's own accounts (secrets/money.json) and not credit card bill payments, minus refunds: a credit card
+purchase counts on the day it is made, so paying the card bill later is not counted again.
 Card statement emails (bill amount and due date) go into `card_statements`.
 
   jarvis-money-sync [--days 90]   read alert emails into the table (idempotent; prints nothing unless --verbose)
@@ -26,9 +26,12 @@ TZ = ZoneInfo(config.TIMEZONE)
 SETTINGS = config.SECRETS_DIR / "money.json"
 _AMT = r"(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{1,2})?)"
 CARD_BILL_PAYEE = re.compile(r"credit ?card bill|ccbillpay|card ?bill ?pay", re.I)
-# A purchase on a credit card (not a debit card): counted later, when the card bill is paid.
+# A purchase or refund on a credit card (not a debit card); the Cards screen lists them under each card.
 CREDIT_CARD_PURCHASE = "kind IN ('card_spend', 'card_refund') AND instrument ~ ' card ' AND instrument !~ 'debit card'"
-SPENDING = f"direction = 'debit' AND NOT is_self AND NOT ({CREDIT_CARD_PURCHASE})"
+# Card purchases count on the day they are made, so paying the card bill is not spending again.
+SPENDING = "direction = 'debit' AND NOT is_self AND kind <> 'card_bill_payment'"
+REFUND = "kind = 'card_refund'"
+NET_AMOUNT = "CASE WHEN kind = 'card_refund' THEN -amount ELSE amount END"  # with SPENDING OR REFUND: refunds take off
 # Which card a bill payment went to, from the payee name.
 CARD_PAYEE_BANK = [("ICICI", re.compile(r"amazon ?pay|icici", re.I)), ("IDFC", re.compile(r"idfc", re.I)),
                    ("HDFC", re.compile(r"hdfc", re.I))]
@@ -232,7 +235,7 @@ def sync(days: int = 2, verbose: bool = False, ai: bool | None = None) -> dict:
                 counts["not_a_transaction"] += 1
                 continue
             if txn["kind"] == "upi_debit" and CARD_BILL_PAYEE.search(txn["counterparty"] or ""):
-                txn["kind"] = "card_bill_payment"  # paying a card bill: this is the spending, not the card purchases
+                txn["kind"] = "card_bill_payment"  # paying a card bill: the purchases on the card are the spending
             txn.update(gmail_id=gmail_id, subject=msg["subject"], occurred_at=received, is_self=_is_self(txn, settings))
             conn.execute(
                 """INSERT INTO transactions (gmail_id, bank, instrument, kind, direction, amount, counterparty,
@@ -352,8 +355,14 @@ def summary(start: str, end: str | None = None) -> dict:
             """SELECT occurred_on, instrument, kind, direction, amount, counterparty, is_self
                FROM transactions WHERE occurred_on BETWEEN %s AND %s ORDER BY occurred_on, occurred_at""",
             (first, last)).fetchall()
-    spent = [r for r in rows if r["direction"] == "debit" and not r["is_self"] and not _credit_card_purchase(r)]
-    refunds = [r for r in rows if r["kind"] == "card_refund" and not _credit_card_purchase(r)]
+    spent = [r for r in rows if r["direction"] == "debit" and not r["is_self"] and r["kind"] != "card_bill_payment"]
+    refunds = [r for r in rows if r["kind"] == "card_refund"]
+    for refund in list(refunds):  # a charge refunded in full within the period (e.g. a card check) is not listed
+        charge = next((r for r in spent if r["kind"] == "card_spend" and r["amount"] == refund["amount"]
+                       and r["counterparty"] == refund["counterparty"]), None)
+        if charge:
+            spent.remove(charge)
+            refunds.remove(refund)
     received = [r for r in rows if r["kind"] in ("upi_credit", "deposit_credit") and not r["is_self"]]
     total = lambda items: round(float(sum(r["amount"] for r in items)), 2)
     line = lambda r: f"{r['occurred_on']} {r['instrument']} {r['kind']} {config.money(r['amount'])} {r['counterparty'] or ''}".strip()
@@ -370,7 +379,7 @@ def summary(start: str, end: str | None = None) -> dict:
             total([r for r in rows if r["kind"] == "card_spend" and _credit_card_purchase(r)])
             - total([r for r in rows if r["kind"] == "card_refund" and _credit_card_purchase(r)]), 0.0), 2),
         "note": "Totals come from bank alert emails only; cash and payments without an alert email are not included. "
-                "Credit cards count when the bill is paid, not per purchase.",
+                "Credit card purchases count on the day they are made; paying the card bill is not counted again.",
     }
     # The same totals written in the user's currency and style, for chat and reports.
     result["display"] = {k: config.money(v) for k, v in result.items() if k.endswith("_total")}
@@ -435,28 +444,33 @@ def insights(start: str, end: str) -> dict:
     with psycopg.connect(config.DB_DSN, row_factory=dict_row) as conn:
         rows = conn.execute(
             f"""SELECT occurred_on, kind, amount, counterparty FROM transactions
-               WHERE occurred_on BETWEEN %s AND %s AND {SPENDING}""", (first - timedelta(days=60), last)).fetchall()
-    now = [r for r in rows if r["occurred_on"] >= first]
-    before = [r for r in rows if prev_first <= r["occurred_on"] < first]
-    history = {(r["counterparty"] or "").strip().lower() for r in rows if r["occurred_on"] < first}
+               WHERE occurred_on BETWEEN %s AND %s AND ({SPENDING} OR {REFUND})""",
+            (first - timedelta(days=60), last)).fetchall()
+    key = lambda r: ((r["counterparty"] or "").strip().lower(), r["amount"])  # noqa: E731
+    refunded = {key(r) for r in rows if r["kind"] == "card_refund"}
 
-    def by_category(items):
+    def by_category(items):  # refunds take off from their merchant's category
         out: dict[str, float] = {}
         for r in items:
-            out[category(r["counterparty"])] = out.get(category(r["counterparty"]), 0.0) + float(r["amount"])
+            amount = -float(r["amount"]) if r["kind"] == "card_refund" else float(r["amount"])
+            out[category(r["counterparty"])] = out.get(category(r["counterparty"]), 0.0) + amount
         return out
 
-    current, previous = by_category(now), by_category(before)
+    current = by_category([r for r in rows if r["occurred_on"] >= first])
+    previous = by_category([r for r in rows if prev_first <= r["occurred_on"] < first])
+    rows = [r for r in rows if r["kind"] != "card_refund"]  # payments only from here on
+    now = [r for r in rows if r["occurred_on"] >= first]
+    history = {(r["counterparty"] or "").strip().lower() for r in rows if r["occurred_on"] < first}
     cats = [{"category": c, "total": round(t, 2), "previous": round(previous.get(c, 0.0), 2),
              "payments": sum(1 for r in now if category(r["counterparty"]) == c)}
-            for c, t in sorted(current.items(), key=lambda kv: kv[1], reverse=True)]
+            for c, t in sorted(current.items(), key=lambda kv: kv[1], reverse=True) if t > 0]
     amounts = sorted(float(r["amount"]) for r in rows)
     typical = amounts[len(amounts) // 2] if amounts else 0.0
     # Unusual = among the largest 5% of payments and at least 10 times the usual size; no fixed amount, so it
     # works in any currency (on real rupee data it matches the old "over ₹5,000" rule).
     floor = max(amounts[int(len(amounts) * 0.95)], typical * 10) if amounts else 0.0
     large = [r for r in sorted(now, key=lambda r: r["amount"], reverse=True)
-             if r["kind"] != "card_bill_payment" and float(r["amount"]) >= floor][:5]
+             if key(r) not in refunded and float(r["amount"]) >= floor][:5]
     unusual = [f"{r['occurred_on']} {config.money(r['amount'])} {r['counterparty'] or ''} ({category(r['counterparty'])})"
                for r in large]
     new = sorted({(r["counterparty"] or "").strip() for r in now
