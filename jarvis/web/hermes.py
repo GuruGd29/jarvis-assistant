@@ -1,10 +1,15 @@
 """Chats from the app, kept by Hermes through its Sessions API (the same agent Telegram uses)."""
+import asyncio
+import fcntl
 import json
 import os
+import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 
 import httpx
+
+from .. import config
 
 HERMES = os.environ.get("JARVIS_HERMES_URL", "http://127.0.0.1:8642")
 
@@ -78,11 +83,11 @@ async def messages(session_id: str) -> list[dict]:
     return out
 
 
-async def stream_turn(session_id: str, text: str) -> AsyncIterator[dict]:
+async def stream_turn(session_id: str, text: str, read_timeout: float = 600) -> AsyncIterator[dict]:
     """One turn, as app events: {"t": "tool", "label"}, {"t": "delta", "text"}, then {"t": "done", "text"} or
     {"t": "error", "message"}."""
     full, event = [], None
-    timeout = httpx.Timeout(connect=10, read=600, write=30, pool=10)  # a cold first reply can take minutes
+    timeout = httpx.Timeout(connect=10, read=read_timeout, write=30, pool=10)  # a cold first reply can take minutes
     async with httpx.AsyncClient(timeout=timeout) as client:
         async with client.stream("POST", f"{HERMES}/api/sessions/{session_id}/chat/stream", headers=_headers(),
                                  json={"input": text}) as response:
@@ -114,3 +119,32 @@ async def stream_turn(session_id: str, text: str) -> AsyncIterator[dict]:
                     yield {"t": "error", "message": data.get("error") or "Jarvis could not finish that reply."}
                     return
     yield {"t": "done", "text": "".join(full)}
+
+
+def warm_chat() -> None:
+    """jarvis-warm-chat: one throwaway chat through Hermes, deleted afterwards, so the model has Jarvis's long prompt
+    cached before the user's next message. Reading that prompt from scratch takes minutes on a 2-core server: after
+    a restart, after the nightly AI jobs and after midnight (the prompt holds the date). Once cached, this takes
+    seconds. The keep-warm job runs it in the background; two never run at once."""
+    lock_file = config.SYSTEM_DIR / "state" / "warm-chat.lock"
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    with lock_file.open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return  # the previous warm-up is still reading
+
+        async def run() -> dict:
+            session_id = await create_session()
+            try:
+                async for event in stream_turn(session_id, "Hi", read_timeout=3600):
+                    if event["t"] in ("done", "error"):
+                        return event
+                return {"t": "error", "message": "no reply"}
+            finally:
+                await delete_session(session_id)
+
+        started = time.monotonic()
+        event = asyncio.run(run())
+        result = "ok" if event["t"] == "done" else f"failed: {event.get('message')}"
+        print(f"{time.strftime('%Y-%m-%d %H:%M')} warm chat {result} in {time.monotonic() - started:.0f} s", flush=True)

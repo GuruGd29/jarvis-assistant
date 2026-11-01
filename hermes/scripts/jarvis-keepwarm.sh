@@ -25,3 +25,6 @@ unset PYTHONPATH PYTHONHOME VIRTUAL_ENV
     [ "$code" = 200 ] || echo "⚠️ The Jarvis app's HTTPS address is not answering (Caddy, code ${code:-none})."
   done
 } | "$HOME/jarvis-system/.venv/bin/jarvis-notify" problems --one
+# Keep Jarvis's long prompt cached as well, with one throwaway chat in the background (see jarvis-warm-chat), so the
+# user never waits minutes for it to be read after a restart, the nightly AI jobs or midnight.
+nohup "$HOME/jarvis-system/.venv/bin/jarvis-warm-chat" >> "$HOME/jarvis-system/logs/warm-chat.log" 2>&1 < /dev/null &
