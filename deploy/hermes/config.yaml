@@ -1,6 +1,6 @@
-# Hermes config for the weekly GitHub test run: the same agent settings as the real Jarvis
-# (~/.hermes/config.yaml), minus messaging platforms, web search, voice and anything with a key.
-# __VENV__ is replaced by setup.sh.
+# Hermes Agent settings for Jarvis, written to ~/.hermes/config.yaml by install.sh (and by the weekly test run, so
+# what is tested is what gets installed). __VENV__ becomes the Jarvis venv. Telegram starts only when
+# TELEGRAM_BOT_TOKEN is set in ~/.hermes/.env. Web search, voice and anything that needs an outside account are off.
 _config_version: 51
 agent:
   execution_guidance: false
@@ -41,6 +41,10 @@ model:
   provider: ollama-launch
 platform_toolsets:
   api_server:
+    - memory
+    - session_search
+    - skills
+  telegram:
     - memory
     - session_search
     - skills

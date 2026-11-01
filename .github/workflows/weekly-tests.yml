@@ -1,7 +1,7 @@
-# Weekly test run: builds a throwaway Jarvis on a GitHub runner set up like the planned Oracle server
-# (ARM64 Ubuntu, Postgres from apt, no Docker, the model on 2 CPU cores) with fake data, the real code,
-# Hermes and the Qwen3 4B model, and runs tests/ci/run_tests.py. No secrets are used and none of the owner's data
-# is involved, so the public logs and reports are safe to share.
+# Weekly test run: installs Jarvis with the real installer (install.sh) on a GitHub runner set up like the planned
+# Oracle server (ARM64 Ubuntu, the model on 2 CPU cores), adds fake data, and runs tests/ci/run_tests.py, so the
+# installer, the code, Hermes and the Qwen3 4B model are tested together. No secrets are used and none of the
+# owner's data is involved, so the public logs and reports are safe to share.
 name: Weekly tests
 
 on:
@@ -9,7 +9,7 @@ on:
     - cron: "30 20 * * 6"   # Sunday 02:00 India time (Saturday 20:30 UTC)
   workflow_dispatch:
   push:
-    branches: [ci-tests]
+    branches: [ci-tests, oss-ready]   # while these are being developed; removed before merging to main
 
 permissions:
   contents: read
@@ -39,19 +39,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"   # Jarvis; Hermes's installer brings its own Python
-
-      - name: Cache models
+      - name: Cache the search reranker
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.ollama/models
-            models
-          key: models-arm64-qwen3-4b-2507-bge-m3-v1
+          path: models
+          key: reranker-bge-v2-m3-int8-v1
 
-      - name: Build the test Jarvis
+      - name: Install Jarvis (install.sh) and add fake data
         run: tests/ci/setup.sh
 
       - name: Unit tests
@@ -66,7 +60,8 @@ jobs:
         if: always()
         run: |
           if [ -f reports/report.md ]; then cat reports/report.md >> "$GITHUB_STEP_SUMMARY"; else echo "No report was written." >> "$GITHUB_STEP_SUMMARY"; fi
-          mkdir -p reports && cp "$RUNNER_TEMP"/*.log reports/ 2>/dev/null || true
+          mkdir -p reports && cp logs/*.log reports/ 2>/dev/null || true
+          sudo journalctl -u jarvis-hermes -u jarvis-web -u ollama --no-pager > reports/services.log 2>&1 || true
 
       - name: Upload the report (HTML + CSV + logs)
         if: always()

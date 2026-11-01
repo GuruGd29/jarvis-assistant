@@ -1,0 +1,8 @@
+# The chat model Jarvis uses: `ollama create qwen3-4b-instruct-64k -f deploy/ollama/Modelfile` (install.sh does it).
+# 64k context, because Hermes needs at least 64,000 tokens; install.sh may add num_thread (JARVIS_MODEL_THREADS).
+FROM qwen3:4b-instruct-2507-q4_K_M
+PARAMETER num_ctx 65536
+PARAMETER repeat_penalty 1
+PARAMETER temperature 0.7
+PARAMETER top_k 20
+PARAMETER top_p 0.8

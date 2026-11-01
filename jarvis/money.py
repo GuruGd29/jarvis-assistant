@@ -20,7 +20,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 from psycopg.rows import dict_row
 
-from . import config, mail
+from . import calendars, config, mail
 
 TZ = ZoneInfo(config.TIMEZONE)
 SETTINGS = config.SECRETS_DIR / "money.json"
@@ -179,7 +179,11 @@ def sync(days: int = 2, verbose: bool = False, ai: bool | None = None) -> dict:
     if ai is None:
         ai = config.MONEY_AI == "always"
     ai = ai and config.MONEY_AI != "off"
+    if not SETTINGS.exists() or not calendars.GOOGLE_TOKEN.exists():
+        return {"skipped": "Google is not connected or secrets/money.json has no banks yet (docs/money.md)"}
     settings = _settings()
+    if not settings.get("alert_senders"):
+        return {"skipped": "no alert_senders in secrets/money.json"}
     senders = " OR ".join(f"from:{s}" for s in settings["alert_senders"])
     service = mail._service()
     query = f"({senders}) newer_than:{days}d"

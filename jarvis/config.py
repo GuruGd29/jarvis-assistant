@@ -55,7 +55,7 @@ def _system_timezone() -> str:
         return "UTC"
 
 
-TIMEZONE = os.environ.get("JARVIS_TIMEZONE", _system_timezone())
+TIMEZONE = os.environ.get("JARVIS_TIMEZONE") or _system_timezone()  # a blank setting means the default
 
 
 # ---- Where the user lives: name, number and date style, currency, languages (all set in .env) ----
@@ -68,14 +68,14 @@ OWNER_NAME = os.environ.get("JARVIS_OWNER_NAME", "").strip()  # used in greeting
 LOCALE = (os.environ.get("JARVIS_LOCALE") or _system_locale()).replace("-", "_")  # e.g. en_IN, en_US, de_DE
 _babel_locale = Locale.parse(LOCALE)
 CURRENCY = (os.environ.get("JARVIS_CURRENCY") or (get_territory_currencies(_babel_locale.territory) or ["USD"])[0]).upper()
-LANGUAGES = os.environ.get("JARVIS_LANGUAGES", _babel_locale.get_language_name("en"))  # e.g. "Tamil and English"
+LANGUAGES = os.environ.get("JARVIS_LANGUAGES") or _babel_locale.get_language_name("en")  # e.g. "Tamil and English"
 # Web push needs a contact address for the push services (Apple, Google, Mozilla); never shown to anyone else.
 CONTACT_EMAIL = os.environ.get("JARVIS_CONTACT_EMAIL", "").strip()
 # The local chat model: answers chats and reads bank emails the built-in readers don't know.
-CHAT_MODEL = os.environ.get("JARVIS_CHAT_MODEL", "qwen3-4b-instruct-64k")
+CHAT_MODEL = os.environ.get("JARVIS_CHAT_MODEL") or "qwen3-4b-instruct-64k"
 # Bank emails from banks without a built-in reader: "nightly" reads them once a night (an AI read pushes the chat
 # out of the model's memory, which costs minutes on a CPU server), "always" on every money sync, "off" never.
-MONEY_AI = os.environ.get("JARVIS_MONEY_AI", "nightly").lower()
+MONEY_AI = (os.environ.get("JARVIS_MONEY_AI") or "nightly").lower()
 # Day/month order of numeric dates like 05/12/2026, from the locale: "dmy", "mdy" or "ymd".
 _short = get_date_format("short", locale=_babel_locale).pattern.lower()
 DATE_ORDER = "".join(sorted("dmy", key=lambda c: _short.find(c)))
