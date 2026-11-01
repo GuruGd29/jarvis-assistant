@@ -8,8 +8,6 @@ on:
   schedule:
     - cron: "30 20 * * 6"   # Sunday 02:00 India time (Saturday 20:30 UTC)
   workflow_dispatch:
-  push:
-    branches: [ci-tests, oss-ready]   # while these are being developed; removed before merging to main
 
 permissions:
   contents: read
