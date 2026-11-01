@@ -314,7 +314,8 @@ def srv_briefing():
 
 def srv_jobs():
     results = []
-    for name in ("jarvis-reminders", "jarvis-weekly", "jarvis-monthly", "jarvis-task-sync", "jarvis-google-check"):
+    for name in ("jarvis-reminders", "jarvis-weekly", "jarvis-monthly", "jarvis-task-sync", "jarvis-google-check",
+                 "jarvis-money-sync", "jarvis-renewal-alerts"):
         code, out = run_job(name)
         results.append((f"{name} runs without error", code == 0 and "Traceback" not in out))
     return checks(*results)
@@ -548,7 +549,7 @@ CASES = [
          ["Run jarvis-briefing as the server's cron would"],
          "Exits cleanly with the greeting, yesterday's spending and 'No calendars connected'", srv_briefing),
     Case("SRV-02", "Scheduled jobs run on the server", "Server jobs", SEEDED + "; Linux server, no Google or iCloud",
-         ["Run jarvis-reminders, -weekly, -monthly, -task-sync and -google-check"],
+         ["Run jarvis-reminders, -weekly, -monthly, -task-sync, -google-check, -money-sync and -renewal-alerts"],
          "Every job exits cleanly, no crash", srv_jobs),
     Case("CB-01", "Greets briefly in English", "Chatbot", CHAT, ["New chat", "Send 'Hi Jarvis'"],
          "A short English greeting (under 80 words)", cb_greeting),

@@ -34,12 +34,19 @@ staging="$(mktemp -d)"
 trap 'rm -rf "$staging"' EXIT
 chmod 700 "$staging"
 
-# Databases are copied as consistent snapshots, never as live files.
-"$DOCKER" exec jarvis-db pg_dump -U jarvis -d jarvis -Fc > "$staging/jarvis-db.dump" || fail "database dump"
+# Databases are copied as consistent snapshots, never as live files: Postgres in Docker (Mac) or installed (server).
+if "$DOCKER" ps --format '{{.Names}}' 2>/dev/null | grep -qx jarvis-db; then
+  "$DOCKER" exec jarvis-db pg_dump -U jarvis -d jarvis -Fc > "$staging/jarvis-db.dump" || fail "database dump"
+else
+  setting() { grep "^$1=" "$SYSTEM/.env" | cut -d= -f2- || true; }
+  port="$(setting JARVIS_DB_PORT)"
+  PGPASSWORD="$(setting JARVIS_DB_PASSWORD)" pg_dump -h 127.0.0.1 -p "${port:-5432}" -U jarvis -d jarvis -Fc \
+    > "$staging/jarvis-db.dump" || fail "database dump"
+fi
 for db in "$HOME"/.hermes/*.db; do
   sqlite3 "$db" ".backup '$staging/hermes-$(basename "$db")'" || fail "copy of $(basename "$db")"
 done
-if "$DOCKER" ps --format '{{.Names}}' | grep -qx open-webui; then
+if "$DOCKER" ps --format '{{.Names}}' 2>/dev/null | grep -qx open-webui; then
   "$DOCKER" exec open-webui python3 -c "import sqlite3; s = sqlite3.connect('/app/backend/data/webui.db'); \
 d = sqlite3.connect('/tmp/webui-backup.db'); s.backup(d); d.close()" || fail "Open WebUI database"
   "$DOCKER" cp -q open-webui:/tmp/webui-backup.db "$staging/open-webui.db"
