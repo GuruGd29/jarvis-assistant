@@ -194,8 +194,15 @@ body.typing .dock { padding-bottom: 8px; }
 .kpis b { display: block; font: 650 clamp(12.5px, 3.9vw, 15px) var(--font); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .kpis span { font: 400 12px var(--font); color: var(--text-2); }
 .spark { width: 100%; height: 46px; margin-top: 10px; }
-.catrow { padding: 11px 14px; }
+.catrow { padding: 11px 14px; display: block; width: 100%; }
 .catrow + .catrow { border-top: 1px solid var(--line); }
+/* "Spent ‹ Sat 31 Oct ›": arrows step a day/week/month/year; the date opens a calendar */
+.pernav { display: flex; align-items: center; gap: 2px; }
+.pernav .arr { width: 30px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: var(--text); }
+.pernav .arr svg { width: 17px; height: 17px; }
+.pernav .when { position: relative; padding: 3px 8px; border-radius: 8px; background: var(--surface-2); color: var(--text); font-weight: 600; white-space: nowrap; }
+.pernav .when input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+.kpis .tap { border-radius: 8px; }
 .catrow .top { display: flex; justify-content: space-between; gap: 8px; font: 500 15px var(--font); }
 .catrow .top b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .catrow .meta { display: flex; justify-content: space-between; font: 400 12.5px var(--font); color: var(--text-2); margin-top: 3px; }

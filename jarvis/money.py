@@ -346,15 +346,16 @@ def cards(today: date | None = None) -> list[dict]:
     return result
 
 
-def summary(start: str, end: str | None = None) -> dict:
-    """Exact money totals for start..end (YYYY-MM-DD, inclusive), with the transactions behind them."""
-    first = date.fromisoformat(start)
-    last = date.fromisoformat(end) if end else first
+def _rows(first: date, last: date) -> list[dict]:
     with psycopg.connect(config.DB_DSN, row_factory=dict_row) as conn:
-        rows = conn.execute(
-            """SELECT occurred_on, instrument, kind, direction, amount, counterparty, is_self
+        return conn.execute(
+            """SELECT occurred_on, occurred_at, instrument, kind, direction, amount, counterparty, is_self
                FROM transactions WHERE occurred_on BETWEEN %s AND %s ORDER BY occurred_on, occurred_at""",
             (first, last)).fetchall()
+
+
+def _counted(rows: list[dict]) -> tuple[list[dict], list[dict]]:
+    """The payments that count as spending, and the refunds that come off them."""
     spent = [r for r in rows if r["direction"] == "debit" and not r["is_self"] and r["kind"] != "card_bill_payment"]
     refunds = [r for r in rows if r["kind"] == "card_refund"]
     for refund in list(refunds):  # a charge refunded in full within the period (e.g. a card check) is not listed
@@ -363,6 +364,15 @@ def summary(start: str, end: str | None = None) -> dict:
         if charge:
             spent.remove(charge)
             refunds.remove(refund)
+    return spent, refunds
+
+
+def summary(start: str, end: str | None = None) -> dict:
+    """Exact money totals for start..end (YYYY-MM-DD, inclusive), with the transactions behind them."""
+    first = date.fromisoformat(start)
+    last = date.fromisoformat(end) if end else first
+    rows = _rows(first, last)
+    spent, refunds = _counted(rows)
     received = [r for r in rows if r["kind"] in ("upi_credit", "deposit_credit") and not r["is_self"]]
     total = lambda items: round(float(sum(r["amount"] for r in items)), 2)
     line = lambda r: f"{r['occurred_on']} {r['instrument']} {r['kind']} {config.money(r['amount'])} {r['counterparty'] or ''}".strip()
@@ -384,6 +394,22 @@ def summary(start: str, end: str | None = None) -> dict:
     # The same totals written in the user's currency and style, for chat and reports.
     result["display"] = {k: config.money(v) for k, v in result.items() if k.endswith("_total")}
     return result
+
+
+_METHOD = {"upi_debit": "UPI", "imps_debit": "IMPS", "emi_debit": "EMI"}
+
+
+def payments(start: str, end: str) -> list[dict]:
+    """Each payment counted in start..end's spending, newest first, for the app's lists; refunds as negative amounts."""
+    spent, refunds = _counted(_rows(date.fromisoformat(start), date.fromisoformat(end)))
+    out = []
+    for r in spent + refunds:
+        method = "refund" if r["kind"] == "card_refund" else _METHOD.get(r["kind"])
+        out.append({"on": str(r["occurred_on"]), "time": f"{r['occurred_at'].astimezone(TZ):%H:%M}" if r["occurred_at"] else "",
+                    "to": r["counterparty"] or "", "category": category(r["counterparty"]),
+                    "amount": -float(r["amount"]) if r["kind"] == "card_refund" else float(r["amount"]),
+                    "via": f"{r['instrument']} · {method}" if method else r["instrument"]})
+    return sorted(out, key=lambda p: (p["on"], p["time"]), reverse=True)
 
 
 # Categories from the merchant name, first match wins; anything else that looks like a person's
@@ -435,17 +461,16 @@ def category(counterparty: str | None) -> str:
     return "Other"
 
 
-def insights(start: str, end: str) -> dict:
-    """Spending by category for start..end against the same number of days before it, plus unusual
-    payments (well above the usual size) and merchants not paid in the 60 days before."""
+def insights(start: str, end: str, before: tuple[date, date] | None = None) -> dict:
+    """Spending by category for start..end against `before` (default: the same number of days before it), plus
+    unusual payments (well above the usual size) and merchants not paid in the 60 days before."""
     first, last = date.fromisoformat(start), date.fromisoformat(end)
-    span = (last - first).days + 1
-    prev_first = first - timedelta(days=span)
+    prev_first, prev_last = before or (first - timedelta(days=(last - first).days + 1), first - timedelta(days=1))
     with psycopg.connect(config.DB_DSN, row_factory=dict_row) as conn:
         rows = conn.execute(
             f"""SELECT occurred_on, kind, amount, counterparty FROM transactions
                WHERE occurred_on BETWEEN %s AND %s AND ({SPENDING} OR {REFUND})""",
-            (first - timedelta(days=60), last)).fetchall()
+            (min(prev_first, first - timedelta(days=60)), last)).fetchall()
     key = lambda r: ((r["counterparty"] or "").strip().lower(), r["amount"])  # noqa: E731
     refunded = {key(r) for r in rows if r["kind"] == "card_refund"}
 
@@ -457,12 +482,12 @@ def insights(start: str, end: str) -> dict:
         return out
 
     current = by_category([r for r in rows if r["occurred_on"] >= first])
-    previous = by_category([r for r in rows if prev_first <= r["occurred_on"] < first])
-    rows = [r for r in rows if r["kind"] != "card_refund"]  # payments only from here on
+    previous = by_category([r for r in rows if prev_first <= r["occurred_on"] <= prev_last])
+    rows = [r for r in rows if r["kind"] != "card_refund" and r["occurred_on"] >= first - timedelta(days=60)]  # payments only
     now = [r for r in rows if r["occurred_on"] >= first]
     history = {(r["counterparty"] or "").strip().lower() for r in rows if r["occurred_on"] < first}
     cats = [{"category": c, "total": round(t, 2), "previous": round(previous.get(c, 0.0), 2),
-             "payments": sum(1 for r in now if category(r["counterparty"]) == c)}
+             "payments": sum(1 for r in now if category(r["counterparty"]) == c and key(r) not in refunded)}
             for c, t in sorted(current.items(), key=lambda kv: kv[1], reverse=True) if t > 0]
     amounts = sorted(float(r["amount"]) for r in rows)
     typical = amounts[len(amounts) // 2] if amounts else 0.0

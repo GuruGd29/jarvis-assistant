@@ -115,6 +115,7 @@ const KIND_LABEL = { reminders: "Reminder", renewals: "Bills & renewals", proble
 const S = {
   route: "chat", chatId: null, chats: [], msgs: [], streaming: null, drawer: false,
   today: null, todayErr: null, iphone: null, money: {}, period: "week", moneyErr: null, moneyTab: "spending", cards: null, cardSel: null,
+  moneyOn: { today: null, week: null, month: null, year: null }, cat: null, allPays: false, // null = the current period
   more: null, settings: null, activity: null, unread: 0, pushState: "unknown",
 };
 
@@ -163,9 +164,9 @@ async function load(name) {
   try {
     if (name === "today") { S.today = await api("/api/today"); S.todayErr = null; loadIphone(); }
     if (name === "money") { // keep each answer under the period it was asked for, even if they arrive out of order
-      const period = S.period;
+      const key = moneyKey(), on = S.moneyOn[S.period];
       if (S.moneyTab === "cards") S.cards = await api("/api/cards");
-      else S.money[period] = await api(`/api/money?period=${period}`);
+      else S.money[key] = await api(`/api/money?period=${S.period}${on ? `&on=${on}` : ""}`);
       S.moneyErr = null;
     }
     if (name === "more") { S.more = await api("/api/more"); await loadActivity(false); }
@@ -398,7 +399,7 @@ function viewToday() {
       <div class="s">${esc(r.what)} ${dayLabel(r.date)} · ${esc(r.source)}</div></div><span class="v">${esc(r.amount || "")}</span></div>`).join("");
   return `<section class="view"><div class="scroll">${head}
     <div class="card big"><div class="k">Summary</div><div class="text">${summary}.</div>
-      <div class="kpis"><div><b>${fmtMoney0(T.spent_today)}</b><span>spent today</span></div><div><b>${dueToday}</b><span>due today</span></div>
+      <div class="kpis"><div class="tap" data-act="money-today" role="button"><b>${fmtMoney0(T.spent_today)}</b><span>spent today</span></div><div><b>${dueToday}</b><span>due today</span></div>
       <div><b>${iph ? iph.length : "–"}</b><span>reminders</span></div><div><b>${medsLeft}</b><span>doses left</span></div></div></div>
     ${T.calendar_errors.length ? `<div class="note">Couldn't read the ${esc(T.calendar_errors.join(" and "))} calendar, so the schedule may be incomplete.</div>` : ""}
     <div class="sec">Schedule · next 7 days</div><div class="card">${events}</div>
@@ -415,8 +416,22 @@ function spark(points) {
   const d = points.map((p, i) => `${i ? "L" : "M"}${(i / (points.length - 1) * w).toFixed(1)} ${(h - 4 - p / max * (h - 8)).toFixed(1)}`).join(" ");
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="var(--text)" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
+const moneyKey = () => `${S.period}|${S.moneyOn[S.period] || ""}`;
+function payRow(p, showDay) {
+  const when = [showDay ? dayLabel(p.on) : "", p.time, esc(p.via)].filter(Boolean).join(" · ");
+  return `<div class="row"><div class="m"><div class="t">${esc(p.to || "Payment")}</div><div class="s">${when}</div></div>
+    <span class="v"${p.amount < 0 ? ' style="color:var(--down)"' : ""}>${p.amount < 0 ? "−" : ""}${fmtMoney(Math.abs(p.amount)).replace(/\.00$/, "")}</span></div>`;
+}
+function viewMoneyCategory(m) { // one category's payments for the period on screen
+  const list = m.list.filter(p => p.category === S.cat);
+  const total = list.reduce((sum, p) => sum + p.amount, 0), n = list.filter(p => p.amount > 0).length;
+  return `<section class="view sub"><div class="navbar"><button class="back" data-act="cat-close">${I.back} Money</button><div class="title">${esc(S.cat)}</div></div>
+    <div class="scroll"><div class="card big"><div class="k">${esc(m.label)}</div><div class="n">${fmtMoney(total)}</div><div class="d">${n} payment${n === 1 ? "" : "s"}</div></div>
+    <div class="sec">Payments</div><div class="card">${list.map(p => payRow(p, m.period !== "today")).join("") || '<div class="empty">No payments.</div>'}</div></div></section>`;
+}
 function viewMoney() {
-  const m = S.money[S.period];
+  const m = S.money[moneyKey()];
+  if (S.cat && m && S.moneyTab === "spending") return viewMoneyCategory(m);
   const pick = `<div class="seg" role="tablist">${[["spending", "Spending"], ["cards", "Cards"]].map(([k, n]) =>
     `<button class="${k === S.moneyTab ? "on" : ""}" data-act="money-tab" data-v="${k}" role="tab" aria-selected="${k === S.moneyTab}">${n}</button>`).join("")}</div>`;
   if (S.moneyTab === "cards") return viewCards(pick);
@@ -426,18 +441,23 @@ function viewMoney() {
   if (!m) return `<section class="view"><div class="scroll">${head}${S.moneyErr ? `<div class="card empty">${esc(S.moneyErr)} <button class="btn s" data-act="reload">Try again</button></div>`
     : `<div class="card big"><div class="skel" style="width:35%"></div><div class="skel" style="height:30px;width:60%"></div><div class="skel"></div></div>`}</div></section>`;
   const ch = change(m.spent, m.previous, m.small);
-  const prevName = { today: "yesterday", week: "the week before", month: "the month before", year: "" }[m.period];
+  const prevName = { today: m.on === m.today ? "yesterday" : "the day before", week: "the week before", month: "the month before", year: "the year before" }[m.period];
   const max = Math.max(...m.categories.map(c => c.total), 1);
   const cats = m.categories.map(c => {
     const cc = change(c.total, c.previous, m.small);
     const share = m.spent > 0 ? Math.round(c.total / Math.max(m.spent, 1) * 100) : 0;
-    return `<div class="catrow"><div class="top"><span>${esc(c.category)}</span><b>${fmtMoney0(c.total)}</b></div>
+    return `<button class="catrow tap" data-act="cat" data-v="${esc(c.category)}"><div class="top"><span>${esc(c.category)}</span><b>${fmtMoney0(c.total)}</b></div>
       <div class="meta"><span>${c.payments} payment${c.payments === 1 ? "" : "s"}${share ? ` · ${share}%` : ""}</span><span style="color:${cc.startsWith("↓") ? "var(--down)" : "var(--up)"}">${cc}</span></div>
-      <div class="bar"><i style="width:${Math.max(2, c.total / max * 100).toFixed(1)}%"></i></div></div>`;
+      <div class="bar"><i style="width:${Math.max(2, c.total / max * 100).toFixed(1)}%"></i></div></button>`;
   }).join("");
+  const pays = (S.allPays ? m.list : m.list.slice(0, 30)).map(p => payRow(p, m.period !== "today")).join("");
+  const nav = `<div class="k pernav">Spent
+      <button class="arr" data-act="money-step" data-v="${m.earlier || ""}" ${m.earlier ? "" : "disabled"} aria-label="Earlier">${I.back}</button>
+      <label class="when">${esc(m.label)}<input type="date" class="pick-day" value="${m.on}" max="${m.today}" aria-label="Pick a date"></label>
+      <button class="arr" data-act="money-step" data-v="${m.later || ""}" ${m.later ? "" : "disabled"} aria-label="Later">${I.chev}</button></div>`;
   const unusual = m.unusual.map(u => `<div class="row"><div class="m"><div class="t">${esc(u.counterparty || "Payment")}</div><div class="s">${dayLabel(u.on)}${u.category ? ` · ${esc(u.category)}` : ""}</div></div><span class="v">${u.amount % 1 ? fmtMoney(u.amount) : fmtMoney0(u.amount)}</span></div>`).join("");
   return `<section class="view"><div class="scroll">${head}
-    <div class="card big"><div class="k">Spent · ${esc(m.label)}</div><div class="n">${fmtMoney(m.spent)}</div>
+    <div class="card big">${nav}<div class="n">${fmtMoney(m.spent)}</div>
       <div class="d">${ch ? `<span style="color:${ch.startsWith("↓") ? "var(--down)" : "var(--up)"}">${ch}</span> vs ${prevName} · ` : ""}${m.payments} payment${m.payments === 1 ? "" : "s"}</div>
       ${spark(m.points)}
       <div class="kpis"><div><b>${fmtMoney0(m.refunds)}</b><span>refunds</span></div><div><b>${fmtMoney0(m.received)}</b><span>received</span></div><div><b>${fmtMoney0(m.own_transfers)}</b><span>own transfers</span></div></div>
@@ -445,6 +465,7 @@ function viewMoney() {
     <div class="sec">By category</div><div class="card">${cats || '<div class="empty">No payments in this period.</div>'}</div>
     ${unusual ? `<div class="sec">Unusually large</div><div class="card">${unusual}</div>` : ""}
     ${m.new_merchants.length ? `<div class="sec">New this period</div><div class="card"><div class="empty">${m.new_merchants.map(esc).join(", ")}</div></div>` : ""}
+    ${m.list.length ? `<div class="sec">Payments · ${m.list.length}${m.list.length > 30 && !S.allPays ? '<button data-act="all-pays">Show all</button>' : ""}</div><div class="card">${pays}</div>` : ""}
   </div></section>`;
 }
 
@@ -606,12 +627,14 @@ async function saveSettings(change) {
 }
 
 document.addEventListener("click", async e => {
+  const pick = e.target.closest(".pick-day"); // phones open the date picker on tap; desktop browsers need asking
+  if (pick && !isTouch && pick.showPicker) try { pick.showPicker(); } catch { /* already open */ }
   const el = e.target.closest("[data-act]");
   if (!el) return;
   const v = el.dataset.v;
   switch (el.dataset.act) {
     // The Chat tab returns to the conversation you were in, not a blank chat.
-    case "go": navigate(v === "chat" && S.chatId ? `#chat/${S.chatId}` : `#${v}`); break;
+    case "go": if (v === "money") S.cat = null; navigate(v === "chat" && S.chatId ? `#chat/${S.chatId}` : `#${v}`); break;
     case "reload": load(S.route); break;
     case "drawer-open": S.drawer = true; renderDrawer(); break;
     case "drawer-close": S.drawer = false; renderDrawer(); break;
@@ -651,9 +674,14 @@ document.addEventListener("click", async e => {
       speechSynthesis.speak(u);
       break;
     }
-    case "money-tab": S.moneyTab = v; render(false); load("money"); break;
+    case "money-tab": S.moneyTab = v; S.cat = null; render(false); load("money"); break;
     case "card": S.cardSel = v; render(false); break;
-    case "period": S.period = v; render(false); load("money"); break; // cached figures show at once, then refresh
+    case "period": S.period = v; S.cat = null; S.allPays = false; render(false); load("money"); break; // cached figures show at once, then refresh
+    case "money-step": S.moneyOn[S.period] = v && v < todayISO() ? v : null; S.allPays = false; render(false); load("money"); break;
+    case "money-today": S.moneyTab = "spending"; S.period = "today"; S.moneyOn.today = null; S.cat = null; navigate("#money"); break;
+    case "cat": S.moneyScroll = $("#view .scroll").scrollTop; S.cat = v; render(); break;
+    case "cat-close": S.cat = null; render(false); $("#view .scroll").scrollTop = S.moneyScroll || 0; break;
+    case "all-pays": S.allPays = true; render(false); break;
     case "task": { // tap to tick, tap again to undo; ticked tasks stay listed until Today reloads
       const task = S.today.tasks.find(t => t.id === +v);
       if (!task) break;
@@ -693,6 +721,10 @@ document.addEventListener("click", async e => {
 document.addEventListener("change", e => {
   const q = e.target.closest("[data-quiet]");
   if (q && q.value) saveSettings({ quiet: { [q.dataset.quiet]: q.value } });
+  if (e.target.matches(".pick-day") && e.target.value) {
+    S.moneyOn[S.period] = e.target.value < todayISO() ? e.target.value : null;
+    S.allPays = false; render(false); load("money");
+  }
 });
 document.addEventListener("input", e => {
   if (e.target.id === "box") { draft = e.target.value; autosize(e.target); updateSend(); }
