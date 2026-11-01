@@ -1,6 +1,8 @@
 # Hermes Agent settings for Jarvis, written to ~/.hermes/config.yaml by install.sh (and by the weekly test run, so
 # what is tested is what gets installed). __VENV__ becomes the Jarvis venv. Telegram starts only when
 # TELEGRAM_BOT_TOKEN is set in ~/.hermes/.env. Web search, voice and anything that needs an outside account are off.
+# Only the memory tool is switched on besides Jarvis's own: every tool's description is part of every prompt,
+# and skills and past-chat search (about 2,200 tokens, never used) made each cold start minutes longer on 2 cores.
 _config_version: 51
 agent:
   execution_guidance: false
@@ -42,12 +44,8 @@ model:
 platform_toolsets:
   api_server:
     - memory
-    - session_search
-    - skills
   telegram:
     - memory
-    - session_search
-    - skills
 providers:
   ollama-launch:
     api: http://127.0.0.1:11434/v1
@@ -68,7 +66,5 @@ tools:
     enabled: "off"
 toolsets:
   - memory
-  - session_search
-  - skills
 updates:
   check: false
