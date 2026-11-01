@@ -1,4 +1,5 @@
 """Medicine reminders and lab results. Jarvis tracks and flags; it never diagnoses or changes doses."""
+import csv
 import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -197,6 +198,18 @@ def lab_results(test: str | None = None) -> dict:
             "note": "Flags compare with the report's reference range; they are not a diagnosis. Discuss changes with a doctor."}
 
 
+def _table_rows(text: str) -> list[list[str]]:
+    """Cells of each table line: split on pipes in a Markdown table, so "7,500" and "1,50,000" stay whole,
+    and as CSV otherwise (quoted fields may hold commas)."""
+    rows = []
+    for line in text.splitlines():
+        if line.count("|") >= 2:
+            rows.append([c.strip() for c in line.strip().strip("|").split("|")])
+        elif line.count(",") >= 2:
+            rows.append([c.strip() for c in next(csv.reader([line]))])
+    return rows
+
+
 def import_lab_reports(folder: Path | None = None) -> dict:
     """Read 'Test | Result | Reference range' tables from Markdown/CSV/text reports in ~/Jarvis/health."""
     folder = folder or config.DATA_ROOT / "health"
@@ -212,8 +225,7 @@ def import_lab_reports(folder: Path | None = None) -> dict:
             day = date.fromisoformat(m[1] if len(m[1]) == 10 else m[1] + "-01")
         if day is None:
             continue
-        rows = [[c.strip() for c in re.split(r"\s*[|,]\s*", line.strip().strip("|"))]
-                for line in text.splitlines() if line.count("|") >= 2 or line.count(",") >= 2]
+        rows = _table_rows(text)
         found = 0
         for cells in rows:
             if len(cells) >= 2 and _parse_value(cells[1]) and not set(cells[1]) <= set("-: "):

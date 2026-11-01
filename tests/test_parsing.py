@@ -6,7 +6,7 @@ import unittest
 from datetime import date
 from unittest import mock
 
-from jarvis import calendars, learn, money, renewals, search
+from jarvis import calendars, health, learn, money, renewals, search
 from jarvis.briefing import _change
 from jarvis.web import notify
 
@@ -93,6 +93,19 @@ class Renewals(unittest.TestCase):
     def test_names(self):
         self.assertEqual(renewals._name("Netflix Standard - INR 499 per month", "subs"), "Netflix Standard")
         self.assertEqual(renewals._name("Date of expiry: 09 June 2031", "passport details"), "Passport details")
+
+
+class LabTables(unittest.TestCase):
+    def test_pipe_table_keeps_comma_numbers_whole(self):
+        rows = health._table_rows("| Test | Result | Reference |\n|---|---|---|\n"
+                                  "| WBC | 7,500 | 4,000 - 11,000 |\n| Platelets | 1,50,000 | 1,50,000 - 4,10,000 |")
+        self.assertEqual(rows[2], ["WBC", "7,500", "4,000 - 11,000"])
+        self.assertEqual(health._parse_value(rows[3][1])[0], 150000)
+        self.assertEqual(health._parse_range(rows[2][2]), (4000, 11000))
+
+    def test_csv_lines(self):
+        self.assertEqual(health._table_rows('HbA1c,5.6 %,4.0 - 5.6\nPlatelets,"1,50,000","1,50,000 - 4,10,000"'),
+                         [["HbA1c", "5.6 %", "4.0 - 5.6"], ["Platelets", "1,50,000", "1,50,000 - 4,10,000"]])
 
 
 class CalendarQuestions(unittest.TestCase):
