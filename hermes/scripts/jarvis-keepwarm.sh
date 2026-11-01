@@ -15,7 +15,13 @@ unset PYTHONPATH PYTHONHOME VIRTUAL_ENV
   # Health of the app: its server (database, Hermes, Ollama) and the HTTPS front door the phone uses.
   health=$(curl -s -m 15 http://127.0.0.1:8791/api/health)
   echo "$health" | grep -q '"ok": *true' || echo "⚠️ The Jarvis app is unhealthy: ${health:-the app server is not answering}"
-  ca="/opt/homebrew/var/lib/caddy/pki/authorities/local/root.crt"
-  code=$(curl -s -m 10 --cacert "$ca" -o /dev/null -w '%{http_code}' https://localhost:3444/)
-  [ "$code" = 200 ] || echo "⚠️ The Jarvis app's HTTPS address is not answering (Caddy, code ${code:-none})."
+  # The front door only where it is set up (docs/remote-access.md): Caddy on a Mac, or on a server's VPN address.
+  # A machine without it is not reported every 20 minutes.
+  for front in "/opt/homebrew/var/lib/caddy/pki/authorities/local/root.crt https://localhost:3444/" \
+               "/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt https://10.8.0.1/"; do
+    set -- $front
+    [ -r "$1" ] || continue
+    code=$(curl -s -m 10 --cacert "$1" -o /dev/null -w '%{http_code}' "$2")
+    [ "$code" = 200 ] || echo "⚠️ The Jarvis app's HTTPS address is not answering (Caddy, code ${code:-none})."
+  done
 } | "$HOME/jarvis-system/.venv/bin/jarvis-notify" problems --one
