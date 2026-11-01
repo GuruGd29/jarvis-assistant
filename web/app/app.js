@@ -440,7 +440,8 @@ function viewMoney() {
     <div class="card big"><div class="k">Spent · ${esc(m.label)}</div><div class="n">${fmtMoney(m.spent)}</div>
       <div class="d">${ch ? `<span style="color:${ch.startsWith("↓") ? "var(--down)" : "var(--up)"}">${ch}</span> vs ${prevName} · ` : ""}${m.payments} payment${m.payments === 1 ? "" : "s"}</div>
       ${spark(m.points)}
-      <div class="kpis"><div><b>${fmtMoney0(m.refunds)}</b><span>refunds</span></div><div><b>${fmtMoney0(m.received)}</b><span>received</span></div><div><b>${fmtMoney0(m.own_transfers)}</b><span>own transfers</span></div></div></div>
+      <div class="kpis"><div><b>${fmtMoney0(m.refunds)}</b><span>refunds</span></div><div><b>${fmtMoney0(m.received)}</b><span>received</span></div><div><b>${fmtMoney0(m.own_transfers)}</b><span>own transfers</span></div></div>
+      ${m.card_purchases > 0 ? `<div class="d">On credit cards: ${fmtMoney0(m.card_purchases)} · counted when the bill is paid</div>` : ""}</div>
     <div class="sec">By category</div><div class="card">${cats || '<div class="empty">No payments in this period.</div>'}</div>
     ${unusual ? `<div class="sec">Unusually large</div><div class="card">${unusual}</div>` : ""}
     ${m.new_merchants.length ? `<div class="sec">New this period</div><div class="card"><div class="empty">${m.new_merchants.map(esc).join(", ")}</div></div>` : ""}

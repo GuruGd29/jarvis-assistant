@@ -353,7 +353,10 @@ def summary(start: str, end: str | None = None) -> dict:
         "received_total": total(received),
         "own_account_transfers_total": total([r for r in rows if r["is_self"]]),
         "card_bill_payments_total": total([r for r in rows if r["kind"] == "card_bill_payment"]),
-        "credit_card_purchases_total": total([r for r in rows if r["kind"] == "card_spend" and _credit_card_purchase(r)]),
+        # Refunded card purchases (e.g. a sign-up card check) cancel out; never below zero for the period.
+        "credit_card_purchases_total": round(max(
+            total([r for r in rows if r["kind"] == "card_spend" and _credit_card_purchase(r)])
+            - total([r for r in rows if r["kind"] == "card_refund" and _credit_card_purchase(r)]), 0.0), 2),
         "note": "Totals come from bank alert emails only; cash and payments without an alert email are not included. "
                 "Credit cards count when the bill is paid, not per purchase.",
     }
