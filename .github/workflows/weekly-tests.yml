@@ -1,5 +1,6 @@
-# Weekly test run: builds a throwaway Jarvis on a GitHub runner (fake data, the real code, Hermes and
-# the Qwen3 4B model) and runs tests/ci/run_tests.py. No secrets are used and none of the owner's data
+# Weekly test run: builds a throwaway Jarvis on a GitHub runner set up like the planned Oracle server
+# (ARM64 Ubuntu, Postgres from apt, no Docker, the model on 2 CPU cores) with fake data, the real code,
+# Hermes and the Qwen3 4B model, and runs tests/ci/run_tests.py. No secrets are used and none of the owner's data
 # is involved, so the public logs and reports are safe to share.
 name: Weekly tests
 
@@ -19,27 +20,17 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 150
+    runs-on: ubuntu-24.04-arm   # ARM64 like the Oracle Ampere A1 server
+    timeout-minutes: 240
     env:
       JARVIS_CI: "1"
       JARVIS_DB_HOST: 127.0.0.1
-      JARVIS_DB_PORT: "5433"
+      JARVIS_DB_PORT: "5432"
       JARVIS_DB_NAME: jarvis
       JARVIS_DB_USER: jarvis
       JARVIS_DB_PASSWORD: ci-only-throwaway
       JARVIS_TIMEZONE: Asia/Kolkata
       TZ: Asia/Kolkata
-    services:
-      postgres:
-        image: pgvector/pgvector:pg17
-        env:
-          POSTGRES_USER: jarvis
-          POSTGRES_PASSWORD: ci-only-throwaway
-          POSTGRES_DB: jarvis
-        ports: ["5433:5432"]
-        options: >-
-          --health-cmd "pg_isready -U jarvis" --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
       - uses: actions/checkout@v4
 
@@ -53,7 +44,7 @@ jobs:
           path: |
             ~/.ollama/models
             models
-          key: models-qwen3-4b-2507-bge-m3-v1
+          key: models-arm64-qwen3-4b-2507-bge-m3-v1
 
       - name: Build the test Jarvis
         run: tests/ci/setup.sh
