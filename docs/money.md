@@ -64,9 +64,10 @@ Run it by hand any time: `~/jarvis-system/.venv/bin/jarvis-money-sync --ai --day
 ## 3. How totals are counted
 
 - **Spending** = money out of your accounts and cards, minus refunds, without transfers between your own accounts.
-- **Credit cards count when you pay the bill**, not per purchase, so nothing is counted twice. Card purchases are
-  shown separately, and on the **Cards** screen: each card's latest bill, the part payments you've made towards it,
-  what's left, the due date, and the purchases since the statement (they go on the next bill).
+- **Credit card purchases count on the day you make them**, like any other payment. Paying the card bill later is
+  not counted again, so nothing is counted twice. The **Cards** screen shows each card's latest bill, the part
+  payments you've made towards it, what's left, the due date, and the purchases since the statement (they go on the
+  next bill).
 - **Categories** (food, groceries, travel, bills, health…) are guessed from the merchant's name. "Unusually large"
   means among your largest 5% of payments and at least 10 times your usual payment, so it works in any currency.
 

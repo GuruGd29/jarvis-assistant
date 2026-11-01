@@ -168,8 +168,8 @@ def money_view(period: str) -> dict:
     insights = money.insights(str(start), str(end))
     with money.psycopg.connect(config.DB_DSN) as conn:
         daily = dict(conn.execute(
-            f"""SELECT occurred_on, sum(amount) FROM transactions
-               WHERE occurred_on BETWEEN %s AND %s AND {money.SPENDING}
+            f"""SELECT occurred_on, sum({money.NET_AMOUNT}) FROM transactions
+               WHERE occurred_on BETWEEN %s AND %s AND ({money.SPENDING} OR {money.REFUND})
                GROUP BY occurred_on""", (start, end)).fetchall())
     # Daily totals for the small line chart (weekly totals for a whole year).
     points, cursor = [], start

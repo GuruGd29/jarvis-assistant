@@ -138,8 +138,8 @@ def email_read(message_id: str) -> dict:
 def spending_summary(start_date: str, end_date: str | None = None) -> dict:
     """Exact money totals from the user's bank alert emails for start_date..end_date
     (YYYY-MM-DD, inclusive; end_date defaults to start_date). Quote spending_total as given:
-    it already leaves out transfers between the user's own accounts and single credit card purchases
-    (a card counts when its bill is paid), and subtracts card refunds. Never add up amounts yourself."""
+    it already includes credit card purchases on the day they were made, leaves out transfers between the
+    user's own accounts and card bill payments, and subtracts refunds. Never add up amounts yourself."""
     result = money.summary(start_date, end_date)
     # The model reads every line of this answer; a month of payments took minutes to read on a 2-core server.
     if len(result["spending"]) > 20:
