@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: "30 20 * * 6"   # Sunday 02:00 India time (Saturday 20:30 UTC)
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Run only these test cases, e.g. CB-06,HL-03 (empty: all of them)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -52,7 +57,9 @@ jobs:
       - name: Test cases
         id: cases
         continue-on-error: true
-        run: .venv/bin/python tests/ci/run_tests.py --out reports
+        env:
+          ONLY: ${{ inputs.only }}
+        run: .venv/bin/python tests/ci/run_tests.py --out reports ${ONLY:+--only "$ONLY"}
 
       - name: Report on the run page
         if: always()
@@ -60,6 +67,7 @@ jobs:
           if [ -f reports/report.md ]; then cat reports/report.md >> "$GITHUB_STEP_SUMMARY"; else echo "No report was written." >> "$GITHUB_STEP_SUMMARY"; fi
           mkdir -p reports && cp logs/*.log reports/ 2>/dev/null || true
           sudo journalctl -u jarvis-hermes -u jarvis-web -u ollama --no-pager > reports/services.log 2>&1 || true
+          { free -m; echo; ollama ps; } > reports/memory.txt 2>&1 || true   # memory with every model loaded
 
       - name: Upload the report (HTML + CSV + logs)
         if: always()

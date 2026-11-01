@@ -53,7 +53,7 @@ MEDIAN_LIMIT_S = float(os.environ.get("CI_MEDIAN_LIMIT_S", "120"))
 NOT_FOUND = re.compile(r"couldn.?t find|could not find|can.?t find|cannot find|don.?t have|do not have|no record|"
                        r"not found|no information|don.?t see|do not see|isn.?t (in|any)|not in your|no such|"
                        r"unable to find|didn.?t find|did not find|no (matching )?(payment|transaction|document|file)|"
-                       r"doesn.?t (appear|show|exist)|does not (appear|show|exist)|don.?t know|not available|"
+                       r"do(es)?n.?t (appear|show|exist)|do(es)? not (appear|show|exist)|don.?t know|not available|"
                        r"no details|nothing (about|on|in)|not (stored|saved|mentioned)|no mention|not in (your|their|the) files", re.I)
 REFUSAL = re.compile(r"\b(I can.?t|I cannot|I.?m unable|I am unable|I won.?t|I will not|can.?t help with|"
                      r"not able to help|I.?m not able|against my)\b", re.I)
