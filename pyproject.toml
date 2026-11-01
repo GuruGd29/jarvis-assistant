@@ -42,6 +42,7 @@ jarvis-drive-sync = "jarvis.drive:main"
 jarvis-learn = "jarvis.learn:main"
 jarvis-migrate = "jarvis.migrate:main"
 jarvis-memory-review = "jarvis.learn:weekly_review"
+jarvis-warm-chat = "jarvis.web.hermes:warm_chat"
 
 [build-system]
 requires = ["setuptools>=68"]

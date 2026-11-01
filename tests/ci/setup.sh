@@ -18,7 +18,7 @@ for id in $jobs; do hermes cron pause "$id" < /dev/null >/dev/null; done
 .venv/bin/jarvis-ingest | tail -1
 curl -s http://127.0.0.1:8791/api/health; echo
 
-# One untimed chat through Hermes, so the first test case is not charged for the cold start
-# (loading the model and reading Hermes's long system prompt took 24 minutes on the first reply).
-.venv/bin/python tests/ci/run_tests.py --only CB-01 --out "$RUNNER_TEMP/warmup" >/dev/null 2>&1 || true
+# The same warm-up the server's keep-warm job runs, so the first test case is not charged for the cold start
+# (loading the model and reading Jarvis's long prompt from scratch); its time is the server's cold start.
+.venv/bin/jarvis-warm-chat || true
 echo "setup done"
