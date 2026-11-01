@@ -77,6 +77,16 @@ class MoneyCategories(unittest.TestCase):
         self.assertEqual(_change(500, 400), "")  # too small to compare
 
 
+class MoneyCatchUp(unittest.TestCase):
+    def test_reads_back_to_the_newest_payment(self):
+        today = date(2026, 11, 10)
+        self.assertEqual(money._catch_up_days(2, date(2026, 11, 9), today), 2)  # normal: the usual 2 days
+        self.assertEqual(money._catch_up_days(2, date(2026, 11, 4), today), 7)  # off for 6 days
+        self.assertEqual(money._catch_up_days(2, date(2026, 1, 1), today), money.MAX_CATCH_UP_DAYS)
+        self.assertEqual(money._catch_up_days(2, None, today), 2)  # nothing saved yet
+        self.assertEqual(money._catch_up_days(120, date(2026, 11, 9), today), 120)  # --days by hand still wins
+
+
 class Renewals(unittest.TestCase):
     def when(self, line):
         return renewals._when(line, SAT)

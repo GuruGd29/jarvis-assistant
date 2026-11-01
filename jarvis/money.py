@@ -36,6 +36,7 @@ STATEMENT_QUERY = 'subject:("credit card statement")'
 # Banks with an exact built-in reader below (matched on the sender's address); others are read by the AI.
 BUILT_IN_SENDERS = ("hdfcbank", "icici", "idfcfirstbank")
 AI_READS_PER_RUN = 40  # about 20-40 minutes on a 2-core server; the rest wait for the next run
+MAX_CATCH_UP_DAYS = 90  # how far a sync reads back on its own after a long gap (the first backfill's reach)
 
 
 def has_reader(sender: str) -> bool:
@@ -173,6 +174,14 @@ def _read_politely(service, gmail_id: str) -> dict:
     raise RuntimeError("Gmail kept rate-limiting; try again later")
 
 
+def _catch_up_days(days: int, newest: date | None, today: date) -> int:
+    """Days of email to read: back to the newest saved payment when that is older than `days`, so nothing is missed
+    after the computer was off or asleep for a while."""
+    if newest is None:
+        return days
+    return max(days, min((today - newest).days + 1, MAX_CATCH_UP_DAYS))
+
+
 def sync(days: int = 2, verbose: bool = False, ai: bool | None = None) -> dict:
     """Read new alert emails into `transactions`. Emails from banks without a built-in reader go to the AI when
     `ai` is true (default: only when JARVIS_MONEY_AI=always; the nightly job passes --ai)."""
@@ -186,6 +195,9 @@ def sync(days: int = 2, verbose: bool = False, ai: bool | None = None) -> dict:
         return {"skipped": "no alert_senders in secrets/money.json"}
     senders = " OR ".join(f"from:{s}" for s in settings["alert_senders"])
     service = mail._service()
+    with psycopg.connect(config.DB_DSN) as conn:
+        newest = conn.execute("SELECT max(occurred_on) FROM transactions").fetchone()[0]
+    days = _catch_up_days(days, newest, datetime.now(TZ).date())
     query = f"({senders}) newer_than:{days}d"
     ids, token = [], None
     while True:
