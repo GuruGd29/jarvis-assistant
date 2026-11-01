@@ -36,7 +36,7 @@ Also: <a href="docs/screenshots/more.png">More screen</a> · <a href="docs/scree
 | 💰 **Money** | Turns your bank's alert emails into exact spending totals by day, week, month and category, plus a **Cards** view: each credit card's bill, part payments, amount left and due date. Totals are worked out by the database, never guessed by the AI. |
 | 💊 **Health** | Medicine reminders ("taken" / "skip"), and lab results from your reports with LOW/HIGH flags. It summarises; it does not diagnose. |
 | 🔔 **Renewals** | Finds "renews on", "valid until" and expiry dates in your files and reminds you before them. |
-| 🧠 **Memory** | Remembers what you tell it ("remember that my sister is Meena"). "What do you know about me" and "forget …" work any time. |
+| 🧠 **Memory** | Remembers what you tell it ("remember that I'm allergic to peanuts"). "What do you know about me" and "forget …" work any time. |
 | ☀️ **Briefings** | A morning brief (events, tasks, unread mail, medicines, yesterday's spending), a Sunday summary of the week and a monthly money report, as phone notifications and/or Telegram messages. |
 
 ## How it works
