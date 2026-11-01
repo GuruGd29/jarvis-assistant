@@ -146,31 +146,62 @@ def iphone_reminders(wait: bool = True) -> dict | None:
 PERIODS = ("today", "week", "month", "year")
 
 
-def _range(period: str, day: date) -> tuple[date, date, str]:
+def _range(period: str, on: date, today: date) -> tuple[date, date, str]:
+    """The period holding `on` (for a week, the 7 days ending on it), never past today, and its label."""
+    year = lambda d: "" if d.year == today.year else f" {d:%Y}"  # noqa: E731
     if period == "today":
-        return day, day, f"{day:%a %d %b}"
+        return on, on, f"{on:%a %d %b}{year(on)}"
     if period == "week":
-        start = day - timedelta(days=6)
-        return start, day, f"{start:%d %b} – {day:%d %b}"
+        start = on - timedelta(days=6)
+        return start, on, f"{start:%d %b} – {on:%d %b}{year(on)}"
     if period == "month":
-        return day.replace(day=1), day, f"{day:%B}"
-    return day.replace(month=1, day=1), day, f"{day:%Y} so far"
+        start = on.replace(day=1)
+        return start, min((start + timedelta(days=31)).replace(day=1) - timedelta(days=1), today), f"{start:%B}{year(start)}"
+    end = min(on.replace(month=12, day=31), today)
+    return on.replace(month=1, day=1), end, f"{on:%Y} so far" if end == today else f"{on:%Y}"
 
 
-def money_view(period: str) -> dict:
+def _before(period: str, start: date, end: date) -> tuple[date, date]:
+    """What a period is compared with: the same days of the month or year before, else the days just before."""
+    if period == "month":
+        first = (start - timedelta(days=1)).replace(day=1)
+        return first, min(first + (end - start), start - timedelta(days=1))
+    if period == "year":
+        back = lambda d: d.replace(year=d.year - 1, day=28) if (d.month, d.day) == (2, 29) else d.replace(year=d.year - 1)  # noqa: E731
+        return back(start), back(end)
+    span = (end - start).days + 1
+    return start - timedelta(days=span), start - timedelta(days=1)
+
+
+def _steps(period: str, start: date, end: date, today: date) -> tuple[str, str | None]:
+    """The `on` dates of the period before and after this one; no later one once this period reaches today."""
+    if period in ("month", "year"):
+        earlier, later = start - timedelta(days=1), end + timedelta(days=1)
+    else:
+        span = (end - start).days + 1
+        earlier, later = end - timedelta(days=span), min(end + timedelta(days=span), today)
+    return str(earlier), str(later) if end < today else None
+
+
+def money_view(period: str, on: str | None = None) -> dict:
+    """The Money screen for the period holding `on` (YYYY-MM-DD; default today)."""
     if period not in PERIODS:
         raise ValueError("unknown period")
-    day = tasks.today()
-    start, end, label = _range(period, day)
-    span = (end - start).days + 1
+    today = tasks.today()
+    start, end, label = _range(period, min(date.fromisoformat(on), today) if on else today, today)
+    prev_start, prev_end = _before(period, start, end)
     now = money.summary(str(start), str(end))
-    before = money.summary(str(start - timedelta(days=span)), str(start - timedelta(days=1)))
-    insights = money.insights(str(start), str(end))
+    before = money.summary(str(prev_start), str(prev_end))
+    insights = money.insights(str(start), str(end), (prev_start, prev_end))
+    earlier, later = _steps(period, start, end, today)
     with money.psycopg.connect(config.DB_DSN) as conn:
         daily = dict(conn.execute(
             f"""SELECT occurred_on, sum({money.NET_AMOUNT}) FROM transactions
                WHERE occurred_on BETWEEN %s AND %s AND ({money.SPENDING} OR {money.REFUND})
                GROUP BY occurred_on""", (start, end)).fetchall())
+        first = conn.execute("SELECT min(occurred_on) FROM transactions").fetchone()[0]
+    if first is None or start <= first:  # nothing older to show
+        earlier = None
     # Daily totals for the small line chart (weekly totals for a whole year).
     points, cursor = [], start
     step = 7 if period == "year" else 1
@@ -184,6 +215,8 @@ def money_view(period: str) -> dict:
         "categories": insights["by_category"], "unusual": insights["unusual_rows"],
         "new_merchants": insights["new_merchants"], "points": points, "note": now["note"],
         "card_purchases": now["credit_card_purchases_total"], "small": money.small_amount(),
+        "on": str(end), "today": str(today), "earlier": earlier, "later": later,
+        "list": money.payments(str(start), str(end)),
     }
 
 

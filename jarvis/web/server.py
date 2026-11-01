@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import sys
+from datetime import date
 from pathlib import Path
 
 import httpx
@@ -192,7 +193,12 @@ async def money_view(request: Request) -> Response:
     period = request.query_params.get("period", "week")
     if period not in data.PERIODS:
         return _error("unknown period")
-    return _json(await run_in_threadpool(data.money_view, period))
+    on = request.query_params.get("on") or None
+    try:
+        date.fromisoformat(on) if on else None
+    except ValueError:
+        return _error("bad date")
+    return _json(await run_in_threadpool(data.money_view, period, on))
 
 
 async def cards_view(request: Request) -> Response:
