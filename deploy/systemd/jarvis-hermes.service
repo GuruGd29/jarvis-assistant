@@ -1,0 +1,17 @@
+# Jarvis's agent: Hermes gateway (chats from the app, Telegram, scheduled jobs). install.sh fills in @USER@ and
+# @HOME@ and copies this to /etc/systemd/system/. Logs: journalctl -u jarvis-hermes
+[Unit]
+Description=Jarvis - Hermes Agent gateway
+After=network-online.target ollama.service postgresql.service
+Wants=network-online.target ollama.service postgresql.service
+
+[Service]
+User=@USER@
+Environment=HERMES_HOME=@HOME@/.hermes
+WorkingDirectory=@HOME@
+ExecStart=@HOME@/.hermes/hermes-agent/.hermes/bin/hermes gateway run --replace --external-supervisor
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

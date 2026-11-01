@@ -16,6 +16,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import psycopg
+from babel.numbers import NumberFormatError, parse_decimal
 from psycopg.rows import dict_row
 
 from . import config, tasks
@@ -30,10 +31,13 @@ _MONTH = r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?"
 _DAY_MONTH_YEAR = re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+{_MONTH},?\s+(\d{{4}})\b", re.I)
 _MONTH_DAY_YEAR = re.compile(rf"\b{_MONTH}\s+(\d{{1,2}})(?:st|nd|rd|th)?,?\s+(\d{{4}})\b", re.I)
 _ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
-_NUMERIC = re.compile(r"\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\b")  # Indian order: day/month/year
+_NUMERIC = re.compile(r"\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\b")  # day/month or month/day: JARVIS_LOCALE decides
 _DAY_MONTH = re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+{_MONTH}(?!\w|,?\s+\d{{4}})", re.I)
 _MONTHLY = re.compile(r"\bon\s+the\s+(\d{1,2})(?:st|nd|rd|th)\b", re.I)
-_AMOUNT = re.compile(r"(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)", re.I)
+# An amount after a currency: the user's own (code and symbol) or a common one, e.g. "INR 499", "$12.99", "€9,99".
+_CURRENCIES = sorted({config.CURRENCY, config.CURRENCY_SYMBOL, "Rs.", "Rs", "INR", "₹", "USD", "$", "EUR", "€", "GBP", "£"},
+                     key=len, reverse=True)
+_AMOUNT = re.compile(r"(" + "|".join(map(re.escape, _CURRENCIES)) + r")\s*(\d[\d,.]*\d|\d)")
 
 
 def _safe_date(year: int, month: int, day: int) -> date | None:
@@ -41,6 +45,18 @@ def _safe_date(year: int, month: int, day: int) -> date | None:
         return date(year, month, day)
     except ValueError:
         return None
+
+
+def _amount_text(m: re.Match) -> str:
+    """The amount in the user's own style when it is in their currency, else as written in the file."""
+    own = {config.CURRENCY, config.CURRENCY_SYMBOL} | ({"Rs.", "Rs", "₹"} if config.CURRENCY == "INR" else set())
+    if m[1] in own:
+        try:
+            value = float(parse_decimal(m[2], locale=config.LOCALE))
+            return config.money(value, decimals=value % 1 != 0)
+        except NumberFormatError:
+            pass
+    return m[0]
 
 
 def _next_monthly(day: int, today: date) -> date:
@@ -64,7 +80,9 @@ def _when(line: str, today: date) -> tuple[date, str] | None:
     for m in _ISO.finditer(line):
         fixed.append((m.start(), _safe_date(int(m[1]), int(m[2]), int(m[3]))))
     for m in _NUMERIC.finditer(line):
-        fixed.append((m.start(), _safe_date(int(m[3]), int(m[2]), int(m[1]))))
+        first, second = int(m[1]), int(m[2])
+        day, month = (second, first) if config.DATE_ORDER == "mdy" else (first, second)
+        fixed.append((m.start(), _safe_date(int(m[3]), month, day)))
     fixed = [(pos, d) for pos, d in fixed if d]
     if fixed:  # "valid from X to Y": the last date is the one that matters
         return max(fixed)[1], "once"
@@ -112,7 +130,7 @@ def upcoming(days: int = 60, today: date | None = None) -> list[dict]:
             amount = _AMOUNT.search(line)
             found.append({"item": name, "date": when[0].isoformat(), "repeats": when[1],
                           "what": "expires" if re.search(r"expir|valid", line, re.I) else "renews",
-                          "amount": f"₹{amount[1]}" if amount else None,
+                          "amount": _amount_text(amount) if amount else None,
                           "source": Path(row["path"]).name, "line": line})
     return sorted(found, key=lambda r: r["date"])
 
