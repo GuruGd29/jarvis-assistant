@@ -1,10 +1,19 @@
 #!/bin/bash
-# Build a throwaway Jarvis on a GitHub runner: Ollama + models, Hermes at the pinned commit, the Jarvis
+# Build a throwaway Jarvis on a GitHub runner the way the Oracle server will be set up: Postgres from apt, Hermes at the pinned commit, the Jarvis
 # plugin and SOUL, fake data, the app server. Run from the repo root by .github/workflows/weekly-tests.yml.
 set -euo pipefail
 REPO="$(pwd)"
 HERMES_COMMIT="bf0203a794a07aac3ff764972ab9087baa4e4f4e"   # the version running on the Mac
 export HERMES_HOME="$HOME/.hermes"
+
+# Postgres from apt with pgvector, as on the server (no Docker there).
+sudo apt-get update -q && sudo apt-get install -y -q postgresql
+PG=$(ls /usr/lib/postgresql | sort -n | tail -1)
+sudo apt-get install -y -q "postgresql-$PG-pgvector"
+sudo systemctl start postgresql
+sudo -u postgres psql -q -c "CREATE ROLE $JARVIS_DB_USER LOGIN PASSWORD '$JARVIS_DB_PASSWORD'"
+sudo -u postgres createdb -O "$JARVIS_DB_USER" "$JARVIS_DB_NAME"
+sudo -u postgres psql -q -d "$JARVIS_DB_NAME" -c "CREATE EXTENSION vector"   # needs the admin, once
 
 # The plugin and cron scripts expect the code at ~/jarvis-system with its venv inside.
 ln -sfn "$REPO" "$HOME/jarvis-system"
@@ -13,10 +22,10 @@ python -m venv .venv
 .venv/bin/pip install -q -r requirements.lock
 .venv/bin/pip install -q --no-deps -e .
 
-# Ollama, the chat model (64k context, 8-bit KV cache so it fits in 16 GB) and the embedding model.
+# Ollama, the chat model (64k context; 4-bit KV cache as planned for the 12 GB server) and the embedding model.
 if ! command -v ollama >/dev/null; then curl -fsSL https://ollama.com/install.sh | sh; fi
 sudo systemctl stop ollama 2>/dev/null || true
-OLLAMA_FLASH_ATTENTION=1 OLLAMA_KV_CACHE_TYPE=q8_0 OLLAMA_KEEP_ALIVE=2h OLLAMA_NO_CLOUD=1 \
+OLLAMA_FLASH_ATTENTION=1 OLLAMA_KV_CACHE_TYPE=q4_0 OLLAMA_KEEP_ALIVE=2h OLLAMA_NO_CLOUD=1 \
   nohup ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
 until curl -sf http://127.0.0.1:11434/api/version >/dev/null; do sleep 1; done
 ollama pull qwen3:4b-instruct-2507-q4_K_M

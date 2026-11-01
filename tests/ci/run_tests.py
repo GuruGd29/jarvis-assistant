@@ -25,6 +25,7 @@ import math
 import os
 import re
 import statistics
+import subprocess
 import sys
 import time
 import traceback
@@ -296,6 +297,28 @@ def api_today():
     return checks(("status 200", status == 200), ("seeded task listed", FACTS["task_title"] in titles))
 
 
+# ---------- server jobs ----------
+def run_job(name: str) -> tuple[int, str]:
+    """A scheduled job as the server's cron runs it: the venv's entry point, no Mac and no Google sign-in."""
+    done = subprocess.run([str(Path(sys.executable).parent / name)], capture_output=True, text=True, timeout=300)
+    return done.returncode, done.stdout + done.stderr
+
+
+def srv_briefing():
+    code, out = run_job("jarvis-briefing")
+    return checks(("exits cleanly", code == 0), ("no crash", "Traceback" not in out),
+                  ("greets the morning", "Good morning" in out), ("yesterday's spending line", "Yesterday you spent" in out),
+                  ("says no calendar is connected", "No calendars connected" in out))
+
+
+def srv_jobs():
+    results = []
+    for name in ("jarvis-reminders", "jarvis-weekly", "jarvis-monthly", "jarvis-task-sync", "jarvis-google-check"):
+        code, out = run_job(name)
+        results.append((f"{name} runs without error", code == 0 and "Traceback" not in out))
+    return checks(*results)
+
+
 # ---------- chatbot ----------
 def cb_greeting():
     t = ask("Hi Jarvis")
@@ -503,6 +526,12 @@ CASES = [
          "ICICI card 9001 shows ₹7,000 left and a due date", api_cards),
     Case("API-05", "Today screen data", "API", SEEDED + "; app server running", ["GET /api/today"],
          "Seeded task 'Pay the water bill' is listed", api_today),
+    Case("SRV-01", "Morning briefing runs on the server", "Server jobs", SEEDED + "; Linux server, no Google sign-in",
+         ["Run jarvis-briefing as the server's cron would"],
+         "Exits cleanly with the greeting, yesterday's spending and 'No calendars connected'", srv_briefing),
+    Case("SRV-02", "Scheduled jobs run on the server", "Server jobs", SEEDED + "; Linux server, no Google or iCloud",
+         ["Run jarvis-reminders, -weekly, -monthly, -task-sync and -google-check"],
+         "Every job exits cleanly, no crash", srv_jobs),
     Case("CB-01", "Greets briefly in English", "Chatbot", CHAT, ["New chat", "Send 'Hi Jarvis'"],
          "A short English greeting (under 80 words)", cb_greeting),
     Case("CB-02", "General knowledge", "Chatbot", CHAT, ["New chat", "Ask the capital of Japan"], "Mentions Tokyo", cb_general),

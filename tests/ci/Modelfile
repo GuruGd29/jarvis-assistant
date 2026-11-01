@@ -1,7 +1,9 @@
-# The same model and settings as the Mac's qwen3-4b-instruct-64k.
+# The model and settings Jarvis uses (qwen3-4b-instruct-64k), sized for the Oracle server.
 FROM qwen3:4b-instruct-2507-q4_K_M
 PARAMETER num_ctx 65536
 PARAMETER repeat_penalty 1
 PARAMETER temperature 0.7
 PARAMETER top_k 20
 PARAMETER top_p 0.8
+# The Oracle Always Free server has 2 OCPU (2 Ampere cores).
+PARAMETER num_thread 2
