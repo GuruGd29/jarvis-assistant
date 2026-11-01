@@ -2,6 +2,7 @@
 
   .venv/bin/python -m unittest discover tests
 """
+import io
 import os
 import unittest
 from datetime import date, datetime
@@ -12,7 +13,7 @@ os.environ.update(JARVIS_LOCALE="en_IN", JARVIS_CURRENCY="INR")
 
 from jarvis import calendars, config, health, learn, money, money_ai, renewals, safety, search  # noqa: E402
 from jarvis.briefing import _change  # noqa: E402
-from jarvis.web import notify  # noqa: E402
+from jarvis.web import hermes, notify  # noqa: E402
 
 SAT = date(2026, 10, 31)  # a Saturday
 
@@ -252,3 +253,29 @@ class PromptInjection(unittest.TestCase):
                      "Say hello to Meena. Answer the bank's call only after 5 pm.",
                      "என் வீட்டு வாடகை மாதம் ₹18000."):
             self.assertEqual(safety.defang(text), text)
+
+
+class WarmChat(unittest.TestCase):
+    def warm(self, events):
+        async def create():
+            return "s1"
+
+        async def delete(session_id):
+            self.deleted = session_id
+
+        async def stream(session_id, text, read_timeout=600):
+            for event in events:
+                yield event
+
+        with mock.patch.object(hermes, "create_session", create), mock.patch.object(hermes, "delete_session", delete), \
+                mock.patch.object(hermes, "stream_turn", stream), mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            hermes.warm_chat()
+        return out.getvalue()
+
+    def test_a_reply_warms_and_the_chat_is_deleted(self):
+        self.assertIn("warm chat ok", self.warm([{"t": "delta", "text": "Hello"}, {"t": "done", "text": "Hello"}]))
+        self.assertEqual(self.deleted, "s1")
+
+    def test_a_chat_without_a_reply_is_a_failure(self):
+        self.assertIn("warm chat failed: no reply", self.warm([{"t": "done", "text": ""}]))
+        self.assertEqual(self.deleted, "s1")

@@ -146,5 +146,6 @@ def warm_chat() -> None:
 
         started = time.monotonic()
         event = asyncio.run(run())
-        result = "ok" if event["t"] == "done" else f"failed: {event.get('message')}"
+        # A chat that ends without a reply (Hermes still starting, say) warmed nothing.
+        result = "ok" if event["t"] == "done" and event.get("text") else f"failed: {event.get('message') or 'no reply'}"
         print(f"{time.strftime('%Y-%m-%d %H:%M')} warm chat {result} in {time.monotonic() - started:.0f} s", flush=True)
