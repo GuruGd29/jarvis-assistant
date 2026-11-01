@@ -71,6 +71,9 @@ CURRENCY = (os.environ.get("JARVIS_CURRENCY") or (get_territory_currencies(_babe
 LANGUAGES = os.environ.get("JARVIS_LANGUAGES") or _babel_locale.get_language_name("en")  # e.g. "Tamil and English"
 # Web push needs a contact address for the push services (Apple, Google, Mozilla); never shown to anyone else.
 CONTACT_EMAIL = os.environ.get("JARVIS_CONTACT_EMAIL", "").strip()
+# Read the Reminders app on this Mac (iPhone Reminders via iCloud): only when set to "on", since it is personal data
+# that macOS would otherwise hand over to any process that asks once.
+APPLE_REMINDERS = (os.environ.get("JARVIS_APPLE_REMINDERS") or "off").lower() == "on"
 # The local chat model: answers chats and reads bank emails the built-in readers don't know.
 CHAT_MODEL = os.environ.get("JARVIS_CHAT_MODEL") or "qwen3-4b-instruct-64k"
 # Bank emails from banks without a built-in reader: "nightly" reads them once a night (an AI read pushes the chat

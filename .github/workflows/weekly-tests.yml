@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: weekly-tests
+  group: weekly-tests-${{ github.ref }}   # one run per branch; a new push replaces that branch's run only
   cancel-in-progress: true
 
 jobs:

@@ -1,6 +1,7 @@
 """Connect Jarvis to your calendars. Run these yourself; secrets never pass through chat.
 
   jarvis-auth google   needs secrets/google-client.json (OAuth "Desktop app" client); opens Google's consent page
+                       (on a server: --port 8085, with `ssh -L 8085:127.0.0.1:8085` from your computer; docs/google.md)
   jarvis-auth icloud   asks for your Apple ID and an app-specific password (appleid.apple.com > Sign-In and Security)
   jarvis-auth status   shows which calendars are connected
 """
@@ -21,13 +22,14 @@ def _write_secret(path, text: str) -> None:
         handle.write(text)
 
 
-def google() -> None:
+def google(port: int = 0) -> None:
     from google_auth_oauthlib.flow import InstalledAppFlow
 
     if not calendars.GOOGLE_CLIENT.exists():
         sys.exit(f"Put your OAuth client file at {calendars.GOOGLE_CLIENT} first (Google Cloud > APIs & Services > Credentials > Desktop app).")
     flow = InstalledAppFlow.from_client_secrets_file(str(calendars.GOOGLE_CLIENT), calendars.GOOGLE_SCOPES)
-    creds = flow.run_local_server(port=0, prompt="consent")
+    # A fixed port lets a server's sign-in come back through an SSH tunnel; no browser to open there.
+    creds = flow.run_local_server(port=port, prompt="consent", open_browser=port == 0)
     _write_secret(calendars.GOOGLE_TOKEN, creds.to_json())
     _write_secret(calendars.GOOGLE_SIGNED_IN_AT, datetime.now(timezone.utc).isoformat())
     names = [c.get("summary") for c in calendars._google_service().calendarList().list().execute().get("items", [])]
@@ -60,7 +62,13 @@ def status() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("target", choices=["google", "icloud", "status"])
-    {"google": google, "icloud": icloud, "status": status}[parser.parse_args().target]()
+    parser.add_argument("--port", type=int, default=0, help="google: wait for Google's reply on this port "
+                        "(for a server, through an SSH tunnel) and print the sign-in link instead of opening a browser")
+    args = parser.parse_args()
+    if args.target == "google":
+        google(args.port)
+    else:
+        {"icloud": icloud, "status": status}[args.target]()
 
 
 if __name__ == "__main__":
