@@ -11,6 +11,7 @@ picked up as soon as it is indexed. Lines that mention renewing, expiring or bei
   jarvis-renewal-alerts   alerts ALERT_DAYS before each date (Hermes cron, 9 am); prints nothing otherwise
 """
 import re
+from calendar import monthrange
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -45,7 +46,8 @@ def _safe_date(year: int, month: int, day: int) -> date | None:
 def _next_monthly(day: int, today: date) -> date:
     year, month = today.year, today.month
     for _ in range(3):
-        found = _safe_date(year, month, min(day, 28) if day > 28 and month == 2 else day)
+        # "The 31st" falls on the last day of shorter months (30 Nov, 28 or 29 Feb) rather than skipping them.
+        found = _safe_date(year, month, min(day, monthrange(year, month)[1]))
         if found and found >= today:
             return found
         year, month = (year + 1, 1) if month == 12 else (year, month + 1)
