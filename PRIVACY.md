@@ -1,17 +1,21 @@
 # Privacy policy: Jarvis
 
-Last updated: 31 October 2026
+Last updated: 1 November 2026
 
 Jarvis is a personal assistant that one person runs for themselves on their own computer or server.
-It is not a service offered to the public, and it has no other users.
+It is not a service offered to the public, and it has no other users. Each person who installs Jarvis uses their
+own Google sign-in (their own Google Cloud project); no data goes to the authors of Jarvis.
 
 ## What Jarvis accesses
 
-When its owner signs in with Google, Jarvis can **read** (it cannot send, change or delete):
+When its owner signs in with Google, Jarvis can **read** (it cannot send, change or delete, except adding a
+calendar event the owner approves):
 
 - **Google Calendar**: events, to answer questions about the owner's schedule and to add an event
   only after the owner says yes.
 - **Gmail**: messages, to summarise the owner's email and to read bank alert emails for spending totals.
+- **Google Drive**: only the folder named "Jarvis", copied to the owner's machine when the owner asks, so its
+  files can be searched.
 
 ## How the data is used and stored
 

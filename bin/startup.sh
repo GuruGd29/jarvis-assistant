@@ -13,7 +13,7 @@ launchctl setenv OLLAMA_NUM_PARALLEL 1
 launchctl setenv OLLAMA_NO_CLOUD 1          # local models only
 
 # Docker Desktop: jarvis-db and open-webui have restart policies and come up with it.
-open -g -a Docker
+[ -d /Applications/Docker.app ] && open -g -a Docker   # only when Postgres runs in Docker (docker-compose.yml)
 
 # Ollama may already have started from its own login item, before the settings existed.
 pkill -x Ollama; pkill -f "Ollama.app/Contents/Resources/ollama serve"

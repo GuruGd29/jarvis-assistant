@@ -91,7 +91,9 @@ const sv = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="current
 const I = {
   chat: sv('<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z"/>'),
   today: sv('<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'),
-  money: sv('<path d="M7 5h10M7 9h10M7 5c4 0 6 1.6 6 4s-2 4-6 4h-.5L14 20"/>'),
+  // A rupee sign for INR, a wallet for every other currency.
+  money: CURRENCY === "INR" ? sv('<path d="M7 5h10M7 9h10M7 5c4 0 6 1.6 6 4s-2 4-6 4h-.5L14 20"/>')
+    : sv('<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10.5h18M15.5 15h2"/>'),
   more: sv('<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>'),
   menu: sv('<path d="M4 8h16M4 16h11"/>', 2), edit: sv('<path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6M17.5 3.5l3 3L12 15H9v-3z"/>', 1.9),
   send: sv('<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>', 2.3), stop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>',
@@ -256,7 +258,7 @@ function viewChat() {
       <button data-act="ask" data-v="Do I have any unread important emails?">Email<small>unread & important</small></button></div>` : "";
   return `<section class="view chat">
     <div class="cbar"><button class="ib" data-act="drawer-open" aria-label="Chats">${I.menu}</button>
-      <div class="ttl"><b>${esc(title)}</b><span>Qwen3 4B · on your Mac</span></div>
+      <div class="ttl"><b>${esc(title)}</b><span>Qwen3 4B · on your ${P.host === "mac" ? "Mac" : "own computer"}</span></div>
       <button class="ib" data-act="new-chat" aria-label="New chat">${I.edit}</button></div>
     <div class="thread" id="thread">${S.msgs.length ? S.msgs.map(msgHtml).join("") : welcome}</div>
     ${sugg}
@@ -383,7 +385,7 @@ function viewToday() {
   const iphRows = iph ? iph.slice(0, 8).map(r => `<div class="row"><div class="m"><div class="t wrap">${esc(r.title)}</div>
       <div class="s">iPhone Reminders${r.due ? ` · ${dayLabel(r.due.slice(0, 10))}` : ""}${r.list && r.list !== "Reminders" ? ` · ${esc(r.list)}` : ""}</div></div></div>`).join("") : "";
   const iphState = !S.iphone ? `<div class="row"><div class="m"><div class="s">Loading iPhone Reminders…</div></div></div>`
-    : !S.iphone.available ? `<div class="row"><div class="m"><div class="s">${esc(S.iphone.reason || "iPhone Reminders unavailable")}</div></div></div>` : "";
+    : !S.iphone.available && !S.iphone.off ? `<div class="row"><div class="m"><div class="s">${esc(S.iphone.reason || "iPhone Reminders unavailable")}</div></div></div>` : "";
   const meds = T.medicines.length ? T.medicines.map(m => {
     const key = `data-med="${m.medication_id}" data-time="${esc(m.time)}"`;
     const status = m.status === "taken" ? "Taken ✓" : m.status === "skipped" ? "Skipped" : m.past ? "Due now" : `At ${esc(m.time)}`;

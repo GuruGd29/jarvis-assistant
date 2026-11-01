@@ -8,6 +8,7 @@ import html
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 
 import httpx
@@ -271,7 +272,8 @@ async def health(request: Request) -> Response:
 
 def _profile() -> str:
     """The user's name, number/date style and currency for the app, as a <meta> tag (no inline script needed)."""
-    profile = {"name": config.OWNER_NAME, "locale": config.LOCALE.replace("_", "-"), "currency": config.CURRENCY}
+    profile = {"name": config.OWNER_NAME, "locale": config.LOCALE.replace("_", "-"), "currency": config.CURRENCY,
+               "host": "mac" if sys.platform == "darwin" else "other"}
     return f'<meta name="jarvis-profile" content="{html.escape(json.dumps(profile))}">'
 
 

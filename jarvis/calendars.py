@@ -242,6 +242,8 @@ def iphone_reminders() -> dict:
     import subprocess
     import time
 
+    if not config.APPLE_REMINDERS:
+        return {"available": False, "off": True, "reason": "Reading iPhone Reminders is off (JARVIS_APPLE_REMINDERS=on)."}
     if shutil.which("osascript") is None:
         return {"available": False, "reason": "iPhone Reminders can only be read on the Mac."}
     if time.time() - _REMINDERS_CACHE.get("at", 0) > REMINDERS_CACHE_SECONDS:

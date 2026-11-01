@@ -179,29 +179,7 @@ wait_for http://127.0.0.1:8791/api/health 60 || fail "the app server did not sta
 
 # ---------- 8. Scheduled jobs ----------
 say "Scheduled jobs (reminders, briefings, money, indexing, learning)"
-deliver="local"   # results go to the app's notifications; also to Telegram when it is set up
-[ -z "$TELEGRAM_ALLOWED_USERS" ] || deliver="telegram:${TELEGRAM_ALLOWED_USERS%%,*}"
-existing="$("$HERMES_BIN" cron list 2>/dev/null < /dev/null || true)"
-job() {  # job NAME "SCHEDULE" SCRIPT: added once; change times later with `hermes cron edit`
-  grep -qE "Name: +$1\$" <<< "$existing" && return 0
-  "$HERMES_BIN" cron create --name "$1" --script "$3" --no-agent --deliver "$deliver" "$2" < /dev/null >/dev/null \
-    && echo "  + $1 ($2)"
-}
-job jarvis-reminders         "*/5 * * * *"  jarvis-reminders.sh
-job jarvis-morning-briefing  "30 7 * * *"   jarvis-briefing.sh
-job jarvis-keepwarm          "*/20 * * * *" jarvis-keepwarm.sh
-job jarvis-google-check      "0 9 * * *"    jarvis-google-check.sh
-job jarvis-money-sync        "*/30 * * * *" jarvis-money-sync.sh
-job jarvis-money-ai          "15 2 * * *"   jarvis-money-ai.sh
-job jarvis-learn             "30 2 * * *"   jarvis-learn.sh
-job jarvis-weekly-summary    "0 19 * * 0"   jarvis-weekly.sh
-job jarvis-task-sync         "*/15 * * * *" jarvis-task-sync.sh
-job jarvis-renewal-alerts    "0 9 * * *"    jarvis-renewal-alerts.sh
-job jarvis-monthly-money     "0 9 1 * *"    jarvis-monthly.sh
-job jarvis-memory-review     "0 20 * * 0"   jarvis-memory-review.sh
-job jarvis-ingest            "*/15 * * * *" jarvis-ingest.sh
-# Backups start once you have set them up (docs/backups.md), so a fresh install does not report failures.
-[ ! -f "$REPO/secrets/backup.env" ] || job jarvis-backup "0 3 * * *" jarvis-backup.sh
+HERMES_BIN="$HERMES_BIN" bin/add-jobs.sh
 
 # ---------- Done ----------
 say "Jarvis is installed and running"
