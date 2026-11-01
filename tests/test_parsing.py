@@ -6,7 +6,7 @@ import unittest
 from datetime import date
 from unittest import mock
 
-from jarvis import calendars, learn, money, renewals, safety, search
+from jarvis import calendars, health, learn, money, renewals, safety, search
 from jarvis.briefing import _change
 from jarvis.web import notify
 
@@ -83,9 +83,29 @@ class Renewals(unittest.TestCase):
         self.assertEqual(self.when("The policy is valid from 15 March 2026 to 14 March 2027"), (date(2027, 3, 14), "once"))
         self.assertEqual(self.when("Renewal due 05/12/2026"), (date(2026, 12, 5), "once"))  # day/month/year
 
+    def test_monthly_day_past_the_end_of_the_month(self):
+        line = "Gym membership - INR 1,500 per month - renews on the 31st"
+        self.assertEqual(renewals._when(line, date(2026, 11, 5)), (date(2026, 11, 30), "monthly"))
+        self.assertEqual(renewals._when(line, date(2027, 2, 1)), (date(2027, 2, 28), "monthly"))
+        self.assertEqual(renewals._when(line, date(2028, 2, 1)), (date(2028, 2, 29), "monthly"))  # leap year
+        self.assertEqual(renewals._when(line, date(2026, 12, 1)), (date(2026, 12, 31), "monthly"))
+
     def test_names(self):
         self.assertEqual(renewals._name("Netflix Standard - INR 499 per month", "subs"), "Netflix Standard")
         self.assertEqual(renewals._name("Date of expiry: 09 June 2031", "passport details"), "Passport details")
+
+
+class LabTables(unittest.TestCase):
+    def test_pipe_table_keeps_comma_numbers_whole(self):
+        rows = health._table_rows("| Test | Result | Reference |\n|---|---|---|\n"
+                                  "| WBC | 7,500 | 4,000 - 11,000 |\n| Platelets | 1,50,000 | 1,50,000 - 4,10,000 |")
+        self.assertEqual(rows[2], ["WBC", "7,500", "4,000 - 11,000"])
+        self.assertEqual(health._parse_value(rows[3][1])[0], 150000)
+        self.assertEqual(health._parse_range(rows[2][2]), (4000, 11000))
+
+    def test_csv_lines(self):
+        self.assertEqual(health._table_rows('HbA1c,5.6 %,4.0 - 5.6\nPlatelets,"1,50,000","1,50,000 - 4,10,000"'),
+                         [["HbA1c", "5.6 %", "4.0 - 5.6"], ["Platelets", "1,50,000", "1,50,000 - 4,10,000"]])
 
 
 class CalendarQuestions(unittest.TestCase):
