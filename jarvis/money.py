@@ -466,6 +466,8 @@ _MONTH = r"(?:month|maa?sam|maa?sath|maa?tham|maa?thath|மாசம்|மா�
 _NOT_SPENDING = re.compile(r"\b(subscriptions?|premiums?|polic(y|ies)|insurance)\b|சந்தா|பிரீமியம்|பாலிசி|காப்பீடு|இன்சூரன்ஸ்", re.I)
 _TODAY = re.compile(r"today|இன்று|இன்னைக்கு|\bin+aik+u|\binn?iki", re.I)
 _LAST_DAYS = re.compile(r"(?:last|kadaisi|கடைசி)\s*(\d{1,3})\s*(?:days?|naa?l|நாள்|நாட்)", re.I)
+_WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+_WEEKDAY = re.compile(rf"\b(last\s+)?({'|'.join(_WEEKDAYS)})\b", re.I)
 
 
 def period_from_text(text: str, today: date | None = None) -> tuple[str, str] | None:
@@ -476,6 +478,11 @@ def period_from_text(text: str, today: date | None = None) -> tuple[str, str] | 
     low = text.lower()
     if _YESTERDAY.search(low):
         day = today - timedelta(days=1)
+        return str(day), str(day)
+    if m := _WEEKDAY.search(low):
+        # "last Tuesday" is the latest Tuesday before today. Without this the model looked the day up with a tool
+        # call, and that reply took four minutes on the 2-core server.
+        day = today - timedelta(days=(today.weekday() - _WEEKDAYS.index(m[2])) % 7 or (7 if m[1] else 0))
         return str(day), str(day)
     if re.search(_LAST + _WEEK, low):
         start = today - timedelta(days=today.weekday() + 7)

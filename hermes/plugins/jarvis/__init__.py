@@ -181,9 +181,11 @@ def format_calendar(a: dict[str, Any]) -> str:
 def format_money(s: dict[str, Any]) -> str:
     d = s["display"]  # totals already written in the user's currency and number style
     # Without "no need to call spending_summary" the model fetched the same totals again, and reading that tool's
-    # answer took minutes on a 2-core server (the calendar block says the same for the same reason).
-    lines = [f"[Jarvis money (EXACT) for {s['period']}: quote these totals; no need to call spending_summary for "
-             "these dates]",
+    # answer took minutes on a 2-core server (the calendar block says the same for the same reason). "The message
+    # asks about" is for Tanglish: given the totals for "indha vaaram evlo selavu?" alone, the model said it did not
+    # understand the question.
+    lines = [f"[Jarvis money (EXACT) for {s['period']}; the message asks about the user's money in this period: "
+             "quote these totals; no need to call spending_summary for these dates]",
              f"Spending total: {d['spending_total']} ({len(s['spending'])} payments)"]
     lines += [f"- {item}" for item in s["spending"][:MAX_MONEY_LINES]]
     if len(s["spending"]) > MAX_MONEY_LINES:
@@ -253,7 +255,7 @@ class JarvisMemoryProvider(MemoryProvider):
         try:
             done = self._search.request({"op": "reply", "message": message or ""}, timeout=3.0).get("results")
             if done:
-                self._quick_reply_note = f"[Jarvis already recorded this: {done} Just confirm it to the user.]"
+                self._quick_reply_note = f"[Jarvis already recorded this: {done} Just confirm it to the user; no tool call is needed.]"
                 logger.info("Jarvis quick reply recorded: %s", done)
         except Exception as error:
             logger.warning("Jarvis quick reply failed: %s", error)

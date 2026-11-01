@@ -11,7 +11,7 @@ from unittest import mock
 # The expected values below are written for an Indian setup (₹, day/month dates), whatever this machine's region.
 os.environ.update(JARVIS_LOCALE="en_IN", JARVIS_CURRENCY="INR")
 
-from jarvis import calendars, config, health, learn, money, money_ai, renewals, safety, search  # noqa: E402
+from jarvis import calendars, config, health, learn, money, money_ai, renewals, safety, search, tasks  # noqa: E402
 from jarvis.briefing import _change  # noqa: E402
 from jarvis.web import hermes, notify  # noqa: E402
 
@@ -29,6 +29,12 @@ class MoneyPeriods(unittest.TestCase):
         self.assertEqual(self.period("nethu kaasu evlo pochu"), ("2026-10-30", "2026-10-30"))
         self.assertEqual(self.period("pona vaaram selavu"), ("2026-10-19", "2026-10-25"))
         self.assertEqual(self.period("kadaisi 10 naal selavu"), ("2026-10-22", "2026-10-31"))
+        self.assertEqual(self.period("indha vaaram evlo selavu panniruken?"), ("2026-10-26", "2026-10-31"))
+
+    def test_weekdays(self):
+        self.assertEqual(self.period("Why did I pay ₹99,999 to Apple last Tuesday?"), ("2026-10-27", "2026-10-27"))
+        self.assertEqual(self.period("what did I spend on Saturday"), ("2026-10-31", "2026-10-31"))
+        self.assertEqual(self.period("what did I spend last Saturday"), ("2026-10-24", "2026-10-24"))
 
     def test_questions_for_the_files_are_not_money_lookups(self):
         for text in ("What subscriptions do I pay for?", "Netflix ku evlo pay panren?",
@@ -37,6 +43,27 @@ class MoneyPeriods(unittest.TestCase):
 
     def test_today_still_counts(self):
         self.assertEqual(self.period("how much did I pay today"), ("2026-10-31", "2026-10-31"))
+
+
+class Reminders(unittest.TestCase):
+    NOW = datetime(2026, 10, 31, 15, 30, tzinfo=tasks.TZ)  # Saturday afternoon
+
+    def reminder(self, text):
+        return tasks.reminder_from_text(text, self.NOW)
+
+    def test_plain_reminders_are_read(self):
+        self.assertEqual(self.reminder("Remind me to call the plumber tomorrow at 10 am"),
+                         ("Call the plumber", "2026-11-01", "2026-11-01 10:00"))
+        self.assertEqual(self.reminder("remind me to pay rent on Friday at 9:30am."), ("Pay rent", "2026-11-06", "2026-11-06 09:30"))
+        self.assertEqual(self.reminder("Remind me about the gas bill at 6 pm today"), ("The gas bill", "2026-10-31", "2026-10-31 18:00"))
+        self.assertEqual(self.reminder("Can you remind me to drink water in 30 minutes?"), ("Drink water", "2026-10-31", "2026-10-31 16:00"))
+        self.assertEqual(self.reminder("remind me to call mom tonight at 9"), ("Call mom", "2026-10-31", "2026-10-31 21:00"))
+        self.assertEqual(self.reminder("Remind me to buy milk day after tomorrow at 18:00"), ("Buy milk", "2026-11-02", "2026-11-02 18:00"))
+
+    def test_unclear_reminders_are_left_to_the_model(self):
+        for text in ("Remind me to call mom tomorrow at 6", "remind me to stretch today at 9 am", "Remind me to call the plumber",
+                     "Remind me tomorrow at 10 am to call the plumber", "remind me to x at 13 pm tomorrow"):
+            self.assertIsNone(self.reminder(text), text)
 
 
 class MoneyCategories(unittest.TestCase):
