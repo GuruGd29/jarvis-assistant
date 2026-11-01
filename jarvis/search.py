@@ -211,7 +211,7 @@ def serve() -> None:
                     # "How much on food this month?": the plugin prints the note line, so categories ride on it.
                     cats = insights(*period)["by_category"]
                     result["note"] += "\nBy category (guessed from merchant names): " + "; ".join(
-                        f"{c['category']} ₹{c['total']:,.2f} ({c['payments']} payments)" for c in cats)
+                        f"{c['category']} {config.money(c['total'])} ({c['payments']} payments)" for c in cats)
                 reply = {"id": request.get("id"), "results": result}
                 sys.stdout.write(json.dumps(reply, default=str) + "\n")
                 sys.stdout.flush()

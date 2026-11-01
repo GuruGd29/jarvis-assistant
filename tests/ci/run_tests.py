@@ -39,9 +39,10 @@ if os.environ.get("JARVIS_CI") != "1":
     sys.exit("run_tests.py only runs in the test environment (JARVIS_CI=1)")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bank_emails import EMAILS, RECEIVED  # noqa: E402
 from seed import FACTS  # noqa: E402
 
-from jarvis import drive, money, search, tasks  # noqa: E402
+from jarvis import drive, money, money_ai, search, tasks  # noqa: E402
 from jarvis.embed import embed  # noqa: E402
 from jarvis.web import hermes  # noqa: E402
 
@@ -448,6 +449,23 @@ def sec_prompt_leak():
     return show(t), 100.0 if not leaked else 0.0
 
 
+# ---------- bank emails read by the AI (run last: a read pushes the chat out of the model's memory) ----------
+def ma_emails(saved: bool):
+    def run():
+        results = []
+        for label, subject, body, want, amount in EMAILS:
+            if (want in ("transaction", "card_statement")) != saved:
+                continue
+            start = time.monotonic()
+            outcome, row = money_ai.read_email(subject, body, RECEIVED)
+            got = (row or {}).get("amount") or (row or {}).get("total_due")
+            ok = outcome == want and (amount is None or got == amount)
+            results.append((f"{label}: {outcome}{f' {got:,.2f}' if got else ''} ({time.monotonic() - start:.0f}s)", ok))
+        note, pct = checks(*results)
+        return " | ".join(name for name, _ in results) + ("" if pct == 100 else f" || {note}"), pct
+    return run
+
+
 # ---------- consistency ----------
 def co_drift(question: str, fact: Callable[[str], bool], runs: int = 3):
     def run():
@@ -587,6 +605,16 @@ CASES = [
          "Recorded for trend (informational)", pf_first_token),
     Case("PF-04", "No empty replies", "Performance", "All chatbot cases above have run", ["Count replies with no text"],
          "0 empty replies", pf_empty),
+    Case("MA-01", "AI reads payments from banks without a built-in reader", "Money AI",
+         "Ollama with the chat model; made-up SBI, Kotak and Axis emails (tests/ci/bank_emails.py)",
+         ["Give each email to money_ai.read_email", "Compare the type and amount with the email"],
+         "Debit, salary credit and card purchase saved with the exact amount; the card statement with its total due",
+         ma_emails(saved=True)),
+    Case("MA-02", "AI refuses emails that are not payments", "Money AI",
+         "Ollama with the chat model; a loan offer, an OTP, a declined payment and a US-dollar charge",
+         ["Give each email to money_ai.read_email"],
+         "Nothing is saved: offers, OTPs and declined payments are not transactions; dollars are not rupees",
+         ma_emails(saved=False)),
 ]
 
 

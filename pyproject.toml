@@ -1,7 +1,7 @@
 [project]
 name = "jarvis"
 version = "0.1.0"
-description = "Jarvis personal assistant: document ingestion and RAG search over ~/Jarvis"
+description = "Jarvis: a private personal assistant that runs on your own computer or server"
 requires-python = ">=3.11"
 dependencies = [
   "psycopg[binary]",
@@ -20,6 +20,7 @@ dependencies = [
   "uvicorn",
   "pywebpush",
   "py-vapid",
+  "babel",
 ]
 
 [project.scripts]
@@ -39,6 +40,7 @@ jarvis-google-check = "jarvis.briefing:google_check"
 jarvis-money-sync = "jarvis.money:main"
 jarvis-drive-sync = "jarvis.drive:main"
 jarvis-learn = "jarvis.learn:main"
+jarvis-migrate = "jarvis.migrate:main"
 jarvis-memory-review = "jarvis.learn:weekly_review"
 
 [build-system]

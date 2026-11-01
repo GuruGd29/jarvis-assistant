@@ -4,6 +4,7 @@
 """
 import asyncio
 import contextlib
+import html
 import json
 import logging
 import os
@@ -17,7 +18,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from starlette.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
@@ -268,8 +269,15 @@ async def health(request: Request) -> Response:
     return _json({"ok": ok, **checks}, 200 if ok else 503)
 
 
+def _profile() -> str:
+    """The user's name, number/date style and currency for the app, as a <meta> tag (no inline script needed)."""
+    profile = {"name": config.OWNER_NAME, "locale": config.LOCALE.replace("_", "-"), "currency": config.CURRENCY}
+    return f'<meta name="jarvis-profile" content="{html.escape(json.dumps(profile))}">'
+
+
 async def index(request: Request) -> Response:
-    return FileResponse(APP_DIR / "index.html", headers={"Cache-Control": "no-cache"})
+    page = (APP_DIR / "index.html").read_text().replace("<!-- jarvis-profile -->", _profile(), 1)
+    return HTMLResponse(page, headers={"Cache-Control": "no-cache"})
 
 
 async def service_worker(request: Request) -> Response:
