@@ -138,9 +138,13 @@ def email_read(message_id: str) -> dict:
 def spending_summary(start_date: str, end_date: str | None = None) -> dict:
     """Exact money totals from the user's bank alert emails for start_date..end_date
     (YYYY-MM-DD, inclusive; end_date defaults to start_date). Quote spending_total as given:
-    it already excludes transfers between the user's own accounts and credit card bill payments,
-    and subtracts card refunds. Never add up amounts yourself."""
-    return money.summary(start_date, end_date)
+    it already leaves out transfers between the user's own accounts and single credit card purchases
+    (a card counts when its bill is paid), and subtracts card refunds. Never add up amounts yourself."""
+    result = money.summary(start_date, end_date)
+    # The model reads every line of this answer; a month of payments took minutes to read on a 2-core server.
+    if len(result["spending"]) > 20:
+        result["spending"] = result["spending"][:20] + [f"...and {len(result['spending']) - 20} more"]
+    return result
 
 
 @mcp.tool()
