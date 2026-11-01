@@ -364,7 +364,7 @@ def cb_memory_in_chat():
 def cb_tamil():
     t = ask("என் கார் இன்சூரன்ஸ் எப்போது புதுப்பிக்க வேண்டும்?")
     # The month must be right too: "15 மார்ச்" (March) is a wrong date, not a pass.
-    date_ok = bool(re.search(r"15", t.text)) and bool(re.search(r"டிசம்பர்|december|\b12\b", t.text, re.I))
+    date_ok = bool(re.search(r"15", t.text)) and bool(re.search(r"டிச[ம்ெ]?ம்?பர்|டிஸெம்பர்|டிஸம்பர்|december|\b12\b", t.text, re.I))
     return show(t, f"Tamil share {tamil_share(t.text):.0%}"), checks(
         ("reply mostly Tamil (≥ 40%)", tamil_share(t.text) >= 0.4), ("renewal date 15 December", date_ok))[1]
 
