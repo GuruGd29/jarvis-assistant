@@ -116,7 +116,8 @@ def list_documents(domain: str | None = None) -> list[dict]:
 
 
 def _quick_reply(message: str) -> str | None:
-    """Record a short reply to a reminder directly, so it never depends on the model calling a tool."""
+    """Record a short reply to a reminder, or a plainly worded new reminder, directly, so it never depends on the
+    model calling a tool."""
     from . import health, tasks
 
     if m := re.fullmatch(r"\s*clean\s*up((?:[\s,#]+\d+)*)\s*[.!]?\s*", message or "", re.I):
@@ -129,6 +130,12 @@ def _quick_reply(message: str) -> str | None:
         from . import learn
 
         return learn.restore_fact(int(m[1]))
+    if found := tasks.reminder_from_text(message or ""):
+        title, due_on, remind_at = found
+        # A retried turn must not add the same reminder twice.
+        task = next((t for t in tasks.list_tasks("open") if t["title"] == title and t.get("remind_at") == remind_at),
+                    None) or tasks.add_task(title, due_on, remind_at)
+        return f"Reminder #{task['id']} \"{task['title']}\" set for {task['remind_at']}."
     m = re.fullmatch(r"\s*(taken|took|skip|skipped|done)\s*#?(\d+)\s*[.!]?\s*", message or "", re.I)
     if not m:
         return None
