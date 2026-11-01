@@ -31,6 +31,11 @@ jobs:
       JARVIS_DB_PASSWORD: ci-only-throwaway
       JARVIS_TIMEZONE: Asia/Kolkata
       TZ: Asia/Kolkata
+      # The fake data is Indian (rupees, Tamil documents); other countries only change these settings.
+      JARVIS_LOCALE: en_IN
+      JARVIS_CURRENCY: INR
+      JARVIS_OWNER_NAME: Test
+      JARVIS_LANGUAGES: Tamil and English (Tanglish too)
     steps:
       - uses: actions/checkout@v4
 

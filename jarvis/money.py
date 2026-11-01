@@ -1,4 +1,7 @@
-"""Money from bank alert emails: parse HDFC / ICICI alerts into `transactions`, then sum in SQL.
+"""Money from bank alert emails: parse them into `transactions`, then sum in SQL.
+
+HDFC, ICICI and IDFC (India) have exact built-in readers. Alerts from any other bank in secrets/money.json
+"alert_senders" are read by the local AI (money_ai.py), when JARVIS_MONEY_AI allows it.
 
 Totals are computed here, never by the model. "Spending" = debits that are not transfers between
 the user's own accounts (secrets/money.json) and not credit card purchases: a credit card counts when
@@ -30,6 +33,13 @@ SPENDING = f"direction = 'debit' AND NOT is_self AND NOT ({CREDIT_CARD_PURCHASE}
 CARD_PAYEE_BANK = [("ICICI", re.compile(r"amazon ?pay|icici", re.I)), ("IDFC", re.compile(r"idfc", re.I)),
                    ("HDFC", re.compile(r"hdfc", re.I))]
 STATEMENT_QUERY = 'subject:("credit card statement")'
+# Banks with an exact built-in reader below (matched on the sender's address); others are read by the AI.
+BUILT_IN_SENDERS = ("hdfcbank", "icici", "idfcfirstbank")
+AI_READS_PER_RUN = 40  # about 20-40 minutes on a 2-core server; the rest wait for the next run
+
+
+def has_reader(sender: str) -> bool:
+    return any(bank in sender for bank in BUILT_IN_SENDERS)
 
 
 def _settings() -> dict:
@@ -163,7 +173,12 @@ def _read_politely(service, gmail_id: str) -> dict:
     raise RuntimeError("Gmail kept rate-limiting; try again later")
 
 
-def sync(days: int = 2, verbose: bool = False) -> dict:
+def sync(days: int = 2, verbose: bool = False, ai: bool | None = None) -> dict:
+    """Read new alert emails into `transactions`. Emails from banks without a built-in reader go to the AI when
+    `ai` is true (default: only when JARVIS_MONEY_AI=always; the nightly job passes --ai)."""
+    if ai is None:
+        ai = config.MONEY_AI == "always"
+    ai = ai and config.MONEY_AI != "off"
     settings = _settings()
     senders = " OR ".join(f"from:{s}" for s in settings["alert_senders"])
     service = mail._service()
@@ -176,9 +191,12 @@ def sync(days: int = 2, verbose: bool = False) -> dict:
         if not token:
             break
 
-    counts = {"seen": len(ids), "added": 0, "skipped_known": 0, "not_a_transaction": 0}
+    counts = {"seen": len(ids), "added": 0, "skipped_known": 0, "not_a_transaction": 0, "read_by_ai": 0,
+              "waiting_for_ai": 0}
     with psycopg.connect(config.DB_DSN) as conn:
-        known = {r[0] for r in conn.execute("SELECT gmail_id FROM transactions WHERE gmail_id = ANY(%s)", (ids,))}
+        known = {r[0] for r in conn.execute(
+            "SELECT gmail_id FROM transactions WHERE gmail_id = ANY(%s) "
+            "UNION SELECT gmail_id FROM money_ai_seen WHERE gmail_id = ANY(%s)", (ids, ids))}
         for gmail_id in ids:
             if gmail_id in known:
                 counts["skipped_known"] += 1
@@ -186,7 +204,14 @@ def sync(days: int = 2, verbose: bool = False) -> dict:
             msg = _read_politely(service, gmail_id)
             received = datetime.strptime(msg["received"], "%Y-%m-%d %H:%M").replace(tzinfo=TZ)
             body = msg["body"].removeprefix("<<<EMAIL").removesuffix("EMAIL>>>")
-            txn = parse_alert(msg["from_address"].lower(), msg["subject"], body, received)
+            sender = msg["from_address"].lower()
+            txn = parse_alert(sender, msg["subject"], body, received)
+            if txn is None and not has_reader(sender):
+                if not ai or counts["read_by_ai"] >= AI_READS_PER_RUN:
+                    counts["waiting_for_ai"] += 1
+                    continue
+                txn = _read_with_ai(conn, gmail_id, msg, body, received)
+                counts["read_by_ai"] += 1
             if txn is None:
                 counts["not_a_transaction"] += 1
                 continue
@@ -205,6 +230,28 @@ def sync(days: int = 2, verbose: bool = False) -> dict:
     if verbose:
         print(counts)
     return counts
+
+
+def _read_with_ai(conn, gmail_id: str, msg: dict, body: str, received: datetime) -> dict | None:
+    """One email from a bank without a built-in reader: a transaction to store, or None. A card statement is
+    stored here. The outcome is remembered, so the email is not read again."""
+    from . import money_ai
+
+    try:
+        outcome, row = money_ai.read_email(msg["subject"], body, received)
+    except Exception as error:  # the model is busy or down: not remembered, so the next run tries again
+        print(f"⚠️ Jarvis couldn't read a bank email from {msg['from']} with the AI ({type(error).__name__}); "
+              "it will try again on the next run.")
+        return None
+    if outcome == "card_statement":
+        conn.execute(
+            """INSERT INTO card_statements (gmail_id, card, name, statement_on, total_due, min_due, due_on)
+               VALUES (%(gmail_id)s, %(card)s, %(name)s, %(statement_on)s, %(total_due)s, %(min_due)s, %(due_on)s)
+               ON CONFLICT (gmail_id) DO NOTHING""", row | {"gmail_id": gmail_id})
+    conn.execute("INSERT INTO money_ai_seen (gmail_id, outcome, detail) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                 (gmail_id, "saved" if row else outcome, msg["subject"][:200]))
+    conn.commit()
+    return row if outcome == "transaction" else None
 
 
 def _sync_statements(service, conn, days: int) -> int:
@@ -227,6 +274,13 @@ def _sync_statements(service, conn, days: int) -> int:
         conn.commit()
         added += 1
     return added
+
+
+def _paid_to(counterparty: str | None, bank: str) -> bool:
+    """Whether a card bill payment went to this bank's card: by the known payee names, else by the bank's name."""
+    who = counterparty or ""
+    named = next((b for b, rx in CARD_PAYEE_BANK if rx.search(who)), None)
+    return named == bank if named else bank.lower() in who.lower()
 
 
 def cards(today: date | None = None) -> list[dict]:
@@ -252,8 +306,7 @@ def cards(today: date | None = None) -> list[dict]:
         bank = c["card"].split()[0]
         # No statement (HDFC sends it only as a PDF): show the last 30 days instead of the billing cycle.
         since_day = c["statement_on"] or today - timedelta(days=30)
-        paid = [p for p in payments if p["occurred_on"] > since_day and
-                next((b for b, rx in CARD_PAYEE_BANK if rx.search(p["counterparty"] or "")), None) == bank]
+        paid = [p for p in payments if p["occurred_on"] > since_day and _paid_to(p["counterparty"], bank)]
         bought = [r for r in purchases if r["instrument"] == c["card"] and r["occurred_on"] > since_day]
         paid_total = round(float(sum(p["amount"] for p in paid)), 2)
         due = float(c["total_due"]) if c["total_due"] is not None else None
@@ -287,8 +340,8 @@ def summary(start: str, end: str | None = None) -> dict:
     refunds = [r for r in rows if r["kind"] == "card_refund" and not _credit_card_purchase(r)]
     received = [r for r in rows if r["kind"] in ("upi_credit", "deposit_credit") and not r["is_self"]]
     total = lambda items: round(float(sum(r["amount"] for r in items)), 2)
-    line = lambda r: f"{r['occurred_on']} {r['instrument']} {r['kind']} ₹{r['amount']:,.2f} {r['counterparty'] or ''}".strip()
-    return {
+    line = lambda r: f"{r['occurred_on']} {r['instrument']} {r['kind']} {config.money(r['amount'])} {r['counterparty'] or ''}".strip()
+    result = {
         "period": f"{first} to {last}" if last != first else str(first),
         "spending_total": round(total(spent) - total(refunds), 2),
         "spending": [line(r) for r in spent],
@@ -297,9 +350,12 @@ def summary(start: str, end: str | None = None) -> dict:
         "own_account_transfers_total": total([r for r in rows if r["is_self"]]),
         "card_bill_payments_total": total([r for r in rows if r["kind"] == "card_bill_payment"]),
         "credit_card_purchases_total": total([r for r in rows if r["kind"] == "card_spend" and _credit_card_purchase(r)]),
-        "note": "Totals come from HDFC, ICICI and IDFC alert emails only; cash and other banks are not included. "
+        "note": "Totals come from bank alert emails only; cash and payments without an alert email are not included. "
                 "Credit cards count when the bill is paid, not per purchase.",
     }
+    # The same totals written in the user's currency and style, for chat and reports.
+    result["display"] = {k: config.money(v) for k, v in result.items() if k.endswith("_total")}
+    return result
 
 
 # Categories from the merchant name, first match wins; anything else that looks like a person's
@@ -325,6 +381,17 @@ CATEGORIES = [
 _CATEGORY_RES = [(name, re.compile(pattern, re.I)) for name, pattern in CATEGORIES]
 _BUSINESS = re.compile(r"\b(pvt|private|ltd|limited|llp|services|india|technologies|store|shop|centre|center|"
                        r"enterprises|traders|agency)\b", re.I)
+
+
+def small_amount(today: date | None = None) -> float:
+    """Below this, a change between two periods is too small to compare: 10 times the usual payment of the
+    last 90 days, so it fits any currency (about 1,000 on rupee data)."""
+    today = today or date.today()
+    with psycopg.connect(config.DB_DSN) as conn:
+        usual = conn.execute(
+            f"SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY amount) FROM transactions "
+            f"WHERE occurred_on > %s AND {SPENDING}", (today - timedelta(days=90),)).fetchone()[0]
+    return round(float(usual or 0) * 10, 2)
 
 
 def category(counterparty: str | None) -> str:
@@ -366,14 +433,20 @@ def insights(start: str, end: str) -> dict:
             for c, t in sorted(current.items(), key=lambda kv: kv[1], reverse=True)]
     amounts = sorted(float(r["amount"]) for r in rows)
     typical = amounts[len(amounts) // 2] if amounts else 0.0
-    unusual = [f"{r['occurred_on']} ₹{r['amount']:,.2f} {r['counterparty'] or ''} ({category(r['counterparty'])})"
-               for r in sorted(now, key=lambda r: r["amount"], reverse=True)
-               if r["kind"] != "card_bill_payment" and float(r["amount"]) >= max(5000.0, typical * 10)][:5]
+    # Unusual = among the largest 5% of payments and at least 10 times the usual size; no fixed amount, so it
+    # works in any currency (on real rupee data it matches the old "over ₹5,000" rule).
+    floor = max(amounts[int(len(amounts) * 0.95)], typical * 10) if amounts else 0.0
+    large = [r for r in sorted(now, key=lambda r: r["amount"], reverse=True)
+             if r["kind"] != "card_bill_payment" and float(r["amount"]) >= floor][:5]
+    unusual = [f"{r['occurred_on']} {config.money(r['amount'])} {r['counterparty'] or ''} ({category(r['counterparty'])})"
+               for r in large]
     new = sorted({(r["counterparty"] or "").strip() for r in now
                   if (r["counterparty"] or "").strip() and (r["counterparty"] or "").strip().lower() not in history})
     return {"period": f"{first} to {last}", "compared_with": f"{prev_first} to {first - timedelta(days=1)}",
             "by_category": cats, "unusual_payments": unusual, "new_merchants": new[:10],
-            "note": "From HDFC, ICICI and IDFC alert emails only; categories are guessed from merchant names."}
+            "unusual_rows": [{"on": str(r["occurred_on"]), "amount": float(r["amount"]), "counterparty": r["counterparty"],
+                              "category": category(r["counterparty"])} for r in large],
+            "note": "From bank alert emails only; categories are guessed from merchant names."}
 
 
 _MONEY_WORDS = re.compile(r"\b(spen[dt]|spending|expenses?|paid|pay(ment)?s?|transactions?|debited|credited|"
@@ -424,8 +497,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--days", type=int, default=2)
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--ai", action="store_true", help="also read emails from banks without a built-in reader "
+                        "with the local AI (the nightly job; unless JARVIS_MONEY_AI=off)")
     args = parser.parse_args()
-    sync(args.days, args.verbose)
+    sync(args.days, args.verbose, ai=True if args.ai else None)
 
 
 if __name__ == "__main__":

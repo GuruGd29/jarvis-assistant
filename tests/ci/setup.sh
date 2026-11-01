@@ -43,9 +43,7 @@ git -C "$RUNNER_TEMP/hermes-agent" checkout -q "$HERMES_COMMIT"
 (cd "$RUNNER_TEMP/hermes-agent" && bash setup-hermes.sh) > "$RUNNER_TEMP/hermes-install.log" 2>&1 \
   || { echo "Hermes install failed:"; tail -40 "$RUNNER_TEMP/hermes-install.log"; exit 1; }
 HERMES_BIN="$RUNNER_TEMP/hermes-agent/.hermes/bin/hermes"
-mkdir -p "$HERMES_HOME/plugins/jarvis"
-cp hermes/plugins/jarvis/__init__.py hermes/plugins/jarvis/plugin.yaml "$HERMES_HOME/plugins/jarvis/"
-cp hermes/SOUL.md "$HERMES_HOME/SOUL.md"
+bin/apply-settings.sh   # the plugin, scheduled-job scripts and SOUL.md with the settings filled in
 sed "s#__VENV__#$REPO/.venv#" tests/ci/hermes/config.yaml > "$HERMES_HOME/config.yaml"
 printf 'API_SERVER_ENABLED=true\nAPI_SERVER_KEY=%s\n' "$(openssl rand -hex 24)" > "$HERMES_HOME/.env"
 nohup "$HERMES_BIN" gateway run > "$RUNNER_TEMP/hermes.log" 2>&1 &

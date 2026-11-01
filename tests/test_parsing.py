@@ -2,13 +2,17 @@
 
   .venv/bin/python -m unittest discover tests
 """
+import os
 import unittest
-from datetime import date
+from datetime import date, datetime
 from unittest import mock
 
-from jarvis import calendars, health, learn, money, renewals, safety, search
-from jarvis.briefing import _change
-from jarvis.web import notify
+# The expected values below are written for an Indian setup (₹, day/month dates), whatever this machine's region.
+os.environ.update(JARVIS_LOCALE="en_IN", JARVIS_CURRENCY="INR")
+
+from jarvis import calendars, config, health, learn, money, money_ai, renewals, safety, search  # noqa: E402
+from jarvis.briefing import _change  # noqa: E402
+from jarvis.web import notify  # noqa: E402
 
 SAT = date(2026, 10, 31)  # a Saturday
 
@@ -93,6 +97,58 @@ class Renewals(unittest.TestCase):
     def test_names(self):
         self.assertEqual(renewals._name("Netflix Standard - INR 499 per month", "subs"), "Netflix Standard")
         self.assertEqual(renewals._name("Date of expiry: 09 June 2031", "passport details"), "Passport details")
+
+
+class Settings(unittest.TestCase):
+    def test_money_in_the_users_style(self):
+        self.assertEqual(config.money(150000.5), "₹1,50,000.50")
+        self.assertEqual(config.money(150000.5, decimals=False), "₹1,50,000")
+        self.assertEqual(config.DATE_ORDER, "dmy")
+
+    def test_numeric_dates_follow_the_locale(self):
+        line = "Renewal due 05/12/2026"
+        self.assertEqual(renewals._when(line, SAT), (date(2026, 12, 5), "once"))
+        with mock.patch.object(config, "DATE_ORDER", "mdy"):  # en_US: month first
+            self.assertEqual(renewals._when(line, SAT), (date(2026, 5, 12), "once"))
+
+    def test_renewal_amounts(self):
+        amount = lambda line: renewals._amount_text(renewals._AMOUNT.search(line))  # noqa: E731
+        self.assertEqual(amount("Netflix - INR 499 per month"), "₹499")
+        self.assertEqual(amount("Google One - Rs. 1,300 per year"), "₹1,300")
+        self.assertEqual(amount("Spotify $11.99 monthly"), "$11.99")  # another currency stays as written
+
+
+class BankEmailsReadByAI(unittest.TestCase):
+    """The checks on the model's answers; the model itself is tested in tests/ci (it needs Ollama)."""
+    RECEIVED = datetime(2026, 11, 1, 10, 0)
+    BODY = "Your A/C XXXXX4321 has been debited by Rs.2,350.00 on 31-10-26 transfer to SWIGGY. -SBI"
+    ANSWER = {"email_type": "transaction", "kind": "account_debit", "amount": "2,350.00", "currency": "INR",
+              "bank": "SBI", "card_or_account": "account", "last_digits": "XXXXX4321", "counterparty": "SWIGGY",
+              "date": "2026-10-31", "statement_total_due": "", "statement_minimum_due": "", "statement_due_date": ""}
+
+    def read(self, **changes):
+        return money_ai.read_email("Transaction alert", self.BODY, self.RECEIVED, answer={**self.ANSWER, **changes})
+
+    def test_a_checked_transaction_is_kept(self):
+        outcome, row = self.read()
+        self.assertEqual(outcome, "transaction")
+        self.assertEqual((row["instrument"], row["kind"], row["direction"], row["amount"], row["occurred_on"]),
+                         ("SBI a/c 4321", "account_debit", "debit", 2350.0, date(2026, 10, 31)))
+
+    def test_an_amount_not_in_the_email_is_refused(self):
+        self.assertEqual(self.read(amount="23,500.00")[0], "amount_not_in_email")
+        self.assertEqual(self.read(amount="350.00")[0], "amount_not_in_email")  # only part of 2,350.00
+
+    def test_other_currency_and_odd_dates(self):
+        self.assertEqual(self.read(currency="USD")[0], "other_currency")
+        self.assertEqual(self.read(date="2025-01-01")[1]["occurred_on"], date(2026, 11, 1))  # far off: the email's date
+
+    def test_not_a_transaction(self):
+        self.assertEqual(self.read(email_type="other", kind="none")[0], "not_a_transaction")
+
+    def test_number_styles(self):
+        self.assertEqual([money_ai._number(x) for x in ("1,50,000.00", "1,250.00", "1.234,56", "2 499,00", "12,50", "1,234")],
+                         [150000.0, 1250.0, 1234.56, 2499.0, 12.5, 1234.0])
 
 
 class LabTables(unittest.TestCase):

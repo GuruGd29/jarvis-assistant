@@ -136,7 +136,7 @@ def email_read(message_id: str) -> dict:
 
 @mcp.tool()
 def spending_summary(start_date: str, end_date: str | None = None) -> dict:
-    """Exact money totals from the user's HDFC, ICICI and IDFC alert emails for start_date..end_date
+    """Exact money totals from the user's bank alert emails for start_date..end_date
     (YYYY-MM-DD, inclusive; end_date defaults to start_date). Quote spending_total as given:
     it already excludes transfers between the user's own accounts and credit card bill payments,
     and subtracts card refunds. Never add up amounts yourself."""

@@ -24,7 +24,7 @@ from .embed import embed
 QUEUE = config.SYSTEM_DIR / "state" / "learn-queue.jsonl"
 # Jarvis's own chat model, run at night: loading any other model makes Ollama unload the chat
 # model, and the extraction wipes its prompt cache, so the next reply would take about a minute.
-EXTRACT_MODEL = "qwen3-4b-instruct-64k"
+EXTRACT_MODEL = config.CHAT_MODEL
 # Cosine distances between bge-m3 vectors of short facts.
 SAME_FACT = 0.17      # a restatement: refresh the existing fact instead of adding a copy
 RELEVANT = 0.45       # recalled before a reply
