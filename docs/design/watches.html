@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis Watches</title>
+<!-- Design for approval: the Watches screens, drawn with the app's own styles. Static; nothing here runs a check. -->
+<link rel="stylesheet" href="../../web/app/app.css">
+<style>
+  html, body.board { height: auto; overflow: auto; overscroll-behavior: auto; }
+  body.board { background: var(--surface-2); padding: 28px 24px 64px; }
+  .board > header { max-width: 1240px; margin: 0 auto 22px; }
+  .board > header h1 { font: 700 26px/1.2 var(--font); letter-spacing: -.01em; }
+  .board > header p { font: 400 15px/1.5 var(--font); color: var(--text-2); margin-top: 6px; max-width: 780px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 34px 26px; justify-content: center; max-width: 1240px; margin: 0 auto; }
+  figure.shot { width: 390px; }
+  figcaption { display: flex; gap: 10px; align-items: flex-start; margin: 0 4px 12px; min-height: 42px; }
+  figcaption b { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--text); color: var(--bg); font: 700 12.5px/24px var(--font); text-align: center; }
+  figcaption div { font: 650 15px/1.3 var(--font); }
+  figcaption small { display: block; font: 400 13px/1.4 var(--font); color: var(--text-2); margin-top: 2px; }
+  .phone { position: relative; width: 390px; height: 844px; border-radius: 46px; overflow: hidden; background: var(--bg);
+    box-shadow: 0 0 0 1px var(--line-strong), 0 24px 60px rgba(0, 0, 0, .14); --top: 50px; --bottom: 20px; }
+  .status { position: absolute; top: 0; left: 0; right: 0; height: 50px; z-index: 30; display: flex; justify-content: space-between;
+    align-items: center; padding: 8px 34px 0 40px; font: 650 16px var(--font); pointer-events: none; }
+  .status i { font-style: normal; font-size: 12px; letter-spacing: 1px; }
+  @media (max-width: 440px) {
+    body.board { padding: 18px 0 40px; }
+    .board > header { padding: 0 16px; }
+    figure.shot, .phone { width: 100vw; }
+    .phone { border-radius: 0; }
+    figcaption { margin: 0 16px 12px; }
+  }
+
+  /* pieces the Watches screens add to the app */
+  .navbar .act { font: 600 16px var(--font); padding: 6px 10px; margin-left: auto; }
+  .navbar .title.c { margin-right: 0; }
+  .navbar .ib { margin-left: auto; }
+  .fld .s { margin: 0 0 2px; }
+  .btn { text-align: center; }
+  .phone .view.sub .scroll { padding-bottom: calc(var(--tabbar-h) + var(--bottom) + 44px); }
+  .fld .t { white-space: normal; }
+  .ask { padding: 12px 14px 10px; }
+  .ask textarea { width: 100%; min-height: 76px; resize: none; font: 400 16.5px/1.45 var(--font); }
+  .ask .askbar { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+  .hint { font: 400 13.5px/1.45 var(--font); color: var(--text-2); margin: 10px 4px 0; }
+  .filled { display: flex; gap: 8px; align-items: center; font: 500 13.5px/1.4 var(--font); color: var(--text-2); margin: 12px 4px 10px; }
+  .filled svg { width: 16px; height: 16px; flex: none; }
+  .seg.in { margin: 8px 0 0; }
+  .row .seg { margin: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips button { padding: 9px 13px; border-radius: 12px; font: 600 14.5px var(--font); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .chips button small { display: block; font: 400 12.5px var(--font); color: var(--text-2); margin-top: 1px; }
+  .chips button.on { background: var(--primary); color: var(--on-primary); box-shadow: none; }
+  .chips button.on small { color: var(--on-primary); opacity: .75; }
+  .two { display: flex; gap: 10px; margin-top: 16px; }
+  .two .btn { flex: 1; padding: 12px; font-size: 15.5px; }
+  .tag.found { color: var(--down); }
+  .tag.warn { color: var(--danger); }
+  .tag.dim { color: var(--text-3); }
+  .rt { text-align: right; flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .danger { color: var(--danger); font: 600 15px var(--font); width: 100%; text-align: center; padding: 14px; margin-top: 18px; }
+  .radio { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1.6px var(--text-3); flex: none; }
+  .radio.on { box-shadow: inset 0 0 0 7px var(--text); }
+  .money-in { font: 600 15px var(--font); padding: 5px 9px; border-radius: 8px; background: var(--surface-2); flex: none; }
+  .url { font: 400 15px/1.4 ui-monospace, Menlo, monospace; word-break: break-all; }
+  .found-card { box-shadow: inset 0 0 0 1.5px var(--down); }
+  .found-card .k { color: var(--down); font-weight: 600; }
+  .found-card .acts2 { display: flex; gap: 8px; margin-top: 12px; }
+
+  /* lock screen */
+  .lock { position: absolute; inset: 0; background: linear-gradient(160deg, #3a4a5c, #1d2530 60%, #12161c); color: #fff; padding: 64px 14px 0; }
+  .lock .clock { text-align: center; font: 300 82px/1 var(--font); letter-spacing: -2px; }
+  .lock .date { text-align: center; font: 500 19px var(--font); opacity: .85; margin-bottom: 34px; }
+  .lock .note2 { background: rgba(255, 255, 255, .16); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-radius: 22px; padding: 12px 14px; display: flex; gap: 11px; margin-bottom: 10px; }
+  .lock .note2 img { width: 38px; height: 38px; border-radius: 9px; flex: none; }
+  .lock .note2 .h { display: flex; justify-content: space-between; font: 600 14.5px var(--font); }
+  .lock .note2 .h span { font-weight: 400; opacity: .7; font-size: 13px; }
+  .lock .note2 p { font: 400 14.5px/1.35 var(--font); margin-top: 2px; }
+</style>
+</head>
+<body class="board">
+<header>
+  <h1>Watches: screens for approval</h1>
+  <p>Watches gets its own tab: Chat · Today · Money · Watches · More. Jarvis checks bus fares (redBus), movie bookings (BookMyShow), rides (BlaBlaCar) and any web page on a schedule, and tells you
+    when something good happens. The AI only helps when you create a watch; every check after that is a simple, quick script.
+    Every watch you create is kept: when its date passes it moves to Saved, and you can start it again for a new day whenever you want. All prices and names here are examples.</p>
+</header>
+
+<div class="grid">
+
+<!-- 2. Watches list -->
+<figure class="shot"><figcaption><b></b><div>The Watches tab<small>Its own tab, with a badge when a watch has found something. Found ones on top, then watching, then your saved watches.</small></div></figcaption>
+<div class="phone"><div class="status">9:41<i>●●● ▮</i></div>
+<section class="view"><div class="scroll"><div class="h1 hrow">Watches<button class="ib" aria-label="New watch"><i data-i="plus"></i></button></div>
+  <div class="sub">1 found something · 3 watching · 2 saved</div>
+  <div class="sec" style="margin-top:6px">Found something</div>
+  <div class="card">
+    <button class="row"><span class="ic"><i data-i="bus"></i></span><div class="m"><div class="t">Silk Board → Tambaram</div><div class="s">Fri 7 Nov night · under ₹500</div><div class="s">KEN Travels · found 6:40 pm</div></div>
+      <div class="rt"><span class="v">₹449</span><span class="tag found">Found</span></div></button>
+  </div>
+  <div class="sec">Watching</div>
+  <div class="card">
+    <button class="row"><span class="ic"><i data-i="film"></i></span><div class="m"><div class="t">Leo · PVR Forum, Nexus</div><div class="s">Sat 8 Nov · after 5 pm</div><div class="s">Not open yet · checked 4 min ago</div></div>
+      <div class="rt"><span class="tag dim">Watching</span></div></button>
+    <button class="row"><span class="ic"><i data-i="car"></i></span><div class="m"><div class="t">HSR Layout → Chennai</div><div class="s">Fri 7 Nov after 6 pm · 1 seat</div><div class="s">No rides yet · checked 9 min ago</div></div>
+      <div class="rt"><span class="tag dim">Watching</span></div></button>
+    <button class="row"><span class="ic"><i data-i="globe"></i></span><div class="m"><div class="t">Sony WH-1000XM5 · Amazon</div><div class="s">Price below ₹22,000</div><div class="s" style="color:var(--danger)">Page changed · tap to fix</div></div>
+      <div class="rt"><span class="tag warn">Check</span></div></button>
+  </div>
+  <div class="sec">Saved · start any time</div>
+  <div class="card">
+    <div class="row"><span class="ic"><i data-i="bus"></i></span><div class="m"><div class="t">Tambaram → Silk Board</div><div class="s">Bus under ₹500 · 6 pm–midnight</div><div class="s">Last used Sun 26 Oct · lowest ₹349</div></div><button class="btn s">Start</button></div>
+    <div class="row"><span class="ic"><i data-i="film"></i></span><div class="m"><div class="t">PVR Forum, Nexus</div><div class="s">Movie bookings opening</div><div class="s">Last used for Kaantha, 18 Oct</div></div><button class="btn s">Start</button></div>
+  </div>
+  <div class="note">A watch is never thrown away when its date passes: it moves to Saved, ready to start again with a new date. Delete it when you no longer need it.</div>
+</div></section>
+<nav class="tabbar frost" data-tabs="watches" data-badge="1"></nav></div></figure>
+
+<!-- 3. Watch detail -->
+<figure class="shot"><figcaption><b></b><div>One watch<small>What it found, how the price moved, and its settings.</small></div></figcaption>
+<div class="phone"><div class="status">9:41<i>●●● ▮</i></div>
+<section class="view sub"><div class="navbar"><button class="back"><i data-i="back"></i> Watches</button><div class="title">Bus fare</div></div>
+<div class="scroll">
+  <div class="card big"><div class="k">Silk Board → Tambaram · Fri 7 Nov, 8 pm–2 am</div>
+    <div class="n">₹449</div><div class="d">Cheapest now · KEN Travels · 9:45 pm · 31 seats</div>
+    <svg class="spark" viewBox="0 0 320 46" preserveAspectRatio="none" aria-hidden="true"><path d="M0 8 L40 10 L80 14 L120 14 L160 22 L200 22 L240 28 L280 32 L320 42" fill="none" stroke="var(--text)" stroke-width="1.8" vector-effect="non-scaling-stroke"/></svg>
+    <div class="kpis"><div><b>₹449</b><span>lowest seen</span></div><div><b>12</b><span>buses match</span></div><div><b>10 min</b><span>between checks</span></div></div>
+  </div>
+  <button class="btn p wide" style="margin-top:12px">Book on redBus</button>
+  <div class="sec">Cheapest now</div>
+  <div class="card">
+    <div class="row"><div class="m"><div class="t">KEN Travels</div><div class="s">9:45 pm · 31 seats</div></div><span class="v">₹449</span></div>
+    <div class="row"><div class="m"><div class="t">Krish Travels</div><div class="s">11:00 pm · 22 seats</div></div><span class="v">₹499</span></div>
+    <div class="row"><div class="m"><div class="t">IntrCity SmartBus</div><div class="s">10:50 pm · 42 seats</div></div><span class="v">₹549</span></div>
+  </div>
+  <div class="sec">This watch</div>
+  <div class="card">
+    <button class="row fld"><div class="m"><div class="s">Tell me when</div><div class="t">Cheapest is under ₹500</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row fld"><div class="m"><div class="s">Check every</div><div class="t">10 minutes</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row fld"><div class="m"><div class="s">Watching until</div><div class="t">Fri 7 Nov, 2 am, then back to Saved</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <div class="row"><div class="m"><div class="t">Watching</div><div class="s">Pause to stop checking for now</div></div><span class="tog"></span></div>
+  </div>
+  <div class="sec">Used before</div>
+  <div class="card">
+    <div class="row"><div class="m"><div class="t">Sat 25 Oct</div><div class="s">Found ₹309 at 7:10 pm</div></div><span class="v">₹309</span></div>
+    <div class="row"><div class="m"><div class="t">Fri 17 Oct</div><div class="s">Never under ₹500 · lowest ₹529</div></div><span class="v">₹529</span></div>
+  </div>
+  <div class="note">Last checked 6:40 pm · next 6:50 pm. You're told again only if it drops further.</div>
+  <button class="danger">Delete watch</button>
+</div></section>
+<nav class="tabbar frost" data-tabs="watches" data-badge="1"></nav></div></figure>
+
+<!-- Start a saved watch again -->
+<figure class="shot"><figcaption><b></b><div>Start a saved watch again<small>Tap Start on a saved watch: pick the day, everything else is as you saved it.</small></div></figcaption>
+<div class="phone"><div class="status">9:41<i>●●● ▮</i></div>
+<section class="view sub"><div class="navbar"><button class="back"><i data-i="back"></i> Watches</button><div class="title">Start watch</div></div>
+<div class="scroll">
+  <div class="card big"><div class="k">Saved watch</div><div class="text"><b>Tambaram → Silk Board</b><br>Bus under ₹500 · leaving 6 pm–midnight · redBus</div></div>
+  <div class="sec">Which day?</div>
+  <div class="chips"><button>Today<small>Mon 3 Nov</small></button><button>Tomorrow<small>Tue 4 Nov</small></button><button class="on">Sunday<small>9 Nov</small></button><button>Pick a date<small>Calendar</small></button></div>
+  <div class="sec">Check every</div>
+  <div class="seg"><button>5 min</button><button class="on">10 min</button><button>15 min</button><button>30 min</button></div>
+  <button class="btn p wide" style="margin-top:16px">Start watching</button>
+  <button class="btn s wide" style="margin-top:10px">Change the other details</button>
+  <div class="note">For a movie watch it asks which movie and day; for a web page watch, Start just turns it back on.</div>
+</div></section>
+<nav class="tabbar frost" data-tabs="watches" data-badge="1"></nav></div></figure>
+
+<!-- 4. New watch: say it -->
+<figure class="shot"><figcaption><b></b><div>New watch: say it<small>Type or speak what you want, or pick a type. "Fill in" lets Jarvis's AI read it.</small></div></figcaption>
+<div class="phone"><div class="status">9:41<i>●●● ▮</i></div>
+<section class="view sub"><div class="navbar"><button class="back">Cancel</button><div class="title">New watch</div></div>
+<div class="scroll">
+  <div class="card ask"><textarea aria-label="What should Jarvis watch?">Silk Board to Tambaram on Friday night, tell me if any bus is under ₹500</textarea>
+    <div class="askbar"><button class="mic" aria-label="Voice"><i data-i="mic"></i></button><button class="btn p">Fill in</button></div></div>
+  <div class="hint">Like: "Tell me when Leo bookings open at PVR Forum on Saturday" or "a BlaBlaCar ride to Chennai on Friday evening".</div>
+  <div class="sec">Or pick a type</div>
+  <div class="card">
+    <button class="row"><span class="ic"><i data-i="bus"></i></span><div class="m"><div class="t">Bus fare</div><div class="s">redBus · tell me when it's under a price</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row"><span class="ic"><i data-i="film"></i></span><div class="m"><div class="t">Movie bookings</div><div class="s">BookMyShow · tell me when they open</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row"><span class="ic"><i data-i="car"></i></span><div class="m"><div class="t">Ride</div><div class="s">BlaBlaCar · tell me when one appears</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row"><span class="ic"><i data-i="globe"></i></span><div class="m"><div class="t">Any web page</div><div class="s">A price or some words on a page</div></div><span class="chev"><i data-i="chev"></i></span></button>
+  </div>
+</div></section>
+<nav class="tabbar frost" data-tabs="watches" data-badge="1"></nav></div></figure>
+
+<!-- 5. Bus form, filled in -->
+<figure class="shot"><figcaption><b></b><div>Bus: filled in for you<small>Jarvis turned the sentence into these. Tap any line to change it.</small></div></figcaption>
+<div class="phone"><div class="status">9:41<i>●●● ▮</i></div>
+<section class="view sub"><div class="navbar"><button class="back"><i data-i="back"></i> Back</button><div class="title">Bus fare</div></div>
+<div class="scroll">
+  <div class="filled"><i data-i="ok"></i>Filled in from what you said. Check it, then test.</div>
+  <div class="card">
+    <button class="row fld"><div class="m"><div class="s">From</div><div class="t">Bangalore · boarding at Silk Board</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row fld"><div class="m"><div class="s">To</div><div class="t">Chennai · dropping at Tambaram</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row fld"><div class="m"><div class="s">Date</div><div class="t">Fri 7 Nov</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row fld"><div class="m"><div class="s">Leaving between</div><div class="t">8:00 pm and 2:00 am</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <div class="row fld"><div class="m"><div class="s">Tell me when the cheapest is under</div></div><span class="money-in">₹500</span></div>
+  </div>
+  <div class="sec">Check every</div>
+  <div class="seg"><button>5 min</button><button class="on">10 min</button><button>15 min</button><button>30 min</button></div>
+  <div class="note" style="margin-top:4px">After the bus date it stops checking and stays in Saved, so you can start it again for another day. Shorter gaps catch drops sooner but use more data.</div>
+  <div class="two"><button class="btn s">Test now</button><button class="btn p">Save watch</button></div>
+</div></section>
+<nav class="tabbar frost" data-tabs="watches" data-badge="1"></nav></div></figure>
+
+<!-- 6. Bus test result -->
+<figure class="shot"><figcaption><b></b><div>Test now<small>One real check before saving, so you see it reads the right buses.</small></div></figcaption>
+<div class="phone"><div class="status">9:41<i>●●● ▮</i></div>
+<section class="view sub"><div class="navbar"><button class="back"><i data-i="back"></i> Back</button><div class="title">Bus fare</div></div>
+<div class="scroll">
+  <div class="card big"><div class="k">Test check · just now</div><div class="n">₹549</div>
+    <div class="d">Cheapest of 12 buses from Silk Board to Tambaram, 8 pm–2 am</div>
+    <div class="text">Not under ₹500 yet. Jarvis will check every 10 minutes and tell you when it is.</div></div>
+  <div class="sec">Buses it found</div>
+  <div class="card">
+    <div class="row"><div class="m"><div class="t">IntrCity SmartBus</div><div class="s">10:50 pm · 42 seats</div></div><span class="v">₹549</span></div>
+    <div class="row"><div class="m"><div class="t">KEN Travels</div><div class="s">9:45 pm · 31 seats</div></div><span class="v">₹599</span></div>
+    <div class="row"><div class="m"><div class="t">Krish Travels</div><div class="s">11:00 pm · 22 seats</div></div><span class="v">₹649</span></div>
+    <div class="row"><div class="m"><div class="t">9 more</div><div class="s">₹699 to ₹1,450</div></div></div>
+  </div>
+  <div class="two"><button class="btn s">Change</button><button class="btn p">Save watch</button></div>
+</div></section>
+<nav class="tabbar frost" data-tabs="watches" data-badge="1"></nav></div></figure>
+
+<!-- 7. Movie form -->
+<figure class="shot"><figcaption><b></b><div>Movie bookings<small>BookMyShow. Tell me when bookings open, or when seats free up on a show.</small></div></figcaption>
+<div class="phone"><div class="status">9:41<i>●●● ▮</i></div>
+<section class="view sub"><div class="navbar"><button class="back"><i data-i="back"></i> Back</button><div class="title">Movie bookings</div></div>
+<div class="scroll">
+  <div class="filled"><i data-i="ok"></i>Filled in from what you said. Check it, then test.</div>
+  <div class="card">
+    <button class="row fld"><div class="m"><div class="s">Movie</div><div class="t">Leo (Tamil)</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row fld"><div class="m"><div class="s">City</div><div class="t">Bengaluru</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row fld"><div class="m"><div class="s">Theatres</div><div class="t">PVR Forum Mall, PVR Nexus Koramangala</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row fld"><div class="m"><div class="s">Date</div><div class="t">Sat 8 Nov · shows after 5 pm</div></div><span class="chev"><i data-i="chev"></i></span></button>
+  </div>
+  <div class="sec">Tell me when</div>
+  <div class="seg"><button class="on">Bookings open</button><button>Seats free up</button></div>
+  <div class="sec">Check every</div>
+  <div class="seg"><button>5 min</button><button>10 min</button><button class="on">15 min</button><button>30 min</button></div>
+  <div class="two"><button class="btn s">Test now</button><button class="btn p">Save watch</button></div>
+</div></section>
+<nav class="tabbar frost" data-tabs="watches" data-badge="1"></nav></div></figure>
+
+<!-- 8. Ride form -->
+<figure class="shot"><figcaption><b></b><div>Ride<small>BlaBlaCar. Tell me when a ride appears, optionally under a price.</small></div></figcaption>
+<div class="phone"><div class="status">9:41<i>●●● ▮</i></div>
+<section class="view sub"><div class="navbar"><button class="back"><i data-i="back"></i> Back</button><div class="title">Ride</div></div>
+<div class="scroll">
+  <div class="filled"><i data-i="ok"></i>Filled in from what you said. Check it, then test.</div>
+  <div class="card">
+    <button class="row fld"><div class="m"><div class="s">From</div><div class="t">HSR Layout, Bengaluru</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row fld"><div class="m"><div class="s">To</div><div class="t">Chennai</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row fld"><div class="m"><div class="s">Date</div><div class="t">Fri 7 Nov · leaving after 6 pm</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <button class="row fld"><div class="m"><div class="s">Seats</div><div class="t">1</div></div><span class="chev"><i data-i="chev"></i></span></button>
+    <div class="row fld"><div class="m"><div class="s">Only if the price is under (optional)</div></div><span class="money-in">₹700</span></div>
+  </div>
+  <div class="sec">Check every</div>
+  <div class="seg"><button>5 min</button><button>10 min</button><button class="on">15 min</button><button>30 min</button></div>
+  <div class="two"><button class="btn s">Test now</button><button class="btn p">Save watch</button></div>
+</div></section>
+<nav class="tabbar frost" data-tabs="watches" data-badge="1"></nav></div></figure>
+
+<!-- 9. Any web page -->
+<figure class="shot"><figcaption><b></b><div>Any web page<small>Jarvis reads the page once to find what can be watched; you pick one.</small></div></figcaption>
+<div class="phone"><div class="status">9:41<i>●●● ▮</i></div>
+<section class="view sub"><div class="navbar"><button class="back"><i data-i="back"></i> Back</button><div class="title">Web page</div></div>
+<div class="scroll">
+  <div class="card"><div class="row fld"><div class="m"><div class="s">Page</div><div class="t url">amazon.in/Sony-WH-1000XM5-Wireless-Headphones/dp/B09XS7JWHH</div></div></div></div>
+  <div class="sec">Jarvis found on this page</div>
+  <div class="card">
+    <button class="row"><span class="radio on"></span><div class="m"><div class="t">Price</div><div class="s">₹24,990</div></div></button>
+    <button class="row"><span class="radio"></span><div class="m"><div class="t">Availability</div><div class="s">In stock</div></div></button>
+    <button class="row"><span class="radio"></span><div class="m"><div class="t">Delivery</div><div class="s">FREE delivery Wednesday, 5 November</div></div></button>
+  </div>
+  <div class="sec">Tell me when</div>
+  <div class="card"><div class="row"><div class="m"><div class="t">The price is under</div></div><span class="money-in">₹22,000</span></div></div>
+  <div class="sec">Check every</div>
+  <div class="seg"><button>15 min</button><button class="on">1 hour</button><button>6 hours</button><button>1 day</button></div>
+  <div class="two"><button class="btn s">Test now</button><button class="btn p">Save watch</button></div>
+</div></section>
+<nav class="tabbar frost" data-tabs="watches" data-badge="1"></nav></div></figure>
+
+<!-- 10. Notifications -->
+<figure class="shot"><figcaption><b></b><div>Notifications<small>Only when something good happens, or when a watch needs your help. Telegram gets a copy if it's on.</small></div></figcaption>
+<div class="phone"><div class="lock">
+  <div class="clock">9:41</div><div class="date">Friday, 7 November</div>
+  <div class="note2"><img src="../../web/app/icons/icon-192.png" alt=""><div><div class="h">Jarvis<span>now</span></div>
+    <p><b>Bus under ₹500: ₹449</b><br>KEN Travels, 9:45 pm · Silk Board → Tambaram, Fri 7 Nov. Tap to book on redBus.</p></div></div>
+  <div class="note2"><img src="../../web/app/icons/icon-192.png" alt=""><div><div class="h">Jarvis<span>2h ago</span></div>
+    <p><b>Leo bookings are open</b><br>PVR Forum, Sat 8 Nov: 7:10 pm and 10:30 pm shows. Tap to book on BookMyShow.</p></div></div>
+  <div class="note2"><img src="../../web/app/icons/icon-192.png" alt=""><div><div class="h">Jarvis<span>yesterday</span></div>
+    <p><b>A watch needs you</b><br>The Amazon page for Sony WH-1000XM5 changed and Jarvis can't find the price. Open Watches to fix it.</p></div></div>
+</div></div></figure>
+
+<!-- 11. Today -->
+<figure class="shot"><figcaption><b></b><div>Today, when a watch finds something<small>A card on top until you book or tap "Seen".</small></div></figcaption>
+<div class="phone"><div class="status">9:41<i>●●● ▮</i></div>
+<section class="view"><div class="scroll"><div class="h1">Today</div><div class="sub">Friday, 7 November · Good evening, Guru</div>
+  <div class="card big found-card"><div class="k">Found by a watch</div>
+    <div class="text"><b>Bus under ₹500: ₹449</b>, KEN Travels 9:45 pm, Silk Board → Tambaram tonight.</div>
+    <div class="acts2"><button class="btn p">Book on redBus</button><button class="btn s">Seen</button></div></div>
+  <div class="card big" style="margin-top:12px"><div class="k">Summary</div>
+    <div class="text">No events today · 1 task due · Netflix Standard renewed (₹499).</div>
+    <div class="kpis"><div><b>₹220</b><span>spent today</span></div><div><b>1</b><span>due today</span></div><div><b>9</b><span>reminders</span></div><div><b>0</b><span>doses left</span></div></div></div>
+  <div class="sec">Schedule · next 7 days</div>
+  <div class="card"><div class="row"><span class="time">Sat 8</span><span class="vline"></span><div class="m"><div class="t">Diwali/Deepavali</div><div class="s">All day · Google</div></div></div></div>
+</div></section>
+<nav class="tabbar frost" data-tabs="today" data-badge="1"></nav></div></figure>
+
+</div>
+
+<script>
+// The app's icons (copied from web/app/app.js), plus the new ones for Watches: eye, plus, bus, film, car, globe.
+const sv = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const I = {
+  chat: sv('<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z"/>'),
+  today: sv('<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'),
+  money: sv('<path d="M7 5h10M7 9h10M7 5c4 0 6 1.6 6 4s-2 4-6 4h-.5L14 20"/>'),
+  more: sv('<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>'),
+  mic: sv('<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/>', 2),
+  ok: sv('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 2.4),
+  back: sv('<path d="M15 5l-7 7 7 7"/>', 2.2), chev: sv('<path d="M9 5l7 7-7 7"/>', 2.2),
+  renew: sv('<path d="M19 8a7.5 7.5 0 0 0-13.5 1M5 16a7.5 7.5 0 0 0 13.5-1M19 3.5V8h-4.5M5 20.5V16h4.5"/>'),
+  brain: sv('<path d="M9 4.5a3 3 0 0 0-3 3 3 3 0 0 0-1.5 5.5A3 3 0 0 0 9 18v1.5M15 4.5a3 3 0 0 1 3 3 3 3 0 0 1 1.5 5.5A3 3 0 0 1 15 18v1.5M9 4.5a3 3 0 0 1 6 0V19.5"/>'),
+  file: sv('<path d="M6 3h8l4 4v14H6zM14 3v4h4"/>'), bell: sv('<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/>'),
+  inbox: sv('<path d="M4 13l2.5-8h11L20 13v6H4zM4 13h5l1 2h4l1-2h5"/>'),
+  watches: sv('<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'),
+  eye: sv('<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'),
+  plus: sv('<path d="M12 5v14M5 12h14"/>', 2.2),
+  bus: sv('<rect x="4.5" y="3.5" width="15" height="14" rx="3"/><path d="M4.5 10.5h15M8 17.5V20M16 17.5V20M8 14h.01M16 14h.01"/>'),
+  film: sv('<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M3.5 9.5h17M8 5l2 4.5M13 5l2 4.5"/>'),
+  car: sv('<path d="M4 15.5V12l2.2-5h11.6L20 12v3.5z"/><path d="M4 12h16M7.5 15.5V18M16.5 15.5V18"/>'),
+  globe: sv('<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.5 5.4 3.5 8.5s-1 5.9-3.5 8.5c-2.5-2.6-3.5-5.4-3.5-8.5s1-5.9 3.5-8.5z"/>'),
+};
+document.querySelectorAll("figcaption b").forEach((b, i) => { b.textContent = i + 1; });
+document.querySelectorAll("i[data-i]").forEach(el => { el.outerHTML = I[el.dataset.i]; });
+document.querySelectorAll("nav[data-tabs]").forEach(nav => {
+  nav.innerHTML = [["chat", "Chat"], ["today", "Today"], ["money", "Money"], ["watches", "Watches"], ["more", "More"]].map(([k, n]) =>
+    `<button class="tab ${k === nav.dataset.tabs ? "on" : ""}">${I[k]}${k === "watches" && nav.dataset.badge ? `<span class="badge">${nav.dataset.badge}</span>` : ""}<span>${n}</span></button>`).join("");
+});
+</script>
+</body>
+</html>

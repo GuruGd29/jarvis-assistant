@@ -3,7 +3,7 @@ import threading
 import time
 from datetime import date, datetime, timedelta
 
-from .. import calendars, config, health, learn, money, renewals, tasks
+from .. import calendars, config, health, learn, money, renewals, tasks, watches
 
 
 def _greeting(now: datetime) -> str:
@@ -100,6 +100,7 @@ def today() -> dict:
         "medicines": medicines_today(),
         "renewals": renewals.upcoming(30, day),
         "spent_today": spent["spending_total"], "payments_today": len(spent["spending"]),
+        "watch_found": watches.found_unseen(),
     }
 
 

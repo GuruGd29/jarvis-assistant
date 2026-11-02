@@ -35,6 +35,7 @@ Also: <a href="docs/screenshots/more.png">More screen</a> · <a href="docs/scree
 | 📧 **Email** | Reads Gmail (read-only) to summarise your inbox. It can never send, reply or delete. |
 | 💰 **Money** | Turns your bank's alert emails into exact spending totals by day, week, month and category, plus a **Cards** view: each credit card's bill, part payments, amount left and due date. Totals are worked out by the database, never guessed by the AI. |
 | 💊 **Health** | Medicine reminders ("taken" / "skip"), and lab results from your reports with LOW/HIGH flags. It summarises; it does not diagnose. |
+| 👁️ **Watches** | Tell Jarvis to watch a redBus fare, BookMyShow bookings or a price on any web page, and it checks on a schedule and tells you when it finds what you asked for: *"Bus under ₹500: ₹449, KEN Travels 9:45 pm"*. Watches are kept, so you can start one again for another day ([docs/watches.md](docs/watches.md)). |
 | 🔔 **Renewals** | Finds "renews on", "valid until" and expiry dates in your files and reminds you before them. |
 | 🧠 **Memory** | Remembers what you tell it ("remember that I'm allergic to peanuts"). "What do you know about me" and "forget …" work any time. |
 | ☀️ **Briefings** | A morning brief (events, tasks, unread mail, medicines, yesterday's spending), a Sunday summary of the week and a monthly money report, as phone notifications and/or Telegram messages. |
@@ -283,6 +284,9 @@ Scheduled briefings are put together without the model, so they arrive on time e
   ICICI and IDFC; other banks rely on the AI reader.
 - **Google takes a few steps to set up.** Calendar, Gmail and Drive need your own free Google Cloud project
   ([docs/google.md](docs/google.md)).
+- **Watches depend on the sites.** redBus and BookMyShow forbid automatic checks in their terms and only allow a
+  normal browser window; any day they may block it, and Jarvis then tells you rather than getting around it.
+  BlaBlaCar already blocks it. A watch only checks while the computer is on and awake.
 - **The phone app is a web app** added to the Home Screen, not an App Store app.
 - **One person per install.** There are no user accounts.
 

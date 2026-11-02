@@ -235,3 +235,42 @@ input[type="time"] { font: 500 15px var(--font); padding: 5px 8px; border-radius
   border-radius: 999px; font: 600 12.5px var(--font); background: var(--text); color: var(--bg); display: none; }
 .offline.show { display: block; }
 .is-offline .view { padding-top: calc(var(--top) + 34px); } /* room for the Offline note above the title */
+
+/* watches */
+.view.sub.w .scroll { padding-bottom: calc(var(--tabbar-h) + var(--bottom) + 44px); }
+.btn { text-align: center; }
+a.btn { display: inline-block; text-decoration: none; }
+a.btn.wide { display: block; }
+.fld .s { margin: 0 0 2px; }
+.fld .t { white-space: normal; }
+.fld input { width: 100%; font: 500 15.5px/1.3 var(--font); padding: 2px 0; }
+.fld input::placeholder { color: var(--text-3); font-weight: 400; }
+.fld .times { display: flex; align-items: center; gap: 8px; font: 400 14px var(--font); color: var(--text-2); margin-top: 3px; }
+.fld .times input { width: auto; }
+.ask { padding: 12px 14px 10px; }
+.ask textarea { width: 100%; resize: none; font: 400 16.5px/1.45 var(--font); }
+.ask textarea::placeholder { color: var(--text-3); }
+.askbar { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+.hint { font: 400 13.5px/1.45 var(--font); color: var(--text-2); margin: 10px 4px 0; }
+.filled { display: flex; gap: 8px; align-items: center; font: 500 13.5px/1.4 var(--font); color: var(--text-2); margin: 4px 4px 10px; }
+.filled svg { width: 16px; height: 16px; flex: none; }
+.seg.in { margin: 6px 0 0; }
+.two { display: flex; gap: 10px; margin-top: 16px; }
+.two .btn { flex: 1; padding: 12px; font-size: 15.5px; }
+.tag.found { color: var(--down); }
+.tag.warn { color: var(--danger); }
+.tag.dim { color: var(--text-3); }
+.rt { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.danger { color: var(--danger); font: 600 15px var(--font); width: 100%; text-align: center; padding: 14px; margin-top: 18px; }
+.radio { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1.6px var(--text-3); flex: none; }
+.radio.on { box-shadow: inset 0 0 0 7px var(--text); }
+.found-card { box-shadow: inset 0 0 0 1.5px var(--down); margin-bottom: 12px; }
+.found-card .k { color: var(--down); font-weight: 600; }
+.acts2 { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips button, .chips .pick { position: relative; padding: 9px 13px; border-radius: 12px; font: 600 14.5px var(--font); background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong); }
+.chips small { display: block; font: 400 12.5px var(--font); color: var(--text-2); margin-top: 1px; }
+.chips button.on { background: var(--primary); color: var(--on-primary); box-shadow: none; }
+.chips button.on small { color: var(--on-primary); opacity: .75; }
+.chips .pick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }

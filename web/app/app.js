@@ -125,6 +125,11 @@ const I = {
   file: sv('<path d="M6 3h8l4 4v14H6zM14 3v4h4"/>'), bell: sv('<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/>'),
   inbox: sv('<path d="M4 13l2.5-8h11L20 13v6H4zM4 13h5l1 2h4l1-2h5"/>'), share: sv('<path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7.5h14V12"/>'),
   list: sv('<path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>', 2.2),
+  watches: sv('<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'),
+  plus: sv('<path d="M12 5v14M5 12h14"/>', 2.2),
+  bus: sv('<rect x="4.5" y="3.5" width="15" height="14" rx="3"/><path d="M4.5 10.5h15M8 17.5V20M16 17.5V20M8 14h.01M16 14h.01"/>'),
+  film: sv('<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M3.5 9.5h17M8 5l2 4.5M13 5l2 4.5"/>'),
+  globe: sv('<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.5 5.4 3.5 8.5s-1 5.9-3.5 8.5c-2.5-2.6-3.5-5.4-3.5-8.5s1-5.9 3.5-8.5z"/>'),
 };
 const KIND_LABEL = { reminders: "Reminder", renewals: "Bills & renewals", problems: "Needs attention", reports: "Report", replies: "Chat reply" };
 
@@ -132,6 +137,7 @@ const KIND_LABEL = { reminders: "Reminder", renewals: "Bills & renewals", proble
 const S = {
   route: "chat", chatId: null, chats: [], msgs: [], streaming: null, drawer: false,
   today: null, todayErr: null, iphone: null, money: {}, period: "week", moneyErr: null, moneyTab: "spending", cards: null, cardSel: null, syncing: false, savedAt: null,
+  watches: null, watchErr: null, watch: {}, warg: "", wtext: "", wform: null, wtest: null, wbusy: false, wstart: null,
   moneyOn: { today: null, week: null, month: null, year: null }, cat: null, allPays: false, // null = the current period
   mic: "idle", // idle | rec | busy (turning the recording into text)
   more: null, settings: null, activity: null, unread: 0, pushState: "unknown",
@@ -147,12 +153,13 @@ document.getElementById("app").innerHTML = `
   <div class="offline" id="offline">Offline · can't reach Jarvis</div>`;
 
 function renderTabs() {
-  const tabs = [["chat", "Chat"], ["today", "Today"], ["money", "Money"], ["more", "More"]];
+  const tabs = [["chat", "Chat"], ["today", "Today"], ["money", "Money"], ["watches", "Watches"], ["more", "More"]];
   const main = ["settings", "activity", "renewals"].includes(S.route) ? "more" : S.route;
   const todayBadge = S.today ? S.today.tasks.filter(t => !t.done && t.due_on && t.due_on <= todayISO()).length
     + S.today.medicines.filter(m => m.past && m.status === "due").length : 0;
   $("#tabbar").innerHTML = tabs.map(([k, n]) => {
-    const badge = k === "today" && todayBadge ? todayBadge : k === "more" && S.unread ? S.unread : 0;
+    const found = S.watches ? S.watches.found.length : S.today && S.today.watch_found ? S.today.watch_found.length : 0;
+    const badge = k === "today" && todayBadge ? todayBadge : k === "watches" ? found : k === "more" && S.unread ? S.unread : 0;
     return `<button class="tab ${k === main ? "on" : ""}" data-act="go" data-v="${k}" aria-label="${n}" ${k === main ? 'aria-current="page"' : ""}>
       ${I[k]}${badge ? `<span class="badge">${badge > 9 ? "9+" : badge}</span>` : ""}<span>${n}</span></button>`;
   }).join("");
@@ -169,15 +176,18 @@ function navigate(hash, replace = false) {
 }
 function route() {
   const [name, arg] = here.replace(/^#/, "").split("/");
-  const known = ["chat", "today", "money", "more", "settings", "activity", "renewals"];
+  const known = ["chat", "today", "money", "watches", "more", "settings", "activity", "renewals"];
   S.route = known.includes(name) ? name : "chat";
+  S.warg = name === "watches" ? (arg || "") : "";
   if (S.route === "chat") openChat(arg || null);
   else { render(); load(S.route); }
 }
 
 function render(animate = true) {
-  const views = { chat: viewChat, today: viewToday, money: viewMoney, more: viewMore, settings: viewSettings, activity: viewActivity, renewals: viewRenewals };
+  const views = { chat: viewChat, today: viewToday, money: viewMoney, watches: viewWatchesRoute, more: viewMore, settings: viewSettings, activity: viewActivity, renewals: viewRenewals };
+  const kept = !animate && S.route === "watches" && $("#view .scroll") ? $("#view .scroll").scrollTop : 0; // a refresh keeps your place
   $("#view").innerHTML = views[S.route]();
+  if (kept) $("#view .scroll").scrollTop = kept;
   if (animate) { const sc = $("#view .scroll"); if (sc) sc.classList.add("slide"); }
   renderTabs();
   if (S.route === "chat") afterChatRender();
@@ -192,6 +202,15 @@ async function load(name) {
       else S.money[key] = await api(`/api/money?period=${S.period}${on ? `&on=${on}` : ""}`);
       S.moneyErr = null;
     }
+    if (name === "watches") {
+      const a = S.warg, id = /^\d+$/.test(a) ? a : a.startsWith("start-") ? a.slice(6) : null;
+      if (id) {
+        const w = S.watch[id] = await api(`/api/watches/${id}`);
+        if (/^\d+$/.test(a) && w.found_at && !w.seen) { api(`/api/watches/${id}/seen`, { method: "POST" }).catch(() => {}); if (S.watches) S.watches = null; }
+      }
+      if (!id || !S.watches) S.watches = await api("/api/watches");
+      S.watchErr = null;
+    }
     if (name === "more") { S.more = await api("/api/more"); await loadActivity(false); }
     if (name === "settings") { S.settings = await api("/api/settings"); await refreshPushState(); }
     if (name === "activity") { S.activity = await api("/api/activity", S.savedAt ? {} : { method: "POST" }); S.unread = 0; }
@@ -199,6 +218,7 @@ async function load(name) {
   } catch (e) {
     if (name === "today") S.todayErr = e.message;
     else if (name === "money") S.moneyErr = e.message;
+    else if (name === "watches") S.watchErr = e.message;
     else toast(e.message);
   }
   if (S.route === name) render(false);
@@ -344,9 +364,13 @@ async function micToggle() {
       if (!res.ok) throw new Error(data.error || `Something went wrong (${res.status}).`);
       if (!data.text) toast("Didn't catch that. Try again a little closer to the phone.");
       else {
-        draft = draft.trim() ? `${draft.trimEnd()} ${data.text}` : data.text;
-        const box = $("#box"); if (box) { box.value = draft; autosize(box); }
-        updateSend();
+        const wbox = $("#wtext");
+        if (wbox) { S.wtext = wbox.value = wbox.value.trim() ? `${wbox.value.trimEnd()} ${data.text}` : data.text; }
+        else {
+          draft = draft.trim() ? `${draft.trimEnd()} ${data.text}` : data.text;
+          const box = $("#box"); if (box) { box.value = draft; autosize(box); }
+          updateSend();
+        }
       }
     } catch (e) { toast(e.message.startsWith("Failed to fetch") ? "Can't reach Jarvis. Check your Wi-Fi or VPN." : e.message); }
     setMic("idle");
@@ -483,7 +507,10 @@ function viewToday() {
   }).join("") : `<div class="empty">No medicines set up. Tell Jarvis, for example “Remind me to take Vitamin D3 60000 IU every Sunday at 9 am”.</div>`;
   const renewals = T.renewals.slice(0, 4).map(r => `<div class="row"><span class="ic">${I.renew}</span><div class="m"><div class="t">${esc(r.item)}</div>
       <div class="s">${esc(r.what)} ${dayLabel(r.date)} · ${esc(r.source)}</div></div><span class="v">${esc(r.amount || "")}</span></div>`).join("");
-  return `<section class="view"><div class="scroll">${head}
+  const finds = (T.watch_found || []).map(f => `<div class="card big found-card"><div class="k">Found by a watch</div>
+      <div class="text"><b>${esc(f.title)}</b>: ${esc(f.summary || "")}</div>
+      <div class="acts2">${f.url ? `<a class="btn p" href="${esc(f.url)}" target="_blank" rel="noopener">Book</a>` : ""}<button class="btn s" data-act="watch-open" data-v="${f.id}">Open</button><button class="btn s" data-act="watch-seen" data-v="${f.id}">Seen</button></div></div>`).join("");
+  return `<section class="view"><div class="scroll">${head}${finds}
     <div class="card big"><div class="k">Summary</div><div class="text">${summary}.</div>
       <div class="kpis"><div class="tap" data-act="money-today" role="button"><b>${fmtMoney0(T.spent_today)}</b><span>spent today</span></div><div><b>${dueToday}</b><span>due today</span></div>
       <div><b>${iph ? iph.length : "–"}</b><span>reminders</span></div><div><b>${medsLeft}</b><span>doses left</span></div></div></div>
@@ -494,6 +521,189 @@ function viewToday() {
     ${renewals ? `<div class="sec">Bills & renewals <button data-act="go" data-v="renewals">All</button></div><div class="card">${renewals}</div>` : ""}
   </div></section>`;
 }
+
+// ---------- watches ----------
+const W_KIND = { bus: ["bus", "Bus fare", "redBus"], movie: ["film", "Movie bookings", "BookMyShow"], page: ["globe", "Web page", "the page"] };
+const W_EVERY = { bus: [5, 10, 15, 30], movie: [5, 10, 15, 30], page: [15, 60, 360, 1440] };
+const everyLabel = m => m < 60 ? `${m} min` : m < 1440 ? `${m / 60} hour${m === 60 ? "" : "s"}` : "1 day";
+const shortDay = iso => new Date(`${iso.slice(0, 10)}T00:00`).toLocaleDateString(LOCALE, { weekday: "short", day: "numeric", month: "short" });
+const clock12 = hhmm => { const [h, m] = (hhmm || "00:00").split(":").map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString(LOCALE, { hour: "numeric", minute: m ? "2-digit" : undefined }); };
+const busTime = iso => new Date(iso).toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" });
+function checkedAgo(iso) {
+  const m = Math.round((Date.now() - new Date(iso)) / 60000);
+  return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : dayLabel(iso.slice(0, 10));
+}
+function watchWhat(w) { // what the watch waits for
+  const p = w.params;
+  if (w.kind === "bus") return `${w.watch_on ? `${shortDay(w.watch_on)} · ` : ""}${clock12(p.leave_from)}–${clock12(p.leave_to)}${p.max_price ? ` · under ${fmtMoney0(p.max_price)}` : ""}`;
+  if (w.kind === "movie") return `${w.watch_on ? `${shortDay(w.watch_on)} · ` : ""}${p.after && p.after !== "00:00" ? `after ${clock12(p.after)} · ` : ""}bookings open`;
+  return p.what === "price" ? `Price under ${((p.sample || "").match(/^[^\d]*/) || [""])[0].trim()}${Number(p.below).toLocaleString(LOCALE)}` : `When “${p.baseline || p.sample}” changes`;
+}
+function savedWhat(w) {
+  const p = w.params;
+  if (w.kind === "bus") return `Bus${p.max_price ? ` under ${fmtMoney0(p.max_price)}` : ""} · ${clock12(p.leave_from)}–${clock12(p.leave_to)}`;
+  if (w.kind === "movie") return `Bookings opening · ${(p.theatres || []).join(", ") || p.city}`;
+  return watchWhat(w);
+}
+function watchNow(w) { // the latest check, in a few words
+  const r = w.result;
+  if (w.state === "paused") return "Paused";
+  if (!r) return "First check in a moment…";
+  if (!r.ok) return `<span style="color:var(--danger)">${esc(r.error)}</span>`;
+  const now = w.kind === "movie" ? (r.open ? (r.items && r.items.length ? "Open" : "Open, not for you yet") : "Not open yet")
+    : w.kind === "page" ? `Now “${esc(r.text)}”` : r.value != null ? `Now ${fmtMoney0(r.value)}` : esc(r.summary);
+  return `${now}${w.checked_at ? ` · ${checkedAgo(w.checked_at)}` : ""}`;
+}
+function watchRow(w, section) {
+  const r = w.result, broken = r && !r.ok && w.state !== "paused";
+  const right = section === "found"
+    ? `<div class="rt">${w.found && w.found.value != null ? `<span class="v">${fmtMoney0(w.found.value)}</span>` : ""}<span class="tag found">Found</span></div>`
+    : section === "saved" ? `<button class="btn s" data-act="watch-start-open" data-v="${w.id}">Start</button>`
+    : `<div class="rt"><span class="tag ${broken ? "warn" : "dim"}">${w.state === "paused" ? "Paused" : broken ? "Check" : "Watching"}</span></div>`;
+  const third = section === "found" ? esc(w.found ? w.found.text : "")
+    : section === "saved" ? (w.last_on ? `Last used ${shortDay(w.last_on)}${w.last_best != null ? ` · lowest ${fmtMoney0(w.last_best)}` : ""}` : "Ready to start")
+    : watchNow(w);
+  return `<div class="row tap" data-act="watch-open" data-v="${w.id}" role="button"><span class="ic">${I[W_KIND[w.kind][0]]}</span>
+    <div class="m"><div class="t">${esc(w.title)}</div><div class="s">${esc(section === "saved" ? savedWhat(w) : watchWhat(w))}</div><div class="s">${third}</div></div>${right}</div>`;
+}
+const W_BACK = { act: "go", v: "watches", label: "Watches", icon: true };
+const wsub = (title, body, back = W_BACK) => `<section class="view sub w"><div class="navbar"><button class="back" data-act="${back.act}" data-v="${back.v}">${back.icon ? I.back : ""} ${back.label}</button><div class="title">${esc(title)}</div></div><div class="scroll">${body}</div></section>`;
+const wskel = `<div class="card big"><div class="skel" style="width:40%"></div><div class="skel" style="height:30px;width:55%"></div><div class="skel"></div></div>`;
+
+function viewWatchesRoute() {
+  const a = S.warg || "";
+  if (/^\d+$/.test(a)) return viewWatch(a);
+  if (a.startsWith("start-")) return viewWatchStart(a.slice(6));
+  if (a === "form" && S.wform) return viewWatchForm();
+  if (a === "new" || a === "form") return viewWatchNew();
+  return viewWatches();
+}
+
+function viewWatches() {
+  const L = S.watches;
+  const head = `<div class="h1 hrow">Watches<button class="ib" data-act="watch-new" aria-label="New watch">${I.plus}</button></div>`;
+  if (!L) return `<section class="view"><div class="scroll">${head}${S.watchErr ? `<div class="card empty">${esc(S.watchErr)} <button class="btn s" data-act="reload">Try again</button></div>` : wskel}</div></section>`;
+  const [f, w, s] = [L.found.length, L.watching.length, L.saved.length];
+  if (!f && !w && !s) return `<section class="view"><div class="scroll">${head}<div class="sub">Jarvis checks a bus fare, movie bookings or a price on a page for you, and tells you when it finds what you asked for.</div>
+    <button class="btn p wide" data-act="watch-new">New watch</button>
+    <div class="note">Like “Silk Board to Tambaram on Friday night under ₹500” or “tell me when Jailer 2 bookings open at PVR Forum on Saturday”.</div></div></section>`;
+  const sec = (title, rows, kind) => rows.length ? `<div class="sec">${title}</div><div class="card">${rows.map(x => watchRow(x, kind)).join("")}</div>` : "";
+  return `<section class="view"><div class="scroll">${head}<div class="sub">${[f && `${f} found something`, w && `${w} watching`, s && `${s} saved`].filter(Boolean).join(" · ")}</div>
+    ${sec("Found something", L.found, "found")}${sec("Watching", L.watching, "watching")}${sec("Saved · start any time", L.saved, "saved")}
+    <div class="note">Jarvis checks one watch at a time and only tells you when something good happens. A watch is kept after its day: start it again any time.</div>
+  </div></section>`;
+}
+
+function viewWatch(id) {
+  const w = S.watch[id];
+  if (!w) return wsub("Watch", wskel);
+  const p = w.params, r = w.result || {}, kind = W_KIND[w.kind];
+  const head = `${esc(w.title)}${w.watch_on ? ` · ${shortDay(w.watch_on)}` : ""}${w.kind === "bus" ? `, ${clock12(p.leave_from)}–${clock12(p.leave_to)}` : ""}`;
+  const big = w.kind === "movie" ? (r.ok ? (r.open ? "Open" : "Not open yet") : "–") : w.kind === "page" ? esc(r.text || "–") : r.value != null ? fmtMoney0(r.value) : "–";
+  const kpis = w.kind === "bus" ? [[w.lowest != null ? fmtMoney0(w.lowest) : "–", "lowest seen"], [r.count ?? "–", "buses match"], [everyLabel(w.every_minutes), "between checks"]]
+    : w.kind === "movie" ? [[r.theatres_open ?? "–", "theatres open"], [r.count ?? "–", "shows for you"], [everyLabel(w.every_minutes), "between checks"]]
+    : [[w.lowest != null ? w.lowest.toLocaleString(LOCALE) : "–", "lowest seen"], [everyLabel(w.every_minutes), "between checks"]];
+  const items = w.kind === "bus" ? (r.items || []).slice(0, 5).map(b => `<div class="row"><div class="m"><div class="t">${esc(b.name)}</div><div class="s">${busTime(b.leaves)} · ${b.seats} seats · ${esc(b.type)}</div></div><span class="v">${fmtMoney0(b.fare)}</span></div>`).join("")
+    : w.kind === "movie" ? (r.items || []).map(v => `<div class="row"><div class="m"><div class="t wrap">${esc(v.name)}</div><div class="s">${v.times.map(esc).join(" · ")}</div></div></div>`).join("") : "";
+  const until = w.state === "saved" ? "Saved: start it again for another day" : w.until_at ? `${shortDay(w.until_at)}, ${busTime(w.until_at)}, then back to Saved` : "Until you pause it";
+  const tell = w.kind === "bus" ? (p.max_price ? `Cheapest is under ${fmtMoney0(p.max_price)}` : "Any bus has seats") : w.kind === "movie" ? `Bookings open${(p.theatres || []).length ? ` at ${p.theatres.join(", ")}` : ""}` : watchWhat(w);
+  const uses = (w.uses || []).map(u => `<div class="row"><div class="m"><div class="t">${u.watch_on ? shortDay(u.watch_on) : dayLabel(u.ended_at.slice(0, 10))}</div><div class="s">${u.found_at ? `Found at ${busTime(u.found_at)}` : "Nothing found"}</div></div>${u.best != null ? `<span class="v">${fmtMoney0(u.best)}</span>` : ""}</div>`).join("");
+  return wsub(kind[1], `
+    <div class="card big"><div class="k">${head}</div><div class="n">${big}</div><div class="d">${r.ok ? esc(r.summary) : r.error ? `<span style="color:var(--danger)">${esc(r.error)}</span>` : "First check in a moment…"}</div>
+      ${spark(w.points)}<div class="kpis">${kpis.map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join("")}</div></div>
+    ${r.url ? `<a class="btn p wide" style="margin-top:12px" href="${esc(r.url)}" target="_blank" rel="noopener">${w.kind === "page" ? "Open the page" : `Book on ${kind[2]}`}</a>` : ""}
+    ${w.state === "saved" ? `<button class="btn p wide" style="margin-top:10px" data-act="watch-start-open" data-v="${w.id}">Start again</button>` : ""}
+    ${items ? `<div class="sec">${w.kind === "bus" ? "Cheapest now" : "Shows for you"}</div><div class="card">${items}</div>` : ""}
+    <div class="sec">This watch</div><div class="card">
+      <div class="row fld"><div class="m"><div class="s">Tell me when</div><div class="t">${esc(tell)}</div></div></div>
+      <div class="row fld"><div class="m"><div class="s">Check every</div><div class="seg in">${W_EVERY[w.kind].map(m => `<button class="${m === w.every_minutes ? "on" : ""}" data-act="watch-every" data-v="${m}">${everyLabel(m)}</button>`).join("")}</div></div></div>
+      <div class="row fld"><div class="m"><div class="s">Watching until</div><div class="t">${until}</div></div></div>
+      ${w.state !== "saved" ? `<button class="row" data-act="watch-pause"><div class="m"><div class="t">Watching</div><div class="s">${w.state === "paused" ? "Paused: tap to check again" : "Tap to pause checking for now"}</div></div><span class="tog ${w.state === "paused" ? "off" : ""}"></span></button>` : ""}
+      <button class="row" data-act="watch-edit" data-v="${w.id}"><div class="m"><div class="t">Change the details</div></div><span class="chev">${I.chev}</span></button>
+    </div>
+    ${uses ? `<div class="sec">Used before</div><div class="card">${uses}</div>` : ""}
+    <div class="note">${w.checked_at ? `Last checked ${checkedAgo(w.checked_at)}` : "Not checked yet"}${w.state === "watching" && w.next_at ? ` · next at ${busTime(w.next_at)}` : ""}. You're told again only if it gets better.</div>
+    <button class="danger" data-act="watch-delete">Delete watch</button>`);
+}
+
+function viewWatchNew() {
+  return wsub("New watch", `
+    <div class="card ask"><textarea id="wtext" rows="3" placeholder="Like: Silk Board to Tambaram on Friday night, under ₹500">${esc(S.wtext)}</textarea>
+      <div class="askbar">${P.voice ? `<button class="mic ${S.mic}" id="micBtn" type="button" data-act="mic" aria-label="Voice message">${S.mic === "rec" ? I.stop : I.mic}</button>` : "<span></span>"}
+      <button class="btn p" data-act="watch-fill" ${S.wbusy ? "disabled" : ""}>${S.wbusy === "fill" ? "Reading…" : "Fill in"}</button></div></div>
+    <div class="hint">Say what to watch and Jarvis's AI fills in the details for you to check. Or pick a type:</div>
+    <div class="sec">Pick a type</div><div class="card">
+      ${[["bus", "Bus fare", "redBus · tell me when it's under a price"], ["movie", "Movie bookings", "BookMyShow · tell me when they open"], ["page", "Any web page", "A price or some words on a page"]]
+        .map(([k, t, s]) => `<button class="row" data-act="watch-type" data-v="${k}"><span class="ic">${I[W_KIND[k][0]]}</span><div class="m"><div class="t">${t}</div><div class="s">${s}</div></div><span class="chev">${I.chev}</span></button>`).join("")}
+    </div>
+    <div class="note">Rides (BlaBlaCar) can't be watched: the site blocks automatic checks.</div>`, { act: "go", v: "watches", label: "Cancel" });
+}
+
+function wfield(label, key, value, type = "text", hint = "") {
+  return `<label class="row fld"><div class="m"><div class="s">${label}</div><input data-wf="${key}" type="${type}" value="${esc(value ?? "")}" placeholder="${esc(hint)}" ${type === "number" ? 'inputmode="numeric" min="1"' : ""} autocomplete="off"></div></label>`;
+}
+
+function viewWatchForm() {
+  const f = S.wform, p = f.params, t = S.wtest;
+  let fields = "";
+  if (f.kind === "bus") fields = `<div class="card">
+    ${wfield("From (city)", "from", p.from, "text", "Bangalore")}${wfield("Boarding point (optional)", "boarding", p.boarding, "text", "Silk Board")}
+    ${wfield("To (city)", "to", p.to, "text", "Chennai")}${wfield("Dropping point (optional)", "dropping", p.dropping, "text", "Tambaram")}
+    ${wfield("Date", "day", f.day, "date")}
+    <div class="row fld"><div class="m"><div class="s">Leaving between</div><div class="times"><input data-wf="leave_from" type="time" value="${esc(p.leave_from || "00:00")}"> and <input data-wf="leave_to" type="time" value="${esc(p.leave_to || "23:59")}"></div></div></div>
+    ${wfield("Tell me when the cheapest is under (₹, optional)", "max_price", p.max_price, "number", "500")}</div>`;
+  else if (f.kind === "movie") fields = `<div class="card">
+    ${wfield("Movie (name or BookMyShow link)", "movie", p.movie, "text", "Jailer 2")}${wfield("City", "city", p.city, "text", "Bengaluru")}
+    ${wfield("Theatres (optional, separated by commas)", "theatres", (p.theatres || []).join(", "), "text", "PVR Forum, Nexus")}
+    ${wfield("Date", "day", f.day, "date")}${wfield("Shows after", "after", p.after || "00:00", "time")}</div>`;
+  else {
+    const opts = f.options || [];
+    fields = `<div class="card">${wfield("Page link", "url", p.url, "url", "https://…")}</div>
+      <button class="btn s wide" style="margin-top:10px" data-act="watch-read" ${S.wbusy ? "disabled" : ""}>${S.wbusy === "read" ? "Reading the page…" : "Read page"}</button>
+      ${opts.length ? `<div class="sec">Jarvis found on this page</div><div class="card">${opts.map((o, i) => `<button class="row" data-act="watch-pick" data-v="${i}"><span class="radio ${p.selector === o.selector ? "on" : ""}"></span><div class="m"><div class="t">${o.what === "price" ? "Price" : "Words"}</div><div class="s">${esc(o.text)}</div></div></button>`).join("")}</div>`
+        : f.options ? `<div class="note">Nothing to watch found on this page: no prices or words like “In stock”.</div>` : ""}
+      ${p.selector ? (p.what === "price" ? `<div class="sec">Tell me when</div><div class="card">${wfield("The price is under (₹)", "below", p.below, "number", "")}</div>`
+        : `<div class="note">Jarvis tells you when “${esc(p.sample)}” changes.</div>`) : ""}`;
+  }
+  const result = !t ? "" : !t.ok ? `<div class="card empty" id="wresult" style="margin-top:14px;color:var(--danger)">${esc(t.error)}</div>`
+    : `<div class="card big" id="wresult" style="margin-top:14px"><div class="k">Test check · just now</div><div class="n">${f.kind === "movie" ? (t.open ? "Open" : "Not open yet") : f.kind === "page" ? esc(t.text) : t.value != null ? fmtMoney0(t.value) : "–"}</div><div class="d">${esc(t.summary)}${f.kind === "bus" ? ` · ${t.count} bus${t.count === 1 ? "" : "es"} match` : ""}</div>
+      ${t.met ? `<div class="text">That's what you asked for: Jarvis will tell you when you save it.</div>` : `<div class="text">Not yet. Jarvis will keep checking and tell you when it is.</div>`}</div>
+      ${f.kind === "bus" && t.items.length ? `<div class="card" style="margin-top:10px">${t.items.slice(0, 4).map(b => `<div class="row"><div class="m"><div class="t">${esc(b.name)}</div><div class="s">${busTime(b.leaves)} · ${b.seats} seats</div></div><span class="v">${fmtMoney0(b.fare)}</span></div>`).join("")}</div>` : ""}
+      ${f.kind === "movie" && t.items.length ? `<div class="card" style="margin-top:10px">${t.items.slice(0, 4).map(v => `<div class="row"><div class="m"><div class="t wrap">${esc(v.name)}</div><div class="s">${v.times.map(esc).join(" · ")}</div></div></div>`).join("")}</div>` : ""}`;
+  return wsub(W_KIND[f.kind][1], `
+    ${f.filled ? `<div class="filled">${I.ok}Filled in from what you said. Check it, then test.</div>` : ""}
+    ${fields}
+    <div class="sec">Check every</div><div class="seg">${W_EVERY[f.kind].map(m => `<button class="${m === f.every ? "on" : ""}" data-act="watch-every-form" data-v="${m}">${everyLabel(m)}</button>`).join("")}</div>
+    <div class="note" style="margin-top:4px">${f.kind === "page" ? "Checks until you pause it." : "After the day it stops checking and stays in Saved, so you can start it again for another day."}</div>
+    ${result}
+    <div class="two"><button class="btn s" data-act="watch-test" ${S.wbusy ? "disabled" : ""}>${S.wbusy === "test" ? "Checking…" : "Test now"}</button><button class="btn p" data-act="watch-save" ${S.wbusy ? "disabled" : ""}>${f.id ? "Save changes" : "Save watch"}</button></div>
+    ${S.wbusy === "test" ? `<div class="note">A check opens the site in a browser on your computer; it takes 10–30 seconds.</div>` : ""}`,
+    { act: "watch-back", v: "", label: "Back", icon: true });
+}
+
+function nextWeekday(day) { // the next date with that weekday (0 Sunday), today included
+  const d = new Date(); d.setDate(d.getDate() + ((day - d.getDay() + 7) % 7));
+  return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+function viewWatchStart(id) {
+  const w = S.watch[id] || (S.watches ? [...S.watches.found, ...S.watches.watching, ...S.watches.saved].find(x => String(x.id) === id) : null);
+  if (!w || !S.wstart) return wsub("Start watch", wskel);
+  const st = S.wstart, tomorrow = new Date(Date.now() + 86400000);
+  const iso = d => new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const days = [[iso(new Date()), "Today"], [iso(tomorrow), "Tomorrow"]];
+  if (w.last_on || w.watch_on) { const same = nextWeekday(new Date(`${(w.last_on || w.watch_on)}T00:00`).getDay()); if (!days.some(d => d[0] === same)) days.push([same, new Date(`${same}T00:00`).toLocaleDateString(LOCALE, { weekday: "long" })]); }
+  if (st.day && !days.some(d => d[0] === st.day)) days.push([st.day, "Picked"]);
+  return wsub("Start watch", `
+    <div class="card big"><div class="k">Saved watch</div><div class="text"><b>${esc(w.title)}</b><br>${esc(savedWhat(w))} · ${W_KIND[w.kind][2]}</div></div>
+    ${w.kind === "movie" ? `<div class="sec">Which movie?</div><div class="card">${wfield("Movie (name or BookMyShow link)", "start_movie", st.movie ?? w.params.movie_name ?? w.params.movie, "text")}</div>` : ""}
+    ${w.kind !== "page" ? `<div class="sec">Which day?</div><div class="chips">${days.map(([d, n]) => `<button class="${st.day === d ? "on" : ""}" data-act="watch-day" data-v="${d}">${n}<small>${shortDay(d)}</small></button>`).join("")}
+      <label class="pick"><span>Pick a date<small>Calendar</small></span><input type="date" data-wstart="day" min="${iso(new Date())}"></label></div>` : ""}
+    <div class="sec">Check every</div><div class="seg">${W_EVERY[w.kind].map(m => `<button class="${m === (st.every || w.every_minutes) ? "on" : ""}" data-act="watch-start-every" data-v="${m}">${everyLabel(m)}</button>`).join("")}</div>
+    <button class="btn p wide" style="margin-top:16px" data-act="watch-start" ${S.wbusy ? "disabled" : ""}>Start watching</button>
+    <button class="btn s wide" style="margin-top:10px" data-act="watch-edit" data-v="${w.id}">Change the other details</button>
+    <div class="note">Everything else stays as you saved it.</div>`);
+}
+const blankWatch = kind => ({ kind, params: kind === "bus" ? { leave_from: "00:00", leave_to: "23:59" } : kind === "movie" ? { after: "00:00", theatres: [] } : {}, day: kind === "page" ? null : todayISO(), every: { bus: 10, movie: 15, page: 60 }[kind] });
 
 // ---------- money ----------
 function spark(points) {
@@ -724,6 +934,81 @@ document.addEventListener("click", async e => {
     // The Chat tab returns to the conversation you were in, not a blank chat.
     case "go": if (v === "money") S.cat = null; navigate(v === "chat" && S.chatId ? `#chat/${S.chatId}` : `#${v}`); break;
     case "reload": load(S.route); break;
+    case "watch-new": S.wtext = ""; S.wform = null; S.wtest = null; navigate("#watches/new"); break;
+    case "watch-type": S.wform = blankWatch(v); S.wtest = null; navigate("#watches/form"); break;
+    case "watch-open": navigate(`#watches/${v}`); break;
+    case "watch-back": navigate(S.wform && S.wform.id ? `#watches/${S.wform.id}` : "#watches/new"); break;
+    case "watch-fill": {
+      const text = ($("#wtext") || {}).value || "";
+      if (!text.trim()) { toast("Type or say what to watch first"); break; }
+      S.wbusy = "fill"; render(false);
+      try { S.wform = { ...(await api("/api/watches/fill", { method: "POST", body: { text } })), filled: true }; S.wtest = null; S.wbusy = false; navigate("#watches/form"); }
+      catch (err) { S.wbusy = false; render(false); toast(err.message); }
+      break;
+    }
+    case "watch-every-form": S.wform.every = Number(v); render(false); break;
+    case "watch-read": {
+      S.wbusy = "read"; render(false);
+      try { const r = await api("/api/watches/read", { method: "POST", body: { url: S.wform.params.url } }); S.wform.options = r.options; S.wform.params.name = r.title; }
+      catch (err) { toast(err.message); }
+      S.wbusy = false; render(false); break;
+    }
+    case "watch-pick": { const o = S.wform.options[Number(v)]; Object.assign(S.wform.params, { what: o.what, selector: o.selector, sample: o.text }); S.wtest = null; render(false); break; }
+    case "watch-test": {
+      S.wbusy = "test"; S.wtest = null; render(false);
+      try {
+        const f = S.wform, r = await api("/api/watches/test", { method: "POST", body: { kind: f.kind, params: f.params, day: f.day } });
+        S.wtest = r; if (r.resolved) Object.assign(f.params, r.resolved);
+      } catch (err) { toast(err.message); }
+      S.wbusy = false; render(false);
+      const shown = $("#wresult"); if (shown) shown.scrollIntoView({ block: "center", behavior: "smooth" });
+      break;
+    }
+    case "watch-save": {
+      const f = S.wform; S.wbusy = "save"; render(false);
+      try {
+        const w = f.id ? await api(`/api/watches/${f.id}`, { method: "PUT", body: { params: f.params, every: f.every } })
+          : await api("/api/watches", { method: "POST", body: { kind: f.kind, params: f.params, day: f.day, every: f.every } });
+        S.wbusy = false; S.watches = null; S.wform = null; S.wtest = null; delete S.watch[w.id];
+        toast(f.id ? "Saved" : "Watching. Jarvis tells you when it finds it."); navigate(`#watches/${w.id}`);
+      } catch (err) { S.wbusy = false; render(false); toast(err.message); }
+      break;
+    }
+    case "watch-every": case "watch-pause": {
+      const id = S.warg, w = S.watch[id];
+      const body = el.dataset.act === "watch-every" ? { every: Number(v) } : { paused: w.state !== "paused" };
+      try { S.watch[id] = { ...w, ...(await api(`/api/watches/${id}`, { method: "PUT", body })) }; S.watches = null; render(false); } catch (err) { toast(err.message); }
+      break;
+    }
+    case "watch-delete": {
+      if (!confirm("Delete this watch? Its history goes too.")) break;
+      try { await api(`/api/watches/${S.warg}`, { method: "DELETE" }); delete S.watch[S.warg]; S.watches = null; toast("Watch deleted"); navigate("#watches"); } catch (err) { toast(err.message); }
+      break;
+    }
+    case "watch-edit": {
+      const w = S.watch[v] || [...(S.watches ? [...S.watches.found, ...S.watches.watching, ...S.watches.saved] : [])].find(x => String(x.id) === v);
+      if (!w) break;
+      S.wform = { id: w.id, kind: w.kind, params: { ...w.params }, day: w.watch_on, every: w.every_minutes, options: null }; S.wtest = null;
+      navigate("#watches/form"); break;
+    }
+    case "watch-start-open": S.wstart = { day: null, every: null }; navigate(`#watches/start-${v}`); break;
+    case "watch-day": S.wstart.day = v; render(false); break;
+    case "watch-start-every": S.wstart.every = Number(v); render(false); break;
+    case "watch-start": {
+      const id = S.warg.slice(6), st = S.wstart, w = S.watch[id];
+      if (w.kind !== "page" && !st.day) { toast("Pick the day to watch"); break; }
+      S.wbusy = "start"; render(false);
+      try {
+        const named = st.movie && st.movie !== (w.params.movie_name || w.params.movie);
+        if (named) await api(`/api/watches/${id}`, { method: "PUT", body: { params: { movie: st.movie, code: null, slug: null, city_slug: null, movie_name: null } } });
+        await api(`/api/watches/${id}/start`, { method: "POST", body: { day: st.day, every: st.every } });
+        S.wbusy = false; S.watches = null; delete S.watch[id]; toast("Watching again"); navigate(`#watches/${id}`);
+      } catch (err) { S.wbusy = false; render(false); toast(err.message); }
+      break;
+    }
+    case "watch-seen":
+      try { await api(`/api/watches/${v}/seen`, { method: "POST" }); if (S.today) S.today.watch_found = (S.today.watch_found || []).filter(f => String(f.id) !== v); S.watches = null; render(false); } catch (err) { toast(err.message); }
+      break;
     case "drawer-open": S.drawer = true; renderDrawer(); break;
     case "drawer-close": S.drawer = false; renderDrawer(); break;
     case "new-chat": if (S.streaming) { toast("Wait for the reply to finish"); break; } S.drawer = false; renderDrawer(); S.chatId = null; S.msgs = []; navigate("#chat", true); break;
@@ -820,6 +1105,7 @@ document.addEventListener("click", async e => {
 document.addEventListener("change", e => {
   const q = e.target.closest("[data-quiet]");
   if (q && q.value) saveSettings({ quiet: { [q.dataset.quiet]: q.value } });
+  if (e.target.dataset.wstart === "day" && e.target.value && S.wstart) { S.wstart.day = e.target.value; render(false); }
   if (e.target.matches(".pick-day") && e.target.value) {
     S.moneyOn[S.period] = e.target.value < todayISO() ? e.target.value : null;
     S.allPays = false; render(false); load("money");
@@ -827,6 +1113,19 @@ document.addEventListener("change", e => {
 });
 document.addEventListener("input", e => {
   if (e.target.id === "box") { draft = e.target.value; autosize(e.target); updateSend(); }
+  if (e.target.id === "wtext") S.wtext = e.target.value;
+  const wf = e.target.dataset.wf;
+  if (wf === "start_movie" && S.wstart) S.wstart.movie = e.target.value;
+  else if (wf && S.wform) {
+    const f = S.wform, value = e.target.value;
+    if (wf === "day") f.day = value;
+    else if (wf === "theatres") f.params.theatres = value.split(",").map(s => s.trim()).filter(Boolean);
+    else if (wf === "max_price" || wf === "below") f.params[wf] = value ? Number(value) : null;
+    else f.params[wf] = value;
+    if (wf === "url") { f.options = null; delete f.params.selector; }
+    if (wf === "movie") ["code", "slug", "city_slug", "movie_name"].forEach(k => delete f.params[k]);
+    if (wf === "from" || wf === "to") ["from_id", "to_id", "from_name", "to_name"].forEach(k => delete f.params[k]);
+  }
 });
 // iOS keeps the page full height under the keyboard and scrolls it instead, leaving a gap:
 // while typing, size the app to the visible area so the message box sits on the keyboard.
@@ -855,7 +1154,7 @@ document.addEventListener("submit", e => {
 // Refresh what is on screen when the app comes back to the front.
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible") return;
-  if (["today", "money", "more", "activity"].includes(S.route)) load(S.route);
+  if (["today", "money", "more", "activity"].includes(S.route) || (S.route === "watches" && !/new|form|start/.test(S.warg))) load(S.route);
   else loadActivity(false).then(renderTabs).catch(() => {});
   if (S.route === "chat") refreshChat();
 });
@@ -868,3 +1167,4 @@ route();
 renderDrawer();
 loadActivity(false).then(renderTabs).catch(() => {});
 api("/api/today").then(t => { S.today = t; renderTabs(); }).catch(() => {});
+setInterval(() => { if (document.visibilityState === "visible" && S.route === "watches" && !/new|form|start/.test(S.warg)) load("watches"); }, 30000);

@@ -21,6 +21,7 @@ dependencies = [
   "pywebpush",
   "py-vapid",
   "babel",
+  "playwright",
 ]
 
 [project.scripts]

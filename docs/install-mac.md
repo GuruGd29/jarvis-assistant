@@ -22,6 +22,7 @@ git clone https://github.com/GuruGd29/jarvis-assistant.git ~/jarvis-system
 cd ~/jarvis-system
 python3.12 -m venv .venv
 .venv/bin/pip install -r requirements.lock && .venv/bin/pip install --no-deps -e .
+.venv/bin/playwright install chromium    # the browser watches use (docs/watches.md), about 380 MB
 cp .env.example .env && chmod 600 .env
 mkdir -p secrets logs state ~/Jarvis/{documents,finance,health,notes} && chmod 700 secrets
 ```
@@ -97,6 +98,7 @@ On home Wi-Fi, with HTTPS from Caddy: see [remote-access.md](remote-access.md#ma
 ```bash
 cd ~/jarvis-system && git pull
 .venv/bin/pip install -r requirements.lock && .venv/bin/pip install --no-deps -e .
+.venv/bin/playwright install chromium
 .venv/bin/jarvis-migrate && bin/apply-settings.sh && bin/add-jobs.sh
 hermes gateway restart && launchctl kickstart -k gui/$(id -u)/com.jarvis.web
 ```
