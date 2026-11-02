@@ -3,6 +3,7 @@
 
 // ---------- helpers ----------
 const $ = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const isTouch = matchMedia("(pointer: coarse)").matches;
 const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
@@ -145,6 +146,7 @@ const S = {
 
 // ---------- shell ----------
 document.getElementById("app").innerHTML = `
+  <aside class="side" id="side" aria-label="Jarvis"></aside>
   <div id="view"></div>
   <nav class="tabbar frost" id="tabbar" aria-label="Main"></nav>
   <div class="scrim" id="scrim" data-act="drawer-close"></div>
@@ -152,14 +154,40 @@ document.getElementById("app").innerHTML = `
   <div class="toast" id="toast" role="status"></div>
   <div class="offline" id="offline">Offline · can't reach Jarvis</div>`;
 
-function renderTabs() {
-  const tabs = [["chat", "Chat"], ["today", "Today"], ["money", "Money"], ["watches", "Watches"], ["more", "More"]];
-  const main = ["settings", "activity", "renewals"].includes(S.route) ? "more" : S.route;
-  const todayBadge = S.today ? S.today.tasks.filter(t => !t.done && t.due_on && t.due_on <= todayISO()).length
+const TABS = [["chat", "Chat"], ["today", "Today"], ["money", "Money"], ["watches", "Watches"], ["more", "More"]];
+const mainTab = () => ["settings", "activity", "renewals"].includes(S.route) ? "more" : S.route;
+function tabBadge(k) {
+  if (k === "today") return S.today ? S.today.tasks.filter(t => !t.done && t.due_on && t.due_on <= todayISO()).length
     + S.today.medicines.filter(m => m.past && m.status === "due").length : 0;
-  $("#tabbar").innerHTML = tabs.map(([k, n]) => {
-    const found = S.watches ? S.watches.found.length : S.today && S.today.watch_found ? S.today.watch_found.length : 0;
-    const badge = k === "today" && todayBadge ? todayBadge : k === "watches" ? found : k === "more" && S.unread ? S.unread : 0;
+  if (k === "watches") return S.watches ? S.watches.found.length : S.today && S.today.watch_found ? S.today.watch_found.length : 0;
+  return k === "more" ? S.unread || 0 : 0;
+}
+// On a big screen (1024 px and wider) the tab bar and the chat drawer become this sidebar.
+const BIG = matchMedia("(min-width: 1024px)");
+function renderSide() {
+  const side = $("#side");
+  if (!side || !BIG.matches) return;
+  const main = mainTab(), hour = new Date().getHours(), scrolled = side.querySelector(".list")?.scrollTop || 0;
+  const hello = hour >= 21 || hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  side.innerHTML = `<div class="brand"><img src="/static/icons/icon-192.png" alt=""><div><b>Jarvis</b><span>${withName(hello)}</span></div></div>
+    <nav class="nav">${TABS.map(([k, n]) => { const c = tabBadge(k);
+      return `<button class="${k === main ? "on" : ""}" data-act="go" data-v="${k}" ${k === main ? 'aria-current="page"' : ""}>${I[k]}${n}${c ? `<span class="count">${c > 9 ? "9+" : c}</span>` : ""}</button>`; }).join("")}</nav>
+    <button class="btn s newchat" data-act="new-chat">${I.edit} New chat</button>
+    <div class="label">Recent chats</div>
+    <div class="list">${S.chats.length ? S.chats.slice(0, 40).map(c => `<div class="chat ${S.route === "chat" && c.id === S.chatId ? "on" : ""}">
+      <button class="open" data-act="open-chat" data-v="${esc(c.id)}"><div class="t">${esc(c.title)}</div><div class="s">${esc(c.preview || "No reply yet")}</div></button>
+      <button class="del" data-act="delete-chat" data-v="${esc(c.id)}" aria-label="Delete chat">${I.trash}</button></div>`).join("")
+      : '<div class="empty">No chats yet.</div>'}</div>
+    <div class="foot"><i class="${S.savedAt ? "off" : ""}"></i>${S.savedAt ? "Offline · showing saved data" : `Runs on your ${P.host === "mac" ? "Mac" : "own computer"}`}</div>`;
+  if (scrolled) side.querySelector(".list").scrollTop = scrolled;
+}
+BIG.addEventListener("change", () => render(false));
+
+function renderTabs() {
+  renderSide();
+  const main = mainTab();
+  $("#tabbar").innerHTML = TABS.map(([k, n]) => {
+    const badge = tabBadge(k);
     return `<button class="tab ${k === main ? "on" : ""}" data-act="go" data-v="${k}" aria-label="${n}" ${k === main ? 'aria-current="page"' : ""}>
       ${I[k]}${badge ? `<span class="badge">${badge > 9 ? "9+" : badge}</span>` : ""}<span>${n}</span></button>`;
   }).join("");
@@ -185,9 +213,10 @@ function route() {
 
 function render(animate = true) {
   const views = { chat: viewChat, today: viewToday, money: viewMoney, watches: viewWatchesRoute, more: viewMore, settings: viewSettings, activity: viewActivity, renewals: viewRenewals };
-  const kept = !animate && S.route === "watches" && $("#view .scroll") ? $("#view .scroll").scrollTop : 0; // a refresh keeps your place
+  const keep = S.route === "watches" && !animate ? [...$$("#view .scroll, #view .listcol")].map(e => e.scrollTop) : []; // a refresh keeps your place
+  $("#app").dataset.route = S.route;
   $("#view").innerHTML = views[S.route]();
-  if (kept) $("#view .scroll").scrollTop = kept;
+  if (keep.length) [...$$("#view .scroll, #view .listcol")].forEach((e, i) => { if (keep[i]) e.scrollTop = keep[i]; });
   if (animate) { const sc = $("#view .scroll"); if (sc) sc.classList.add("slide"); }
   renderTabs();
   if (S.route === "chat") afterChatRender();
@@ -461,6 +490,7 @@ async function send(text) {
 }
 
 function renderDrawer() {
+  renderSide();
   const d = $("#drawer");
   d.classList.toggle("open", S.drawer); $("#scrim").classList.toggle("open", S.drawer);
   d.innerHTML = `<div class="head"><b>Chats</b><button class="btn s" data-act="new-chat">New chat</button></div>
@@ -511,16 +541,17 @@ function viewToday() {
   const finds = (T.watch_found || []).map(f => `<div class="card big found-card"><div class="k">Found by a watch</div>
       <div class="text"><b>${esc(f.title)}</b>: ${esc(f.summary || "")}</div>
       <div class="acts2">${f.url ? `<a class="btn p" href="${esc(f.url)}" target="_blank" rel="noopener">Book</a>` : ""}<button class="btn s" data-act="watch-open" data-v="${f.id}">Open</button><button class="btn s" data-act="watch-seen" data-v="${f.id}">Seen</button></div></div>`).join("");
-  return `<section class="view"><div class="scroll">${head}${finds}
+  return `<section class="view"><div class="scroll">${head}${finds}<div class="cols"><div>
     <div class="card big"><div class="k">Summary</div><div class="text">${summary}.</div>
       <div class="kpis"><div class="tap" data-act="money-today" role="button"><b>${fmtMoney0(T.spent_today)}</b><span>spent today</span></div><div><b>${dueToday}</b><span>due today</span></div>
       <div><b>${iph ? iph.length : "–"}</b><span>reminders</span></div><div><b>${medsLeft}</b><span>doses left</span></div></div></div>
     ${T.calendar_errors.length ? `<div class="note">Couldn't read the ${esc(T.calendar_errors.join(" and "))} calendar, so the schedule may be incomplete.</div>` : ""}
     <div class="sec">Schedule · next 7 days</div><div class="card">${events}</div>
+    </div><div>
     <div class="sec">To do</div><div class="card">${tasks}${iphRows}${iphState}${!tasks && iph && !iph.length ? '<div class="empty">Nothing to do. Nice.</div>' : ""}</div>
     <div class="sec">Medicines</div><div class="card">${meds}</div>
     ${renewals ? `<div class="sec">Bills & renewals <button data-act="go" data-v="renewals">All</button></div><div class="card">${renewals}</div>` : ""}
-  </div></section>`;
+  </div></div></div></section>`;
 }
 
 // ---------- watches ----------
@@ -564,7 +595,7 @@ function watchRow(w, section) {
   const third = section === "found" ? esc(w.found ? w.found.text : "")
     : section === "saved" ? (w.last_on ? `Last used ${shortDay(w.last_on)}${w.last_best != null ? ` · lowest ${fmtMoney0(w.last_best)}` : ""}` : "Ready to start")
     : watchNow(w);
-  return `<div class="row tap" data-act="watch-open" data-v="${w.id}" role="button"><span class="ic">${I[W_KIND[w.kind][0]]}</span>
+  return `<div class="row tap ${String(w.id) === S.warg ? "sel" : ""}" data-act="watch-open" data-v="${w.id}" role="button"><span class="ic">${I[W_KIND[w.kind][0]]}</span>
     <div class="m"><div class="t">${esc(w.title)}</div><div class="s">${esc(section === "saved" ? savedWhat(w) : watchWhat(w))}</div><div class="s">${third}</div></div>${right}</div>`;
 }
 const W_BACK = { act: "go", v: "watches", label: "Watches", icon: true };
@@ -573,26 +604,27 @@ const wskel = `<div class="card big"><div class="skel" style="width:40%"></div><
 
 function viewWatchesRoute() {
   const a = S.warg || "";
-  if (/^\d+$/.test(a)) return viewWatch(a);
-  if (a.startsWith("start-")) return viewWatchStart(a.slice(6));
-  if (a === "form" && S.wform) return viewWatchForm();
-  if (a === "new" || a === "form") return viewWatchNew();
-  return viewWatches();
+  const pane = /^\d+$/.test(a) ? viewWatch(a) : a.startsWith("start-") ? viewWatchStart(a.slice(6))
+    : a === "form" && S.wform ? viewWatchForm() : a === "new" || a === "form" ? viewWatchNew() : "";
+  if (!BIG.matches) return pane || viewWatches();
+  const any = S.watches && S.watches.found.length + S.watches.watching.length + S.watches.saved.length;
+  return `<section class="view md"><div class="listcol">${watchesList()}</div><div class="detail">${pane
+    || `<div class="pick">${any ? "Pick a watch to see it here, or tap + for a new one." : ""}</div>`}</div></section>`;
 }
 
-function viewWatches() {
+const viewWatches = () => `<section class="view"><div class="scroll">${watchesList()}</div></section>`;
+function watchesList() {
   const L = S.watches;
   const head = `<div class="h1 hrow">Watches<button class="ib" data-act="watch-new" aria-label="New watch">${I.plus}</button></div>`;
-  if (!L) return `<section class="view"><div class="scroll">${head}${S.watchErr ? `<div class="card empty">${esc(S.watchErr)} <button class="btn s" data-act="reload">Try again</button></div>` : wskel}</div></section>`;
+  if (!L) return `${head}${S.watchErr ? `<div class="card empty">${esc(S.watchErr)} <button class="btn s" data-act="reload">Try again</button></div>` : wskel}`;
   const [f, w, s] = [L.found.length, L.watching.length, L.saved.length];
-  if (!f && !w && !s) return `<section class="view"><div class="scroll">${head}<div class="sub">Jarvis checks a bus fare, movie bookings or a price on a page for you, and tells you when it finds what you asked for.</div>
+  if (!f && !w && !s) return `${head}<div class="sub">Jarvis checks a bus fare, movie bookings or a price on a page for you, and tells you when it finds what you asked for.</div>
     <button class="btn p wide" data-act="watch-new">New watch</button>
-    <div class="note">Like “Silk Board to Tambaram on Friday night under ₹500” or “tell me when Jailer 2 bookings open at PVR Forum on Saturday”.</div></div></section>`;
+    <div class="note">Like “Silk Board to Tambaram on Friday night under ₹500” or “tell me when Jailer 2 bookings open at PVR Forum on Saturday”.</div>`;
   const sec = (title, rows, kind) => rows.length ? `<div class="sec">${title}</div><div class="card">${rows.map(x => watchRow(x, kind)).join("")}</div>` : "";
-  return `<section class="view"><div class="scroll">${head}<div class="sub">${[f && `${f} found something`, w && `${w} watching`, s && `${s} saved`].filter(Boolean).join(" · ")}</div>
+  return `${head}<div class="sub">${[f && `${f} found something`, w && `${w} watching`, s && `${s} saved`].filter(Boolean).join(" · ")}</div>
     ${sec("Found something", L.found, "found")}${sec("Watching", L.watching, "watching")}${sec("Saved · start any time", L.saved, "saved")}
-    <div class="note">Jarvis checks one watch at a time and only tells you when something good happens. A watch is kept after its day: start it again any time.</div>
-  </div></section>`;
+    <div class="note">Jarvis checks one watch at a time and only tells you when something good happens. A watch is kept after its day: start it again any time.</div>`;
 }
 
 function viewWatch(id) {
@@ -751,7 +783,7 @@ function viewMoney() {
   if (S.moneyTab === "cards") return viewCards(pick);
   const seg = `<div class="seg" role="tablist">${[["today", "Today"], ["week", "Week"], ["month", "Month"], ["year", "Year"]].map(([k, n]) =>
     `<button class="${k === S.period ? "on" : ""}" data-act="period" data-v="${k}" role="tab" aria-selected="${k === S.period}">${n}</button>`).join("")}</div>`;
-  const head = `${moneyHead()}${pick}${seg}`;
+  const head = `<div class="toprow">${moneyHead()}${pick}</div>${seg}`;
   if (!m) return `<section class="view"><div class="scroll">${head}${S.moneyErr ? `<div class="card empty">${esc(S.moneyErr)} <button class="btn s" data-act="reload">Try again</button></div>`
     : `<div class="card big"><div class="skel" style="width:35%"></div><div class="skel" style="height:30px;width:60%"></div><div class="skel"></div></div>`}</div></section>`;
   const ch = change(m.spent, m.previous, m.small);
@@ -770,7 +802,7 @@ function viewMoney() {
       <label class="when">${esc(m.label)}<input type="date" class="pick-day" value="${m.on}" max="${m.today}" aria-label="Pick a date"></label>
       <button class="arr" data-act="money-step" data-v="${m.later || ""}" ${m.later ? "" : "disabled"} aria-label="Later">${I.chev}</button></div>`;
   const unusual = m.unusual.map(u => `<div class="row"><div class="m"><div class="t">${esc(u.counterparty || "Payment")}</div><div class="s">${dayLabel(u.on)}${u.category ? ` · ${esc(u.category)}` : ""}</div></div><span class="v">${u.amount % 1 ? fmtMoney(u.amount) : fmtMoney0(u.amount)}</span></div>`).join("");
-  return `<section class="view"><div class="scroll">${head}
+  return `<section class="view"><div class="scroll">${head}<div class="cols"><div>
     <div class="card big">${nav}<div class="n">${fmtMoney(m.spent)}</div>
       <div class="d">${ch ? `<span style="color:${ch.startsWith("↓") ? "var(--down)" : "var(--up)"}">${ch}</span> vs ${prevName} · ` : ""}${m.payments} payment${m.payments === 1 ? "" : "s"}</div>
       ${spark(m.points)}
@@ -779,12 +811,13 @@ function viewMoney() {
     <div class="sec">By category</div><div class="card">${cats || '<div class="empty">No payments in this period.</div>'}</div>
     ${unusual ? `<div class="sec">Unusually large</div><div class="card">${unusual}</div>` : ""}
     ${m.new_merchants.length ? `<div class="sec">New this period</div><div class="card"><div class="empty">${m.new_merchants.map(esc).join(", ")}</div></div>` : ""}
+    </div><div>
     ${m.list.length ? `<div class="sec">Payments · ${m.list.length}${m.list.length > 30 && !S.allPays ? '<button data-act="all-pays">Show all</button>' : ""}</div><div class="card">${pays}</div>` : ""}
-  </div></section>`;
+  </div></div></div></section>`;
 }
 
 function viewCards(pick) {
-  const head = `${moneyHead()}${pick}`;
+  const head = `<div class="toprow">${moneyHead()}${pick}</div>`;
   const c = S.cards;
   if (!c) return `<section class="view"><div class="scroll">${head}${S.moneyErr ? `<div class="card empty">${esc(S.moneyErr)} <button class="btn s" data-act="reload">Try again</button></div>`
     : `<div class="card big"><div class="skel" style="width:35%"></div><div class="skel" style="height:30px;width:60%"></div><div class="skel"></div></div>`}</div></section>`;
@@ -1185,6 +1218,10 @@ addEventListener("offline", () => setOffline(true));
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 route();
+// The sidebar lists your chats on every screen, so on a big screen they load at the start, not only in Chat.
+const loadChatList = () => { if (BIG.matches && !S.chats.length) api("/api/chats").then(list => { S.chats = list; renderDrawer(); }).catch(() => {}); };
+loadChatList();
+BIG.addEventListener("change", loadChatList);
 renderDrawer();
 loadActivity(false).then(renderTabs).catch(() => {});
 api("/api/today").then(t => { S.today = t; renderTabs(); }).catch(() => {});
