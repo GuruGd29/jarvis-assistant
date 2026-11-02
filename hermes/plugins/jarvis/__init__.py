@@ -303,9 +303,11 @@ class JarvisMemoryProvider(MemoryProvider):
             block = attachment_note + ("\n\n" + block if block else "")
         # The 4B model drifts into English when the blocks above are English; a note next to the question holds it.
         # Tamil script costs about four times the tokens of English, so a long Tamil reply takes a minute or more.
+        # Translated month names came out cut short or wrong ("15 டிசம்"), so dates stay as the notes write them.
         if block and _TAMIL_SCRIPT.search(query or ""):
             block += ("\n\n[The user wrote in Tamil: reply in Tamil script, in 2-4 short sentences unless they ask "
-                      "for detail, keeping names, amounts, dates and file names exactly as written.]")
+                      "for detail, keeping names, amounts and file names exactly as written. Copy dates exactly as "
+                      "the notes write them, e.g. \"15 December 2026\"; do not translate the month.]")
         return block
 
     def _context(self, query: str) -> str:
