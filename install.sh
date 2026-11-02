@@ -121,6 +121,10 @@ say "Python packages"
 "$REPO/.venv/bin/pip" install -q --upgrade pip
 "$REPO/.venv/bin/pip" install -q -r "$REPO/requirements.lock"
 "$REPO/.venv/bin/pip" install -q --no-deps -e "$REPO"
+# Watches (docs/watches.md) open a normal browser window; Xvfb gives it a screen on a server.
+sudo apt-get install -y -q xvfb >/dev/null
+sudo "$REPO/.venv/bin/playwright" install-deps chromium >/dev/null
+"$REPO/.venv/bin/playwright" install chromium >/dev/null
 cd "$REPO"
 .venv/bin/python -c "from jarvis import config as c; print(f'  {c.OWNER_NAME or \"(no name)\"}, {c.LOCALE}, ' \
   f'{c.money(1234567.5)}, {c.TIMEZONE}, {c.LANGUAGES}')" || fail "a setting in $ENV_FILE is not valid (see above)."

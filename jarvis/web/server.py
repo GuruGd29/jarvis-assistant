@@ -24,7 +24,7 @@ from starlette.responses import FileResponse, HTMLResponse, JSONResponse, Respon
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from .. import config, money
+from .. import config, money, watches
 from . import data, hermes, notify, voice
 
 APP_DIR = config.SYSTEM_DIR / "web" / "app"
@@ -231,6 +231,101 @@ async def money_sync(request: Request) -> Response:
     return _json({"added": counts["added"]})
 
 
+# --- watches ------------------------------------------------------------------------------------------
+
+def _watch_id(request: Request) -> int:
+    return int(request.path_params["wid"])
+
+
+def _every(body: dict) -> int | None:
+    try:
+        return int(body.get("every"))
+    except (TypeError, ValueError):
+        return None
+
+
+async def watch_list(request: Request) -> Response:
+    return _json(await run_in_threadpool(watches.listing))
+
+
+async def watch_create(request: Request) -> Response:
+    body = await _body(request)
+    try:
+        return _json(await run_in_threadpool(watches.create, body.get("kind"), body.get("params") or {}, body.get("day"),
+                                             _every(body), body.get("resolved")), 201)
+    except ValueError as error:
+        return _error(str(error))
+
+
+async def watch_get(request: Request) -> Response:
+    try:
+        return _json(await run_in_threadpool(watches.detail, _watch_id(request)))
+    except LookupError:
+        return _error("no such watch", 404)
+
+
+async def watch_change(request: Request) -> Response:
+    body = await _body(request)
+    paused = body.get("paused") if isinstance(body.get("paused"), bool) else None
+    try:
+        return _json(await run_in_threadpool(watches.change, _watch_id(request), body.get("params"), _every(body), paused))
+    except LookupError:
+        return _error("no such watch", 404)
+    except ValueError as error:
+        return _error(str(error))
+
+
+async def watch_delete(request: Request) -> Response:
+    await run_in_threadpool(watches.delete, _watch_id(request))
+    return _json({"ok": True})
+
+
+async def watch_start(request: Request) -> Response:
+    body = await _body(request)
+    try:
+        return _json(await run_in_threadpool(watches.start, _watch_id(request), body.get("day"), _every(body)))
+    except LookupError:
+        return _error("no such watch", 404)
+    except ValueError as error:
+        return _error(str(error))
+
+
+async def watch_seen(request: Request) -> Response:
+    await run_in_threadpool(watches.seen, _watch_id(request))
+    return _json({"ok": True})
+
+
+async def watch_fill(request: Request) -> Response:
+    text = str((await _body(request)).get("text") or "").strip()
+    if not text:
+        return _error("Say or type what to watch.")
+    try:
+        return _json(await watches.fill(text))
+    except (httpx.HTTPError, ValueError, KeyError) as error:
+        log.warning("watch fill failed: %r", error)
+        return _error("Jarvis's AI couldn't read that just now. Pick a type below and fill it in.", 503)
+
+
+async def watch_test(request: Request) -> Response:
+    """One real check of a watch that is not saved yet, so the user sees what it reads (10-60 s)."""
+    body = await _body(request)
+    try:
+        params, day = watches.clean(body.get("kind"), body.get("params") or {}, body.get("day"))
+    except ValueError as error:
+        return _error(str(error))
+    return _json(await watches.check(body["kind"], params, day))
+
+
+async def watch_read(request: Request) -> Response:
+    url = str((await _body(request)).get("url") or "").strip()
+    if not url.startswith(("http://", "https://")):
+        return _error("Paste the page's link (starting with https://).")
+    try:
+        return _json(await watches.options(url))
+    except ValueError as error:
+        return _error(str(error), 503)
+
+
 async def cards_view(request: Request) -> Response:
     return _json(await run_in_threadpool(data.cards_view))
 
@@ -357,6 +452,13 @@ routes = [
     Route("/api/medicine", medicine, methods=["POST"]),
     Route("/api/money", money_view), Route("/api/money/sync", money_sync, methods=["POST"]),
     Route("/api/cards", cards_view), Route("/api/more", more),
+    Route("/api/watches", watch_list), Route("/api/watches", watch_create, methods=["POST"]),
+    Route("/api/watches/fill", watch_fill, methods=["POST"]), Route("/api/watches/test", watch_test, methods=["POST"]),
+    Route("/api/watches/read", watch_read, methods=["POST"]),
+    Route("/api/watches/{wid:int}", watch_get), Route("/api/watches/{wid:int}", watch_change, methods=["PUT"]),
+    Route("/api/watches/{wid:int}", watch_delete, methods=["DELETE"]),
+    Route("/api/watches/{wid:int}/start", watch_start, methods=["POST"]),
+    Route("/api/watches/{wid:int}/seen", watch_seen, methods=["POST"]),
     Route("/api/settings", settings, methods=["GET", "PUT"]),
     Route("/api/activity", activity, methods=["GET", "POST"]),
     Route("/api/push/key", push_key), Route("/api/push/subscribe", push_subscribe, methods=["POST"]),
@@ -377,8 +479,10 @@ async def _keep_today_fresh() -> None:
 async def lifespan(app):
     task = asyncio.create_task(_keep_today_fresh())
     asyncio.create_task(voice.start())  # load the voice model now, so the first voice message is quick
+    checks = asyncio.create_task(watches.runner())  # the watches' checks, one at a time
     yield
     task.cancel()
+    checks.cancel()
 
 
 async def server_error(request: Request, error: Exception) -> Response:

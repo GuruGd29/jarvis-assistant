@@ -74,7 +74,7 @@ class Data(unittest.TestCase):
     def test_more_settings_activity_chats(self):
         self.assertIn("facts", self.get("/api/more"))
         settings = self.get("/api/settings")
-        self.assertEqual([k["kind"] for k in settings["kinds"]], ["reminders", "renewals", "problems", "reports", "replies"])
+        self.assertEqual([k["kind"] for k in settings["kinds"]], ["reminders", "watches", "renewals", "problems", "reports", "replies"])
         self.assertIsInstance(self.get("/api/activity"), list)
         self.assertIsInstance(self.get("/api/chats"), list)
         self.assertEqual(len(self.get("/api/push/key")["key"]), 87)

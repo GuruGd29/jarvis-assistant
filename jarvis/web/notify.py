@@ -24,6 +24,7 @@ from .. import config
 # Shown in Settings in this order. Only reminders start switched on: the user wants few notifications.
 KINDS = {
     "reminders": ("Reminders & medicines", "Task reminders and medicine times", True),
+    "watches": ("Watches", "When a watch finds what you asked for, or needs your help", True),
     "renewals": ("Bills & renewals", "30 and 2 days before one-off dates, 2 days before subscriptions", False),
     "problems": ("Important problems", "Google sign-in expiring, a sync or backup failing", False),
     "reports": ("Daily, weekly & monthly reports", "Morning brief, Sunday summary, money report, memory clean-up", False),
