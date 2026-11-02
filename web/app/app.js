@@ -158,12 +158,17 @@ function renderTabs() {
   }).join("");
 }
 
+// A Home Screen app on iPhone forgets the microphone permission whenever its address changes (WebKit bug 215884),
+// so there the screen on show is kept here and the address stays as it was opened. In a browser tab it is the #hash.
+const STANDALONE = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+let here = location.hash;
+function setAddress(hash) { here = hash; if (!STANDALONE) history.replaceState(null, "", hash); }
 function navigate(hash, replace = false) {
-  if (location.hash === hash) { route(); return; }
-  if (replace) { history.replaceState(null, "", hash); route(); } else location.hash = hash;
+  if (here === hash) { route(); return; }
+  if (replace || STANDALONE) { setAddress(hash); route(); } else location.hash = hash;
 }
 function route() {
-  const [name, arg] = location.hash.replace(/^#/, "").split("/");
+  const [name, arg] = here.replace(/^#/, "").split("/");
   const known = ["chat", "today", "money", "more", "settings", "activity", "renewals"];
   S.route = known.includes(name) ? name : "chat";
   if (S.route === "chat") openChat(arg || null);
@@ -216,7 +221,7 @@ async function openChat(id) {
     if (id) {
       render();
       try { S.msgs = (await api(`/api/chats/${encodeURIComponent(id)}`)).messages; }
-      catch (e) { toast(e.message); S.chatId = null; history.replaceState(null, "", "#chat"); }
+      catch (e) { toast(e.message); S.chatId = null; setAddress("#chat"); }
     }
   }
   render();
@@ -385,7 +390,7 @@ async function send(text) {
     if (!S.chatId) {
       const chat = await api("/api/chats", { method: "POST" });
       S.chatId = chat.id; S.chats.unshift(chat);
-      history.replaceState(null, "", `#chat/${chat.id}`);
+      setAddress(`#chat/${chat.id}`);
     }
     if (!await reachable()) throw new Error(OFFLINE);
   } catch (e) { toast(e.message); draft = text; render(false); return; }
@@ -854,7 +859,7 @@ document.addEventListener("visibilitychange", () => {
   else loadActivity(false).then(renderTabs).catch(() => {});
   if (S.route === "chat") refreshChat();
 });
-addEventListener("hashchange", route);
+addEventListener("hashchange", () => { here = location.hash; route(); }); // the browser's Back and Forward
 addEventListener("online", () => setOffline(false));
 addEventListener("offline", () => setOffline(true));
 
