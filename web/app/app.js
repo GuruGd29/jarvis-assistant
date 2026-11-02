@@ -96,6 +96,7 @@ const I = {
     : sv('<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10.5h18M15.5 15h2"/>'),
   more: sv('<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>'),
   menu: sv('<path d="M4 8h16M4 16h11"/>', 2), edit: sv('<path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6M17.5 3.5l3 3L12 15H9v-3z"/>', 1.9),
+  mic: sv('<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/>', 2),
   send: sv('<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>', 2.3), stop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>',
   copy: sv('<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>'),
   speak: sv('<path d="M4 9.5v5h3.5L12 18V6L7.5 9.5zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>'),
@@ -116,6 +117,7 @@ const S = {
   route: "chat", chatId: null, chats: [], msgs: [], streaming: null, drawer: false,
   today: null, todayErr: null, iphone: null, money: {}, period: "week", moneyErr: null, moneyTab: "spending", cards: null, cardSel: null,
   moneyOn: { today: null, week: null, month: null, year: null }, cat: null, allPays: false, // null = the current period
+  mic: "idle", // idle | rec | busy (turning the recording into text)
   more: null, settings: null, activity: null, unread: 0, pushState: "unknown",
 };
 
@@ -264,7 +266,8 @@ function viewChat() {
     <div class="thread" id="thread">${S.msgs.length ? S.msgs.map(msgHtml).join("") : welcome}</div>
     ${sugg}
     <div class="dock"><form class="composer frost" data-form="send">
-      <textarea id="box" rows="1" placeholder="Ask Jarvis anything" aria-label="Message" enterkeyhint="send"></textarea>
+      <textarea id="box" rows="1" placeholder="${MIC_HINT[S.mic]}" aria-label="Message" enterkeyhint="send"></textarea>
+      ${P.voice ? `<button class="mic ${S.mic}" id="micBtn" type="button" data-act="mic" aria-label="${S.mic === "rec" ? "Stop recording" : "Voice message"}" ${S.mic === "busy" ? "disabled" : ""}>${S.mic === "rec" ? I.stop : I.mic}</button>` : ""}
       <button class="send" id="sendBtn" type="submit" aria-label="${S.streaming ? "Stop" : "Send"}" ${S.streaming ? "" : "disabled"}>${S.streaming ? I.stop : I.send}</button>
     </form></div></section>`;
 }
@@ -284,6 +287,66 @@ function updateSend() {
   const btn = $("#sendBtn"); if (!btn) return;
   btn.disabled = !S.streaming && !draft.trim();
 }
+
+// ---------- voice messages ----------
+// The recording becomes 16 kHz WAV here in the browser, the Mac turns it into text, and the text lands in the
+// message box to check before sending.
+const MIC_HINT = { idle: "Ask Jarvis anything", rec: "Listening… tap ■ when done", busy: "Turning your voice into text…" };
+let recording = null;
+function setMic(state) {
+  S.mic = state;
+  const btn = $("#micBtn"), box = $("#box");
+  if (box) box.placeholder = MIC_HINT[state];
+  if (!btn) return;
+  btn.className = `mic ${state}`; btn.disabled = state === "busy";
+  btn.innerHTML = state === "rec" ? I.stop : I.mic;
+  btn.setAttribute("aria-label", state === "rec" ? "Stop recording" : "Voice message");
+}
+async function micToggle() {
+  if (recording) { recording.stop(); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch { toast("Allow the microphone for Jarvis to send voice messages"); return; }
+  let recorder;
+  try { recorder = new MediaRecorder(stream); recorder.start(); } // handlers below still catch every event
+  catch { stream.getTracks().forEach(t => t.stop()); toast("Couldn't start recording. Try again."); return; }
+  const chunks = [];
+  const limit = setTimeout(() => recorder.state === "recording" && recorder.stop(), 120000); // 2 minutes at most
+  recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  recorder.onstop = async () => {
+    clearTimeout(limit); stream.getTracks().forEach(t => t.stop()); recording = null; setMic("busy");
+    try {
+      const res = await fetch("/api/voice", { method: "POST", headers: { "Content-Type": "audio/wav" },
+        body: await toWav(new Blob(chunks, { type: recorder.mimeType })) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Something went wrong (${res.status}).`);
+      if (!data.text) toast("Didn't catch that. Try again a little closer to the phone.");
+      else {
+        draft = draft.trim() ? `${draft.trimEnd()} ${data.text}` : data.text;
+        const box = $("#box"); if (box) { box.value = draft; autosize(box); }
+        updateSend();
+      }
+    } catch (e) { toast(e.message.startsWith("Failed to fetch") ? "Can't reach Jarvis. Check your Wi-Fi or VPN." : e.message); }
+    setMic("idle");
+  };
+  recording = recorder; setMic("rec");
+}
+async function toWav(blob) { // mono 16-bit PCM at 16 kHz, what Whisper reads
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const audio = await ctx.decodeAudioData(await blob.arrayBuffer());
+  ctx.close();
+  const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(audio.duration * 16000)), 16000);
+  const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
+  const pcm = (await off.startRendering()).getChannelData(0);
+  const v = new DataView(new ArrayBuffer(44 + pcm.length * 2));
+  const tag = (at, s) => [...s].forEach((c, i) => v.setUint8(at + i, c.charCodeAt(0)));
+  tag(0, "RIFF"); v.setUint32(4, 36 + pcm.length * 2, true); tag(8, "WAVEfmt "); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 16000, true); v.setUint32(28, 32000, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); tag(36, "data"); v.setUint32(40, pcm.length * 2, true);
+  for (let i = 0; i < pcm.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 0x7fff, true);
+  return v.buffer;
+}
+
 let rafPending = false;
 function redrawThread() {
   if (rafPending) return;
@@ -652,6 +715,7 @@ document.addEventListener("click", async e => {
       } catch (err) { toast(err.message); }
       break;
     case "ask": send(v); break;
+    case "mic": micToggle(); break;
     case "retry": {
       const lastUser = [...S.msgs].reverse().find(m => m.role === "user");
       if (!lastUser || S.streaming) break;

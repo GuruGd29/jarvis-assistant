@@ -29,7 +29,7 @@ Also: <a href="docs/screenshots/more.png">More screen</a> · <a href="docs/scree
 
 | | |
 |---|---|
-| 💬 **Chat** | Ask anything, in English or your own language (Tamil and Tanglish are tested weekly). It replies in the language you write in, and can read replies aloud. |
+| 💬 **Chat** | Ask anything, in English or your own language (Tamil and Tanglish are tested weekly). It replies in the language you write in, and can read replies aloud. Tap the mic to speak instead of typing: the speech becomes text on your own computer ([docs/voice.md](docs/voice.md)). |
 | 📄 **Your files** | Put documents in `~/Jarvis` (PDF, Word, text, Markdown, CSV). Jarvis indexes them and answers from them, naming the file: *"Your car insurance renews on 15 December 2026. Source: car-insurance.md"*. It can also copy one Google Drive folder when you say "sync drive". |
 | 📅 **Calendar and tasks** | Reads Google and iCloud calendars, keeps its own tasks with reminders, and can read your iPhone Reminders. It adds a calendar event only after you say yes. |
 | 📧 **Email** | Reads Gmail (read-only) to summarise your inbox. It can never send, reply or delete. |
