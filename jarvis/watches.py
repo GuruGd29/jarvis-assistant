@@ -371,6 +371,7 @@ def create(kind: str, params: dict, day: str | None, every: int, resolved: dict 
             "VALUES (%s, %s, %s, %s, %s, %s, now()) RETURNING *",
             (kind, title_for(kind, p), Jsonb(p), every, when, until_for(kind, p, when))).fetchone()
         conn.execute("INSERT INTO watch_uses (watch_id, watch_on) VALUES (%s, %s)", (row["id"], when))
+        _remember(conn, kind, p)
     return _row(row)
 
 
@@ -421,7 +422,48 @@ def change(watch_id: int, params: dict | None = None, every: int | None = None, 
             "next_at = CASE WHEN %s = 'watching' THEN now() ELSE NULL END WHERE id = %s RETURNING *",
             (Jsonb(p), title_for(w["kind"], p), every, state, when, until_for(w["kind"], p, when) if when else None,
              state, watch_id)).fetchone()
+        if params is not None:
+            _remember(conn, w["kind"], p)
     return _row(row)
+
+
+# --- the routes the user has watched buses on: one-tap routes and suggestions in the bus form --------------------
+
+_ROUTE = ("from", "to", "boarding", "dropping", "leave_from", "leave_to", "max_price")
+KEEP_ROUTES = 20
+
+
+def _route_key(r: dict) -> tuple:
+    return tuple(sites._norm(r.get(k)) for k in ("from", "to", "boarding", "dropping"))
+
+
+def remembered(routes: list[dict], params: dict) -> list[dict]:
+    """This route first, then the others without it: newest first, at most KEEP_ROUTES."""
+    route = {k: params[k].strip() if isinstance(params.get(k), str) else params.get(k)
+             for k in _ROUTE if params.get(k) not in (None, "")}
+    return [route] + [r for r in routes if _route_key(r) != _route_key(route)][:KEEP_ROUTES - 1]
+
+
+def _remember(conn, kind: str, p: dict) -> None:
+    if kind != "bus":
+        return
+    row = conn.execute("SELECT value FROM app_settings WHERE key = 'watch_places'").fetchone()
+    conn.execute("INSERT INTO app_settings (key, value) VALUES ('watch_places', %s) "
+                 "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+                 (Jsonb(remembered((row or {}).get("value") or [], p)),))
+
+
+def bus_places() -> dict:
+    """Bus routes the user has watched (kept when a watch is deleted), and the cities and points in them."""
+    with _db() as conn:
+        row = conn.execute("SELECT value FROM app_settings WHERE key = 'watch_places'").fetchone()
+        routes = row["value"] if row else None
+        if routes is None:  # nothing remembered yet: the bus watches there are
+            routes = []
+            for r in conn.execute("SELECT params FROM watches WHERE kind = 'bus' ORDER BY created_at").fetchall():
+                routes = remembered(routes, r["params"])
+    names = lambda *keys: list(dict.fromkeys(r[k] for r in routes for k in keys if r.get(k)))
+    return {"routes": routes, "cities": names("from", "to"), "boarding": names("boarding"), "dropping": names("dropping")}
 
 
 def delete(watch_id: int) -> None:

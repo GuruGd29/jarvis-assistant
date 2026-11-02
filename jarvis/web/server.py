@@ -248,6 +248,10 @@ async def watch_list(request: Request) -> Response:
     return _json(await run_in_threadpool(watches.listing))
 
 
+async def watch_places(request: Request) -> Response:
+    return _json(await run_in_threadpool(watches.bus_places))
+
+
 async def watch_create(request: Request) -> Response:
     body = await _body(request)
     try:
@@ -455,7 +459,7 @@ routes = [
     Route("/api/cards", cards_view), Route("/api/more", more),
     Route("/api/watches", watch_list), Route("/api/watches", watch_create, methods=["POST"]),
     Route("/api/watches/fill", watch_fill, methods=["POST"]), Route("/api/watches/test", watch_test, methods=["POST"]),
-    Route("/api/watches/read", watch_read, methods=["POST"]),
+    Route("/api/watches/read", watch_read, methods=["POST"]), Route("/api/watches/places", watch_places),
     Route("/api/watches/{wid:int}", watch_get), Route("/api/watches/{wid:int}", watch_change, methods=["PUT"]),
     Route("/api/watches/{wid:int}", watch_delete, methods=["DELETE"]),
     Route("/api/watches/{wid:int}/start", watch_start, methods=["POST"]),
