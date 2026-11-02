@@ -159,6 +159,12 @@ body.typing .tabbar, body.typing .sugg { display: none; }
 body.typing .dock { padding-bottom: 8px; }
 .send { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: var(--on-primary); flex: none; }
 .send svg { width: 18px; height: 18px; }
+.mic { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--text-2); flex: none; }
+.mic svg { width: 20px; height: 20px; }
+.mic.rec { background: var(--danger); color: #fff; }
+.mic.rec svg { width: 16px; height: 16px; }
+.mic.busy { animation: pulse 1s ease-in-out infinite alternate; }
+@keyframes pulse { to { opacity: .35; } }
 .view.chat::after { display: none; }
 
 /* drawer (chat list) */

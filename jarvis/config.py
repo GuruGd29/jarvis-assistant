@@ -40,6 +40,9 @@ EMBED_MODEL = os.environ.get("JARVIS_EMBED_MODEL", "bge-m3")
 # Multilingual, so Tamil questions rank as well as English ones (bge-reranker-base was weak on Tamil).
 RERANK_MODEL = os.environ.get("JARVIS_RERANK_MODEL", "BAAI/bge-reranker-v2-m3-int8")
 MODELS_DIR = SYSTEM_DIR / "models"
+# Voice messages: whisper.cpp's server with this model (docs/voice.md); without the file the app has no mic button.
+WHISPER_MODEL = Path(os.environ.get("JARVIS_WHISPER_MODEL") or MODELS_DIR / "ggml-large-v3-turbo-q8_0.bin").expanduser()
+WHISPER_PORT = int(os.environ.get("JARVIS_WHISPER_PORT", "8793"))
 
 # ~600 tokens per chunk; overlap keeps a sentence that straddles a boundary findable.
 CHUNK_CHARS = int(os.environ.get("JARVIS_CHUNK_CHARS", "2400"))

@@ -25,7 +25,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from .. import config
-from . import data, hermes, notify
+from . import data, hermes, notify, voice
 
 APP_DIR = config.SYSTEM_DIR / "web" / "app"
 PORT = int(os.environ.get("JARVIS_WEB_PORT", "8791"))
@@ -129,6 +129,22 @@ async def _run_turn(session_id: str, text: str, queue: asyncio.Queue, client: di
         if not client["delivered"]:
             await run_in_threadpool(notify.notify, "replies", "Jarvis replied",
                                     final["text"][:300] or "Your answer is ready.", {"url": f"/#chat/{session_id}"})
+
+
+async def voice_to_text(request: Request) -> Response:
+    """A voice message (16 kHz WAV from the app) as text, to check in the message box before sending."""
+    if not voice.available():
+        return _error("Voice messages aren't set up on this computer (docs/voice.md).", 503)
+    audio = await request.body()
+    if not audio:
+        return _error("no audio")
+    if len(audio) > voice.MAX_BYTES:
+        return _error("That voice message is too long; keep it under 2 minutes.", 413)
+    try:
+        return _json({"text": await voice.transcribe(audio)})
+    except (RuntimeError, httpx.HTTPError) as error:
+        log.warning("voice message failed: %s", error)
+        return _error("Couldn't turn that into text. Try again in a moment.", 503)
 
 
 async def send_message(request: Request) -> Response:
@@ -279,7 +295,7 @@ async def health(request: Request) -> Response:
 def _profile() -> str:
     """The user's name, number/date style and currency for the app, as a <meta> tag (no inline script needed)."""
     profile = {"name": config.OWNER_NAME, "locale": config.LOCALE.replace("_", "-"), "currency": config.CURRENCY,
-               "host": "mac" if sys.platform == "darwin" else "other"}
+               "host": "mac" if sys.platform == "darwin" else "other", "voice": voice.available()}
     return f'<meta name="jarvis-profile" content="{html.escape(json.dumps(profile))}">'
 
 
@@ -321,6 +337,7 @@ routes = [
     Route("/api/chats", list_chats, methods=["GET"]), Route("/api/chats", new_chat, methods=["POST"]),
     Route("/api/chats/{sid}", get_chat, methods=["GET"]), Route("/api/chats/{sid}", delete_chat, methods=["DELETE"]),
     Route("/api/chats/{sid}/send", send_message, methods=["POST"]),
+    Route("/api/voice", voice_to_text, methods=["POST"]),
     Route("/api/today", today), Route("/api/iphone-reminders", iphone_reminders),
     Route("/api/tasks/{tid:int}/done", task_done, methods=["POST"]),
     Route("/api/medicine", medicine, methods=["POST"]),
@@ -344,6 +361,7 @@ async def _keep_today_fresh() -> None:
 @contextlib.asynccontextmanager
 async def lifespan(app):
     task = asyncio.create_task(_keep_today_fresh())
+    asyncio.create_task(voice.start())  # load the voice model now, so the first voice message is quick
     yield
     task.cancel()
 
