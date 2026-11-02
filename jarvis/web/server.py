@@ -24,13 +24,14 @@ from starlette.responses import FileResponse, HTMLResponse, JSONResponse, Respon
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from .. import config
+from .. import config, money
 from . import data, hermes, notify, voice
 
 APP_DIR = config.SYSTEM_DIR / "web" / "app"
 PORT = int(os.environ.get("JARVIS_WEB_PORT", "8791"))
 # A reply keeps running after the phone leaves the app; these keep the background tasks alive until done.
 _RUNNING: set[asyncio.Task] = set()
+_MONEY_SYNC = asyncio.Lock()  # one tap's check at a time; a second tap waits for it
 log = logging.getLogger("jarvis.web")
 
 
@@ -217,6 +218,19 @@ async def money_view(request: Request) -> Response:
     return _json(await run_in_threadpool(data.money_view, period, on))
 
 
+async def money_sync(request: Request) -> Response:
+    """Read new bank alert emails now (the refresh button), on top of the sync every 30 minutes."""
+    async with _MONEY_SYNC:
+        try:
+            counts = await run_in_threadpool(money.sync, 2, ai=False)
+        except Exception as error:  # Gmail, the Google sign-in or the database
+            log.warning("money sync failed: %s", error)
+            return _error("Couldn't check your bank emails. Try again in a moment.", 503)
+    if "skipped" in counts:
+        return _error(f"Couldn't check: {counts['skipped']}", 503)
+    return _json({"added": counts["added"]})
+
+
 async def cards_view(request: Request) -> Response:
     return _json(await run_in_threadpool(data.cards_view))
 
@@ -341,7 +355,8 @@ routes = [
     Route("/api/today", today), Route("/api/iphone-reminders", iphone_reminders),
     Route("/api/tasks/{tid:int}/done", task_done, methods=["POST"]),
     Route("/api/medicine", medicine, methods=["POST"]),
-    Route("/api/money", money_view), Route("/api/cards", cards_view), Route("/api/more", more),
+    Route("/api/money", money_view), Route("/api/money/sync", money_sync, methods=["POST"]),
+    Route("/api/cards", cards_view), Route("/api/more", more),
     Route("/api/settings", settings, methods=["GET", "PUT"]),
     Route("/api/activity", activity, methods=["GET", "POST"]),
     Route("/api/push/key", push_key), Route("/api/push/subscribe", push_subscribe, methods=["POST"]),

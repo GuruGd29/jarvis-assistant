@@ -56,6 +56,8 @@ svg { display: block; }
 .h1 { font: 700 30px/1.15 var(--font); letter-spacing: -.02em; margin: 10px 2px 2px; }
 .sub { font: 400 15px var(--font); color: var(--text-2); margin: 0 2px 14px; }
 .h1 + .seg { margin-top: 12px; }
+.hrow { display: flex; align-items: center; justify-content: space-between; }
+.hrow .ib { margin: -4px -6px -4px 0; color: var(--text-2); }
 .sec { display: flex; justify-content: space-between; align-items: baseline; font: 600 13px var(--font); color: var(--text-2); margin: 22px 2px 8px; }
 .sec button { color: var(--text); font-weight: 500; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
 .muted { color: var(--text-2); }
@@ -112,6 +114,7 @@ button.row:active, .tap:active { background: var(--surface-2); }
 .ib { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none; }
 .ib svg { width: 22px; height: 22px; }
 .ib:active { background: var(--surface-2); }
+.ib.busy svg { animation: spin 1s linear infinite; }
 .thread { flex: 1; overflow-y: auto; padding: 8px 18px 24px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: none; }
 .thread::-webkit-scrollbar { display: none; }
 .u { align-self: flex-end; max-width: 82%; background: var(--bubble); border-radius: var(--r-bubble); padding: 10px 14px;

@@ -115,7 +115,7 @@ const KIND_LABEL = { reminders: "Reminder", renewals: "Bills & renewals", proble
 // ---------- state ----------
 const S = {
   route: "chat", chatId: null, chats: [], msgs: [], streaming: null, drawer: false,
-  today: null, todayErr: null, iphone: null, money: {}, period: "week", moneyErr: null, moneyTab: "spending", cards: null, cardSel: null,
+  today: null, todayErr: null, iphone: null, money: {}, period: "week", moneyErr: null, moneyTab: "spending", cards: null, cardSel: null, syncing: false,
   moneyOn: { today: null, week: null, month: null, year: null }, cat: null, allPays: false, // null = the current period
   mic: "idle", // idle | rec | busy (turning the recording into text)
   more: null, settings: null, activity: null, unread: 0, pushState: "unknown",
@@ -480,6 +480,8 @@ function spark(points) {
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="none" stroke="var(--text)" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
 const moneyKey = () => `${S.period}|${S.moneyOn[S.period] || ""}`;
+// The refresh button reads new bank emails now; they are also read on their own every 30 minutes.
+const moneyHead = () => `<div class="h1 hrow">Money<button class="ib${S.syncing ? " busy" : ""}" data-act="money-sync" ${S.syncing ? "disabled" : ""} aria-label="Check for new payments">${S.syncing ? I.spin : I.redo}</button></div>`;
 function payRow(p, showDay) {
   const when = [showDay ? dayLabel(p.on) : "", p.time, esc(p.via)].filter(Boolean).join(" · ");
   return `<div class="row"><div class="m"><div class="t">${esc(p.to || "Payment")}</div><div class="s">${when}</div></div>
@@ -500,7 +502,7 @@ function viewMoney() {
   if (S.moneyTab === "cards") return viewCards(pick);
   const seg = `<div class="seg" role="tablist">${[["today", "Today"], ["week", "Week"], ["month", "Month"], ["year", "Year"]].map(([k, n]) =>
     `<button class="${k === S.period ? "on" : ""}" data-act="period" data-v="${k}" role="tab" aria-selected="${k === S.period}">${n}</button>`).join("")}</div>`;
-  const head = `<div class="h1">Money</div>${pick}${seg}`;
+  const head = `${moneyHead()}${pick}${seg}`;
   if (!m) return `<section class="view"><div class="scroll">${head}${S.moneyErr ? `<div class="card empty">${esc(S.moneyErr)} <button class="btn s" data-act="reload">Try again</button></div>`
     : `<div class="card big"><div class="skel" style="width:35%"></div><div class="skel" style="height:30px;width:60%"></div><div class="skel"></div></div>`}</div></section>`;
   const ch = change(m.spent, m.previous, m.small);
@@ -533,7 +535,7 @@ function viewMoney() {
 }
 
 function viewCards(pick) {
-  const head = `<div class="h1">Money</div>${pick}`;
+  const head = `${moneyHead()}${pick}`;
   const c = S.cards;
   if (!c) return `<section class="view"><div class="scroll">${head}${S.moneyErr ? `<div class="card empty">${esc(S.moneyErr)} <button class="btn s" data-act="reload">Try again</button></div>`
     : `<div class="card big"><div class="skel" style="width:35%"></div><div class="skel" style="height:30px;width:60%"></div><div class="skel"></div></div>`}</div></section>`;
@@ -743,6 +745,16 @@ document.addEventListener("click", async e => {
     case "period": S.period = v; S.cat = null; S.allPays = false; render(false); load("money"); break; // cached figures show at once, then refresh
     case "money-step": S.moneyOn[S.period] = v && v < todayISO() ? v : null; S.allPays = false; render(false); load("money"); break;
     case "money-today": S.moneyTab = "spending"; S.period = "today"; S.moneyOn.today = null; S.cat = null; navigate("#money"); break;
+    case "money-sync":
+      if (S.syncing) break;
+      S.syncing = true; render(false);
+      try {
+        const r = await api("/api/money/sync", { method: "POST" });
+        toast(r.added ? `${r.added} new transaction${r.added === 1 ? "" : "s"} added` : "Up to date · no new payments");
+        await load("money");
+      } catch (err) { toast(err.message); }
+      S.syncing = false; if (S.route === "money") render(false);
+      break;
     case "cat": S.moneyScroll = $("#view .scroll").scrollTop; S.cat = v; render(); break;
     case "cat-close": S.cat = null; render(false); $("#view .scroll").scrollTop = S.moneyScroll || 0; break;
     case "all-pays": S.allPays = true; render(false); break;
