@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis on big screens</title>
+<!-- Design for approval: the app on a laptop or desktop (1024 px and wider). Phones stay exactly as they are. -->
+<link rel="stylesheet" href="../../web/app/app.css">
+<style>
+  html, body.board { height: auto; overflow: auto; overscroll-behavior: auto; }
+  body.board { background: var(--surface-2); padding: 28px 24px 64px; }
+  .board > header { max-width: 1300px; margin: 0 auto 22px; }
+  .board > header h1 { font: 700 26px/1.2 var(--font); letter-spacing: -.01em; }
+  .board > header p { font: 400 15px/1.5 var(--font); color: var(--text-2); margin-top: 6px; max-width: 860px; }
+  figure.shot { max-width: 1300px; margin: 0 auto 40px; }
+  figcaption { display: flex; gap: 10px; align-items: flex-start; margin: 0 4px 12px; }
+  figcaption b { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--text); color: var(--bg); font: 700 12.5px/24px var(--font); text-align: center; }
+  figcaption div { font: 650 15px/1.3 var(--font); }
+  figcaption small { display: block; font: 400 13.5px/1.45 var(--font); color: var(--text-2); margin-top: 2px; max-width: 900px; }
+  .frame { zoom: .78; }
+
+  /* ---- the big-screen layout (in the app: @media (min-width: 1024px)) ---- */
+  .dk { width: 1280px; height: 800px; display: grid; grid-template-columns: 264px 1fr; background: var(--bg); border-radius: 16px;
+    overflow: hidden; box-shadow: 0 0 0 1px var(--line-strong), 0 24px 60px rgba(0, 0, 0, .18); }
+  .side { display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--bg); min-height: 0; }
+  .side .brand { display: flex; align-items: center; gap: 10px; padding: 18px 18px 14px; }
+  .side .brand img { width: 30px; height: 30px; border-radius: 8px; }
+  .side .brand b { font: 700 18px var(--font); display: block; }
+  .side .brand span { font: 500 12px var(--font); color: var(--text-2); }
+  .nav { padding: 0 10px; display: flex; flex-direction: column; gap: 2px; }
+  .nav button { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border-radius: 10px; font: 550 14.5px var(--font); color: var(--text-2); position: relative; }
+  .nav button svg { width: 20px; height: 20px; }
+  .nav button.on { background: var(--surface-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+  .nav .count { margin-left: auto; min-width: 20px; height: 20px; border-radius: 10px; background: var(--text); color: var(--bg); font: 700 11px/20px var(--font); text-align: center; padding: 0 6px; }
+  .side .newchat { margin: 14px 10px 6px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .side .newchat svg { width: 17px; height: 17px; }
+  .side .label { font: 600 12px var(--font); color: var(--text-3); padding: 12px 20px 6px; text-transform: none; }
+  .side .list { flex: 1; overflow: hidden; padding: 0 10px; }
+  .side .chat { padding: 8px 10px; border-radius: 9px; }
+  .side .chat.on { background: var(--surface-2); }
+  .side .chat .t { font: 500 14px var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .side .chat .s { font: 400 12px var(--font); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .side .foot { border-top: 1px solid var(--line); padding: 12px 18px; font: 500 12.5px var(--font); color: var(--text-2); display: flex; align-items: center; gap: 8px; }
+  .side .foot i { width: 8px; height: 8px; border-radius: 50%; background: var(--down); }
+  .main { position: relative; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+  .page { flex: 1; overflow: hidden; padding: 26px 40px 30px; }
+  .page .h1 { margin-top: 0; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; margin-top: 4px; }
+  .cols .sec:first-child { margin-top: 0; }
+  .wide { max-width: 1120px; margin: 0 auto; }
+  .toprow { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+  .toprow .seg { width: 360px; margin: 0; }
+
+  /* chat */
+  .ctop { display: flex; align-items: center; justify-content: center; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  .ctop .ttl { text-align: center; }
+  .ctop .ttl b { font: 650 16px var(--font); display: block; }
+  .ctop .ttl span { font: 500 12px var(--font); color: var(--text-2); }
+  .cthread { flex: 1; overflow: hidden; padding: 26px 0 10px; }
+  .cthread .in { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; padding: 0 24px; }
+  .cdock { padding: 0 24px 22px; }
+  .cdock .composer { max-width: 760px; margin: 0 auto; box-shadow: var(--shadow), inset 0 0 0 1px var(--line-strong); background: var(--surface); }
+  .cdock .note { text-align: center; margin-top: 8px; }
+
+  /* watches: list and the chosen watch side by side */
+  .md { display: grid; grid-template-columns: 400px 1fr; height: 100%; }
+  .md .listcol { border-right: 1px solid var(--line); padding: 26px 22px; overflow: hidden; }
+  .md .detail { padding: 22px 36px; overflow: hidden; }
+  .md .detail .one { max-width: 560px; }
+  .md .detail .navbar { padding: 0 0 6px; min-height: 0; }
+  .md .detail .navbar .title { text-align: left; margin: 0; font-size: 20px; }
+  .row.sel { background: var(--surface-2); }
+  .tag.found { color: var(--down); }
+  .rt { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .fld .s { margin: 0 0 2px; }
+  .found-card { box-shadow: inset 0 0 0 1.5px var(--down); }
+  .found-card .k { color: var(--down); font-weight: 600; }
+  .acts2 { display: flex; gap: 8px; margin-top: 12px; }
+  .btn { text-align: center; }
+
+  /* phone, unchanged */
+  .phone { width: 375px; height: 700px; border-radius: 40px; overflow: hidden; position: relative; background: var(--bg);
+    box-shadow: 0 0 0 1px var(--line-strong), 0 24px 60px rgba(0, 0, 0, .14); --top: 44px; --bottom: 18px; }
+  .pair { display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap; }
+  .pair p { font: 400 14.5px/1.55 var(--font); color: var(--text-2); max-width: 520px; }
+  .pair p b { color: var(--text); }
+</style>
+</head>
+<body class="board">
+<header>
+  <h1>Jarvis on big screens: for approval</h1>
+  <p>From 1024 px wide (a laptop or desktop browser), the bottom tab bar becomes a sidebar with your chats, and screens use the
+    width. Phones and small windows stay exactly as they are. Same page, same address: http://localhost:8791 on the Mac, or
+    https://Gurus-MacBook-Pro-2.local:3444. Names and amounts are examples.</p>
+</header>
+
+<!-- 1. Chat -->
+<figure class="shot"><figcaption><b>1</b><div>Chat<small>Your chats are always on the left (no drawer to open). The conversation sits in a readable middle column, with the message box under it. Enter sends, Shift+Enter makes a new line.</small></div></figcaption>
+<div class="frame"><div class="dk">
+  <aside class="side" data-on="chat"></aside>
+  <main class="main">
+    <div class="ctop"><div class="ttl"><b>This week's spending</b><span>Qwen3 4B · on your Mac</span></div></div>
+    <div class="cthread"><div class="in">
+      <div class="u">How much did I spend this week, by category?</div>
+      <div class="a"><p>You spent <b>₹33,304</b> this week (27 Oct – 2 Nov), 73% less than the week before.</p>
+        <ul><li><b>Loans &amp; credit:</b> ₹16,544 (3 payments)</li><li><b>Sent to people:</b> ₹15,162 (14 payments)</li>
+        <li><b>Food &amp; dining:</b> ₹773 (5 payments)</li><li><b>Other:</b> ₹510 (2 payments)</li></ul>
+        <p>Card bills of ₹24,255 are not counted again.</p>
+        <div class="acts"><button><i data-i="copy"></i></button><button><i data-i="speak"></i></button><button><i data-i="redo"></i></button></div></div>
+      <div class="u">Any bus from Bangalore to Mannargudi under ₹800 on Thursday?</div>
+      <div class="a"><p>Not yet: the cheapest on Thu 5 Nov is <b>₹1,649</b> (VINOTH TRAVELS, 9:15 pm). Your watch keeps checking every 10 minutes and tells you if it drops.</p></div>
+    </div></div>
+    <div class="cdock"><form class="composer"><textarea rows="1" placeholder="Ask Jarvis anything"></textarea>
+      <button class="mic" type="button"><i data-i="mic"></i></button><button class="send" type="button"><i data-i="send"></i></button></form>
+      <div class="note">Runs on your own computer. Enter to send · Shift+Enter for a new line.</div></div>
+  </main>
+</div></div></figure>
+
+<!-- 2. Today -->
+<figure class="shot"><figcaption><b>2</b><div>Today<small>Two columns: what's happening (summary and schedule) on the left, what to do (tasks, medicines, bills) on the right. A watch's find stays on top.</small></div></figcaption>
+<div class="frame"><div class="dk">
+  <aside class="side" data-on="today"></aside>
+  <main class="main"><div class="page"><div class="wide">
+    <div class="h1">Today</div><div class="sub">Monday, 2 November · Good evening, Guru</div>
+    <div class="card big found-card" style="margin-bottom:18px"><div class="k">Found by a watch</div>
+      <div class="text"><b>Bangalore → Mannargudi</b>: ₹648 · VPS Transport, 8:00 pm, Tue 3 Nov</div>
+      <div class="acts2"><button class="btn p">Book on redBus</button><button class="btn s">Open</button><button class="btn s">Seen</button></div></div>
+    <div class="cols">
+      <div>
+        <div class="card big"><div class="k">Summary</div><div class="text">No events today · no tasks due this week · Netflix Standard renews on Thu, 5 Nov (₹499).</div>
+          <div class="kpis"><div><b>₹10,065</b><span>spent today</span></div><div><b>0</b><span>due today</span></div><div><b>9</b><span>reminders</span></div><div><b>0</b><span>doses left</span></div></div></div>
+        <div class="sec">Schedule · next 7 days</div>
+        <div class="card">
+          <div class="row"><span class="time">Thu, 5 Nov</span><span class="vline dim"></span><div class="m"><div class="t">Get charger from Selva</div><div class="s">10:00–11:00 · Google</div></div></div>
+          <div class="row"><span class="time">Thu, 5 Nov</span><span class="vline dim"></span><div class="m"><div class="t">Get charger from Selva</div><div class="s">15:00–16:00 · Google</div></div></div>
+          <div class="row"><span class="time">Sun, 8 Nov</span><span class="vline dim"></span><div class="m"><div class="t">Diwali/Deepavali</div><div class="s">All day · Google</div></div></div>
+          <div class="row"><span class="time">Mon, 9 Nov</span><span class="vline dim"></span><div class="m"><div class="t">Govardhan Puja</div><div class="s">All day · Google</div></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="sec">To do</div>
+        <div class="card">
+          <div class="row"><div class="m"><div class="t">L&amp;T finance EMI</div><div class="s">iPhone Reminders · Tomorrow</div></div></div>
+          <div class="row"><div class="m"><div class="t">Aadhaar photo change</div><div class="s">iPhone Reminders · Fri, 6 Nov</div></div></div>
+          <div class="row"><span class="check"></span><div class="m"><div class="t">Renew bike insurance</div><div class="s">Jarvis task · due Sat, 14 Nov</div></div></div>
+        </div>
+        <div class="sec">Medicines</div>
+        <div class="card"><div class="empty">No medicines set up. Tell Jarvis, for example “Remind me to take Vitamin D3 every Sunday at 9 am”.</div></div>
+        <div class="sec">Bills &amp; renewals <button>All</button></div>
+        <div class="card"><div class="row"><span class="ic"><i data-i="renew"></i></span><div class="m"><div class="t">Netflix Standard</div><div class="s">renews Thu, 5 Nov · subscription</div></div><span class="v">₹499</span></div></div>
+      </div>
+    </div>
+  </div></div></main>
+</div></div></figure>
+
+<!-- 3. Money -->
+<figure class="shot"><figcaption><b>3</b><div>Money<small>The period and Spending/Cards switches sit at the top; spending and categories on the left, the payments themselves on the right, so you see both without scrolling.</small></div></figcaption>
+<div class="frame"><div class="dk">
+  <aside class="side" data-on="money"></aside>
+  <main class="main"><div class="page"><div class="wide">
+    <div class="toprow"><div class="h1 hrow" style="flex:1">Money</div>
+      <div class="seg"><button class="on">Spending</button><button>Cards</button></div></div>
+    <div class="seg" style="margin-top:14px;max-width:520px"><button>Today</button><button class="on">Week</button><button>Month</button><button>Year</button></div>
+    <div class="cols">
+      <div>
+        <div class="card big"><div class="k pernav">Spent <button class="arr"><i data-i="back"></i></button><span class="when">27 Oct – 02 Nov</span><button class="arr"><i data-i="chev"></i></button></div>
+          <div class="n">₹33,304.34</div><div class="d"><span style="color:var(--down)">↓ 73%</span> vs the week before · 27 payments</div>
+          <svg class="spark" viewBox="0 0 320 46" preserveAspectRatio="none" aria-hidden="true"><path d="M0 34 L53 16 L107 30 L160 22 L213 10 L267 32 L320 33" fill="none" stroke="var(--text)" stroke-width="1.8" vector-effect="non-scaling-stroke"/></svg>
+          <div class="kpis"><div><b>₹0</b><span>refunds</span></div><div><b>₹1,02,180</b><span>received</span></div><div><b>₹42,500</b><span>own transfers</span></div></div>
+          <div class="d">Card bills paid: ₹24,255 · not counted again</div></div>
+        <div class="sec">By category</div>
+        <div class="card">
+          <div class="catrow"><div class="top"><span>Loans &amp; credit</span><b>₹16,544</b></div><div class="meta"><span>3 payments · 50%</span><span style="color:var(--down)">↓ 25%</span></div><div class="bar"><i style="width:100%"></i></div></div>
+          <div class="catrow"><div class="top"><span>Sent to people</span><b>₹15,162</b></div><div class="meta"><span>14 payments · 46%</span><span style="color:var(--down)">↓ 42%</span></div><div class="bar"><i style="width:92%"></i></div></div>
+          <div class="catrow"><div class="top"><span>Food &amp; dining</span><b>₹773</b></div><div class="meta"><span>5 payments · 2%</span><span style="color:var(--down)">↓ 69%</span></div><div class="bar"><i style="width:5%"></i></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="sec">Payments · 27</div>
+        <div class="card">
+          <div class="row"><div class="m"><div class="t">DHEERAJ D K</div><div class="s">Mon, 2 Nov · 15:13 · HDFC a/c 1328 · UPI</div></div><span class="v">₹80</span></div>
+          <div class="row"><div class="m"><div class="t">ZOMATO LIMITED</div><div class="s">Sun, 1 Nov · 13:39 · ICICI card 8006</div></div><span class="v">₹84.19</span></div>
+          <div class="row"><div class="m"><div class="t">Jagadish bar and restaurant</div><div class="s">Sun, 1 Nov · 00:19 · HDFC a/c 1328 · UPI</div></div><span class="v">₹640</span></div>
+          <div class="row"><div class="m"><div class="t">HSR CAFE</div><div class="s">Sat, 31 Oct · 23:35 · HDFC a/c 1328 · UPI</div></div><span class="v">₹26</span></div>
+          <div class="row"><div class="m"><div class="t">CTRLX TECHNOLOGIES</div><div class="s">Sat, 31 Oct · 22:25 · ICICI card 8006</div></div><span class="v">₹178.60</span></div>
+          <div class="row"><div class="m"><div class="t">Basavaraj T K</div><div class="s">Sat, 31 Oct · 18:04 · HDFC a/c 1328 · UPI</div></div><span class="v">₹60</span></div>
+        </div>
+      </div>
+    </div>
+  </div></div></main>
+</div></div></figure>
+
+<!-- 4. Watches -->
+<figure class="shot"><figcaption><b>4</b><div>Watches<small>Your watches on the left; the one you pick opens on the right, so you can go through them without going back and forth. New watch opens on the right too.</small></div></figcaption>
+<div class="frame"><div class="dk">
+  <aside class="side" data-on="watches"></aside>
+  <main class="main"><div class="md">
+    <div class="listcol">
+      <div class="h1 hrow">Watches<button class="ib"><i data-i="plus"></i></button></div>
+      <div class="sub">1 found something · 2 watching · 1 saved</div>
+      <div class="sec" style="margin-top:6px">Found something</div>
+      <div class="card"><div class="row sel"><span class="ic"><i data-i="bus"></i></span><div class="m"><div class="t">Bangalore → Mannargudi</div><div class="s">Tue, 3 Nov · any time</div><div class="s">₹648 · VPS Transport, 8:00 pm</div></div><div class="rt"><span class="v">₹648</span><span class="tag found">Found</span></div></div></div>
+      <div class="sec">Watching</div>
+      <div class="card">
+        <div class="row"><span class="ic"><i data-i="film"></i></span><div class="m"><div class="t">Jailer 2 · PVR Forum</div><div class="s">Sat, 7 Nov · after 5 pm · bookings open</div><div class="s">Not open yet · 4 min ago</div></div></div>
+        <div class="row"><span class="ic"><i data-i="bus"></i></span><div class="m"><div class="t">Silk Board → Tambaram</div><div class="s">Fri, 6 Nov · 8 pm–2 am · under ₹500</div><div class="s">Now ₹899 · 7 min ago</div></div></div>
+      </div>
+      <div class="sec">Saved · start any time</div>
+      <div class="card"><div class="row"><span class="ic"><i data-i="bus"></i></span><div class="m"><div class="t">Tambaram → Silk Board</div><div class="s">Bus under ₹500 · 6 pm–midnight</div><div class="s">Last used Sun, 26 Oct · lowest ₹349</div></div><button class="btn s">Start</button></div></div>
+    </div>
+    <div class="detail">
+      <div class="navbar"><div class="title">Bangalore → Mannargudi</div></div>
+      <div class="one">
+        <div>
+          <div class="card big"><div class="k">Tue, 3 Nov, any time</div><div class="n">₹648</div><div class="d">₹648 · VPS Transport, 8:00 pm</div>
+            <svg class="spark" viewBox="0 0 320 46" preserveAspectRatio="none" aria-hidden="true"><path d="M0 10 L80 12 L160 26 L240 30 L320 38" fill="none" stroke="var(--text)" stroke-width="1.8" vector-effect="non-scaling-stroke"/></svg>
+            <div class="kpis"><div><b>₹648</b><span>lowest seen</span></div><div><b>14</b><span>buses match</span></div><div><b>10 min</b><span>between checks</span></div></div></div>
+          <button class="btn p wide" style="margin-top:12px">Book on redBus</button>
+          <div class="sec">Cheapest now</div>
+          <div class="card">
+            <div class="row"><div class="m"><div class="t">VPS Transport</div><div class="s">8:00 pm · 18 seats · Non A/C Sleeper</div></div><span class="v">₹648</span></div>
+            <div class="row"><div class="m"><div class="t">Sri Murugan Travels</div><div class="s">9:30 pm · 22 seats · A/C Sleeper</div></div><span class="v">₹899</span></div>
+            <div class="row"><div class="m"><div class="t">VINOTH TRAVELS</div><div class="s">9:15 pm · 30 seats · A/C Sleeper</div></div><span class="v">₹1,649</span></div>
+          </div>
+          <div class="sec">This watch</div>
+          <div class="card">
+            <div class="row fld"><div class="m"><div class="s">Tell me when</div><div class="t">Any bus has seats</div></div></div>
+            <div class="row fld"><div class="m"><div class="s">Check every</div><div class="seg in" style="margin-top:6px"><button>5 min</button><button class="on">10 min</button><button>15 min</button><button>30 min</button></div></div></div>
+            <div class="row"><div class="m"><div class="t">Watching</div><div class="s">Tap to pause checking for now</div></div><span class="tog"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></main>
+</div></div></figure>
+
+<!-- 5. Phone unchanged -->
+<figure class="shot"><figcaption><b>5</b><div>On your phone: no change<small>Below 1024 px (phones, tablets held upright, narrow windows) Jarvis looks and works exactly as now.</small></div></figcaption>
+<div class="pair">
+  <div class="phone"><section class="view"><div class="scroll"><div class="h1">Today</div><div class="sub">Monday, 2 November · Good evening, Guru</div>
+    <div class="card big"><div class="k">Summary</div><div class="text">No events today · no tasks due this week.</div>
+    <div class="kpis"><div><b>₹10,065</b><span>spent today</span></div><div><b>0</b><span>due today</span></div><div><b>9</b><span>reminders</span></div></div></div></div></section>
+    <nav class="tabbar frost" data-tabs="today"></nav></div>
+  <p><b>What changes on a big screen:</b> the sidebar replaces the bottom tab bar and the chat drawer; Chat gets a centred
+    reading column; Today and Money use two columns; Watches shows the list and the chosen watch side by side.
+    <br><br><b>What stays the same:</b> every feature, the data, the address, light/dark following your computer,
+    offline reading, the mic (in Chrome, Safari and Edge), and notifications where the browser supports them.</p>
+</div></figure>
+
+<script>
+const sv = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const I = {
+  chat: sv('<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z"/>'),
+  today: sv('<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>'),
+  money: sv('<path d="M7 5h10M7 9h10M7 5c4 0 6 1.6 6 4s-2 4-6 4h-.5L14 20"/>'),
+  watches: sv('<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'),
+  more: sv('<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>'),
+  edit: sv('<path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6M17.5 3.5l3 3L12 15H9v-3z"/>', 1.9),
+  mic: sv('<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/>', 2),
+  send: sv('<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>', 2.3),
+  copy: sv('<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>'),
+  speak: sv('<path d="M4 9.5v5h3.5L12 18V6L7.5 9.5zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>'),
+  redo: sv('<path d="M19 8a7.5 7.5 0 1 0 1 5M19 3.5V8h-4.5"/>'),
+  back: sv('<path d="M15 5l-7 7 7 7"/>', 2.2), chev: sv('<path d="M9 5l7 7-7 7"/>', 2.2),
+  renew: sv('<path d="M19 8a7.5 7.5 0 0 0-13.5 1M5 16a7.5 7.5 0 0 0 13.5-1M19 3.5V8h-4.5M5 20.5V16h4.5"/>'),
+  plus: sv('<path d="M12 5v14M5 12h14"/>', 2.2),
+  bus: sv('<rect x="4.5" y="3.5" width="15" height="14" rx="3"/><path d="M4.5 10.5h15M8 17.5V20M16 17.5V20M8 14h.01M16 14h.01"/>'),
+  film: sv('<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M3.5 9.5h17M8 5l2 4.5M13 5l2 4.5"/>'),
+};
+const CHATS = [["This week's spending", "You spent ₹33,304 this week…", "on"], ["Bus to Mannargudi", "Not yet: the cheapest on Thu…"], ["Plan my day", "No events today, 2 reminders…"],
+  ["Thank you", "You're welcome! How can I…"], ["Movie ticket watcher", "Yes: open the Watches tab…"], ["Netflix renewal", "Netflix Standard renews on Thu…"], ["Tamil poem", "மழை பொழியும் மாலை…"]];
+document.querySelectorAll("aside.side").forEach(a => {
+  const on = a.dataset.on;
+  a.innerHTML = `<div class="brand"><img src="../../web/app/icons/icon-192.png" alt=""><div><b>Jarvis</b><span>Good evening, Guru</span></div></div>
+    <nav class="nav">${[["chat", "Chat"], ["today", "Today"], ["money", "Money"], ["watches", "Watches", 1], ["more", "More"]].map(([k, n, c]) =>
+      `<button class="${k === on ? "on" : ""}">${I[k]}${n}${c ? `<span class="count">${c}</span>` : ""}</button>`).join("")}</nav>
+    <button class="btn s newchat">${I.edit} New chat</button>
+    <div class="label">Recent chats</div>
+    <div class="list">${CHATS.map(([t, s, o]) => `<div class="chat ${on === "chat" && o ? "on" : ""}"><div class="t">${t}</div><div class="s">${s}</div></div>`).join("")}</div>
+    <div class="foot"><i></i>On your Mac · all systems running</div>`;
+});
+document.querySelectorAll("i[data-i]").forEach(el => { el.outerHTML = I[el.dataset.i]; });
+document.querySelectorAll("nav[data-tabs]").forEach(nav => {
+  nav.innerHTML = [["chat", "Chat"], ["today", "Today"], ["money", "Money"], ["watches", "Watches"], ["more", "More"]].map(([k, n]) =>
+    `<button class="tab ${k === nav.dataset.tabs ? "on" : ""}">${I[k]}<span>${n}</span></button>`).join("");
+});
+</script>
+</body>
+</html>
