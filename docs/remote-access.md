@@ -119,6 +119,10 @@ Open **https://10.8.0.1** on the phone.
 Open Jarvis from the Home Screen, then turn on notifications in **More → Notifications**. On an iPhone this needs
 iOS 16.4 or newer, and only works from the Home Screen app.
 
+If the computer is off or out of reach, the app still opens and shows what each screen last showed, with
+"Offline · last updated …" at the top. You can read Today, Money, More, Settings and earlier chats; sending a message,
+the mic and buttons that change something wait until the computer is back. The saved copies stay on the phone.
+
 ### 6. Close SSH to the internet (recommended)
 
 Add your computer as a second WireGuard peer: repeat step 2's key and `[Peer]` part with address `10.8.0.3`, use

@@ -72,14 +72,30 @@ function md(src) {
 async function api(path, opts = {}) {
   const init = { method: opts.method || "GET", headers: {} };
   if (opts.body !== undefined) { init.body = JSON.stringify(opts.body); init.headers["Content-Type"] = "application/json"; }
+  if (init.method !== "GET" && !await reachable()) throw new Error(OFFLINE);
   let res;
   try { res = await fetch(path, init); } catch { setOffline(true); throw new Error("Can't reach Jarvis. Check your Wi-Fi or VPN."); }
-  setOffline(false);
+  S.savedAt = res.headers.get("X-Jarvis-Saved"); // set when the service worker answered with the phone's saved copy
+  setOffline(!!S.savedAt, S.savedAt);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Something went wrong (${res.status}).`);
   return data;
 }
-function setOffline(on) { const el = $("#offline"); if (el) el.classList.toggle("show", on); }
+function setOffline(on, savedAt) {
+  const el = $("#offline"); if (!el) return;
+  const at = savedAt && new Date(savedAt), today = at && at.toDateString() === new Date().toDateString();
+  el.textContent = at ? `Offline · last updated ${at.toLocaleString(LOCALE, { ...(today ? {} : { weekday: "short" }), hour: "numeric", minute: "2-digit" })}`
+    : "Offline · can't reach Jarvis";
+  el.classList.toggle("show", on);
+  $("#app").classList.toggle("is-offline", on);
+}
+// While the screens show saved data, check that the computer answers before an action, rather than wait a minute.
+const OFFLINE = "Jarvis's computer is off or out of reach. This works again once it's back.";
+async function reachable() {
+  if (!S.savedAt) return true;
+  try { await fetch("/", { method: "HEAD", cache: "no-store", signal: AbortSignal.timeout(3000) }); return true; }
+  catch { return false; }
+}
 let toastTimer;
 function toast(msg) {
   const el = $("#toast"); el.textContent = msg; el.classList.add("show");
@@ -115,7 +131,7 @@ const KIND_LABEL = { reminders: "Reminder", renewals: "Bills & renewals", proble
 // ---------- state ----------
 const S = {
   route: "chat", chatId: null, chats: [], msgs: [], streaming: null, drawer: false,
-  today: null, todayErr: null, iphone: null, money: {}, period: "week", moneyErr: null, moneyTab: "spending", cards: null, cardSel: null, syncing: false,
+  today: null, todayErr: null, iphone: null, money: {}, period: "week", moneyErr: null, moneyTab: "spending", cards: null, cardSel: null, syncing: false, savedAt: null,
   moneyOn: { today: null, week: null, month: null, year: null }, cat: null, allPays: false, // null = the current period
   mic: "idle", // idle | rec | busy (turning the recording into text)
   more: null, settings: null, activity: null, unread: 0, pushState: "unknown",
@@ -173,7 +189,7 @@ async function load(name) {
     }
     if (name === "more") { S.more = await api("/api/more"); await loadActivity(false); }
     if (name === "settings") { S.settings = await api("/api/settings"); await refreshPushState(); }
-    if (name === "activity") { S.activity = await api("/api/activity", { method: "POST" }); S.unread = 0; }
+    if (name === "activity") { S.activity = await api("/api/activity", S.savedAt ? {} : { method: "POST" }); S.unread = 0; }
     if (name === "renewals" && !S.today) { S.today = await api("/api/today"); }
   } catch (e) {
     if (name === "today") S.todayErr = e.message;
@@ -304,6 +320,7 @@ function setMic(state) {
 }
 async function micToggle() {
   if (recording) { recording.stop(); return; }
+  if (!await reachable()) { toast(OFFLINE); return; }
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
   catch { toast("Allow the microphone for Jarvis to send voice messages"); return; }
@@ -370,6 +387,7 @@ async function send(text) {
       S.chatId = chat.id; S.chats.unshift(chat);
       history.replaceState(null, "", `#chat/${chat.id}`);
     }
+    if (!await reachable()) throw new Error(OFFLINE);
   } catch (e) { toast(e.message); draft = text; render(false); return; }
   const reply = { role: "assistant", text: "", tools: [], pending: true };
   S.msgs.push({ role: "user", text }, reply);
