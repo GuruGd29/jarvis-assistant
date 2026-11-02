@@ -556,5 +556,8 @@ async def options(url: str) -> dict:
             return await asyncio.wait_for(sites.page_options(url), CHECK_TIMEOUT)
         except asyncio.TimeoutError:
             raise ValueError("The page took too long to load.") from None
-        except (sites.Blocked, sites.NotFound) as error:
+        except (sites.Blocked, sites.NotFound, sites.PageChanged, RuntimeError) as error:
             raise ValueError(str(error)) from None
+        except Exception as error:  # a browser failure: say so plainly instead of a server error
+            log.warning("read page failed: %r", error)
+            raise ValueError(f"Couldn't read that page: {str(error).splitlines()[0][:160]}") from None

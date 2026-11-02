@@ -11,7 +11,7 @@ import subprocess
 import sys
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import urlencode, urlparse
 
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import async_playwright
@@ -20,6 +20,10 @@ NAV_TIMEOUT_MS = 45_000
 WINDOW = ["--window-position=-3000,-3000", "--window-size=1280,900"]
 _BLOCK_PAGE = re.compile(r"you have been blocked|attention required|access denied|unusual traffic|verify you are (a )?human"
                          r"|are you a robot", re.I)
+# Why a page didn't open, for the user: Chrome's error code -> plain words.
+_CANT_OPEN = {"ERR_NAME_NOT_RESOLVED": "doesn't exist", "ERR_SSL": "'s secure connection doesn't work",
+              "ERR_CERT": "'s secure connection doesn't work", "ERR_CONNECTION_REFUSED": "isn't answering",
+              "ERR_CONNECTION_TIMED_OUT": "isn't answering", "ERR_ADDRESS_UNREACHABLE": "can't be reached"}
 _TIME = re.compile(r"\b(\d{1,2}):(\d{2})\s*([AP]M)\b", re.I)
 
 
@@ -67,9 +71,13 @@ async def _open(page, url: str) -> None:
     try:
         response = await page.goto(url, wait_until="domcontentloaded")
     except PlaywrightError as error:
-        if "ERR_HTTP2_PROTOCOL_ERROR" in str(error) or "ERR_CONNECTION_RESET" in str(error):
+        text = str(error)
+        if "ERR_HTTP2_PROTOCOL_ERROR" in text or "ERR_CONNECTION_RESET" in text:
             raise Blocked(f"{site} refused the connection") from None
-        raise RuntimeError(f"Couldn't open {site}: {str(error).splitlines()[0][:120]}") from None
+        for code, why in _CANT_OPEN.items():
+            if code in text:
+                raise NotFound(f"{site}{'' if why.startswith("'") else ' '}{why}. Check the link.") from None
+        raise RuntimeError(f"Couldn't open {site}: {text.splitlines()[0][:120]}") from None
     if response and response.status in (403, 429):
         raise Blocked(f"{site} refused the check ({response.status})")
 
@@ -105,17 +113,29 @@ def window(day: date, leave_from: str, leave_to: str) -> tuple[datetime, datetim
 REDBUS = "https://www.redbus.in"
 
 
+async def _redbus_city(page, name: str) -> tuple[str, str]:
+    """redBus's id and name for a city, from the suggestions its search box shows as you type: so "Banglore" finds
+    Bengaluru. (Its route pages only know exact spellings and answer "undefined" otherwise.)"""
+    data = await page.evaluate(
+        "q => fetch('/rpw/api/citySuggestion?search=' + encodeURIComponent(q) + '&limit=10&routeDetection=false')"
+        ".then(r => r.ok ? r.json() : null).catch(() => null)", name)
+    docs = ((data or {}).get("response") or {}).get("docs") or []
+    city = next((d for d in docs if d.get("locationType") == "CITY"), docs[0] if docs else None)
+    if not city or not str(city.get("ID", "")).isdigit():
+        raise NotFound(f"redBus doesn't know a city called “{name}”. Check the spelling.")
+    return str(city["ID"]), city.get("locationName") or city.get("Name") or name
+
+
 async def _redbus_cities(page, src: str, dst: str) -> dict:
-    """redBus's city ids: its route page sends the browser on to a search with them in the address."""
-    await _open(page, f"{REDBUS}/bus-tickets/{_slug(src)}-to-{_slug(dst)}")
-    try:
-        await page.wait_for_function("location.search.includes('fromCityId')", timeout=20_000)
-    except PlaywrightError:
-        await _refuse_block_page(page)
-        raise NotFound(f"redBus has no buses from {src} to {dst}") from None
-    query = parse_qs(urlparse(page.url).query)
-    return {"from_id": query["fromCityId"][0], "to_id": query["toCityId"][0],
-            "from_name": query.get("fromCityName", [src])[0], "to_name": query.get("toCityName", [dst])[0]}
+    await _open(page, REDBUS)
+    await page.wait_for_timeout(1500)
+    await _refuse_block_page(page)
+    (from_id, from_name), (to_id, to_name) = await _redbus_city(page, src), await _redbus_city(page, dst)
+    return {"from_id": from_id, "to_id": to_id, "from_name": from_name, "to_name": to_name}
+
+
+def _has_cities(p: dict) -> bool:
+    return str(p.get("from_id", "")).isdigit() and str(p.get("to_id", "")).isdigit()
 
 
 def _redbus_url(p: dict, day: date) -> str:
@@ -198,7 +218,7 @@ async def redbus(p: dict, day: date) -> dict:
     resolved = {}
     found, missing = [], []
     async with browser_page() as page:
-        if not p.get("from_id"):
+        if not _has_cities(p):  # also redoes ids saved wrongly before ("undefined")
             resolved = await _redbus_cities(page, p["from"], p["to"])
             p = {**p, **resolved}
         for d in sorted({start.date(), end.date()}):
@@ -222,6 +242,7 @@ async def redbus(p: dict, day: date) -> dict:
                               "seats": bus.get("availableSeats")})
     if missing and not found:
         raise NotFound(f"redBus has {'; '.join(dict.fromkeys(missing))}.")
+    found = list({(b["name"], b["leaves"], b["fare"], b["seats"]): b for b in found}.values())  # a bus listed twice
     found.sort(key=lambda b: (b["fare"], b["leaves"]))
     return {"items": found[:12], "count": len(found), "value": found[0]["fare"] if found else None,
             "url": _redbus_url(p, start.date()), "resolved": resolved}
