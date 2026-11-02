@@ -1,4 +1,6 @@
 #!/bin/bash
+# Optional, and not part of Jarvis any more: the Jarvis app does chat, voice and files. Kept for anyone who wants
+# Open WebUI's chat screen as well (it talks to Hermes like the app does; add a Caddy site for it yourself).
 # (Re)create the Open WebUI container, pinned to an exact image so an upstream update can't change it overnight.
 # Chats and settings live in the "open-webui" volume; the login key in that volume keeps everyone signed in.
 # To upgrade on purpose: pull a new version, test it, then put its digest here.

@@ -17,9 +17,9 @@ Who does what: **You** = steps that need your Oracle login, phone or passwords.
 1. **Smaller instructions:** cut Jarvis's prompt from ~10K to ~4–5K tokens (shorter SOUL.md,
    fewer tool descriptions). The biggest speed win on a CPU server. Measure on the Mac.
 2. **Fix the morning brief** (failing since 28 Oct: times out waiting for the model).
-3. **Package the stack** as one `docker-compose.yml` (Postgres + Open WebUI + Caddy) plus
+3. **Package the stack** as one `docker-compose.yml` (Postgres + Caddy) plus
    install scripts, so the server build is repeatable.
-4. **Export script:** one command that bundles the database, Hermes state, Open WebUI data,
+4. **Export script:** one command that bundles the database, Hermes state,
    secrets and `~/Jarvis` into an encrypted archive for the move.
 
 ## Phase 1 — Create the server (You, ~20 min; Claude guides)
@@ -58,20 +58,19 @@ is common for free A1 servers.
 | Postgres + pgvector | Docker, 127.0.0.1 only | 0.3 GB |
 | Hermes gateway + Jarvis plugin | systemd service | 0.6 GB |
 | Whisper small (voice) + Piper | int8 on CPU | 0.5 GB |
-| Open WebUI | Docker, behind Caddy HTTPS on the VPN address only | 1.0 GB |
-| **Total** | | **~8–9 GB of 12** |
+| **Total** | | **~7–8 GB of 12** |
 
 - HTTPS inside the VPN (needed for the browser mic): Caddy reuses **your Mac's local CA**, so
   your iPhone, which already trusts it, needs no new certificate.
-- Hermes cron jobs move as they are (reminders, money sync, learn, titles, briefing).
-- Telegram is the main way to talk to Jarvis. Open WebUI is for occasional use. Switching
-  between them clears the one conversation cache, so the next reply is slow.
+- Hermes cron jobs move as they are (reminders, money sync, learn, briefing).
+- The Jarvis app is the main way to talk to Jarvis, with Telegram as well. Switching between
+  them clears the one conversation cache, so the next reply is slow.
 
 ## Phase 5 — Move your data (Claude, with your OK at the switch-over)
 
 1. **Stop Jarvis's Telegram on the Mac first.** Only one machine may run the bot at a time.
 2. Copy the encrypted archive from Phase 0 and restore: database, `~/.hermes` (memory, chats,
-   config, plugin, SOUL), Open WebUI data, `secrets/`, `~/Jarvis`.
+   config, plugin, SOUL), `secrets/`, `~/Jarvis`.
 3. Google: the saved sign-in keeps working on the server. When `jarvis-auth google` is due
    again, run it on the server through an SSH tunnel (Claude gives the command).
 4. iCloud Calendar works from the server unchanged.
@@ -102,7 +101,7 @@ every layer below is on from day one. Sign-in inside the app is decided at the m
 or VPN plus pairing each device once).
 
 **1. Network: nothing to attack from the internet**
-- Only WireGuard (UDP 51820) is open; SSH, the app, Open WebUI, Postgres, Ollama and Hermes listen on
+- Only WireGuard (UDP 51820) is open; SSH, the app, Postgres, Ollama and Hermes listen on
   `127.0.0.1` or the VPN address only. Oracle's security list and the server firewall both enforce it.
 - Docker publishes ports to `127.0.0.1` / the VPN address only (Docker bypasses the firewall otherwise).
 - Telegram needs no open port (Jarvis calls out to Telegram).
