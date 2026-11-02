@@ -137,7 +137,7 @@ const KIND_LABEL = { reminders: "Reminder", renewals: "Bills & renewals", proble
 const S = {
   route: "chat", chatId: null, chats: [], msgs: [], streaming: null, drawer: false,
   today: null, todayErr: null, iphone: null, money: {}, period: "week", moneyErr: null, moneyTab: "spending", cards: null, cardSel: null, syncing: false, savedAt: null,
-  watches: null, watchErr: null, watch: {}, warg: "", wtext: "", wform: null, wtest: null, wbusy: false, wstart: null,
+  watches: null, watchErr: null, watch: {}, warg: "", wtext: "", wform: null, wtest: null, wbusy: false, wstart: null, wplaces: null,
   moneyOn: { today: null, week: null, month: null, year: null }, cat: null, allPays: false, // null = the current period
   mic: "idle", // idle | rec | busy (turning the recording into text)
   more: null, settings: null, activity: null, unread: 0, pushState: "unknown",
@@ -209,6 +209,7 @@ async function load(name) {
         if (/^\d+$/.test(a) && w.found_at && !w.seen) { api(`/api/watches/${id}/seen`, { method: "POST" }).catch(() => {}); if (S.watches) S.watches = null; }
       }
       if (!id || !S.watches) S.watches = await api("/api/watches");
+      if (a === "form" && S.wform && S.wform.kind === "bus" && !S.wplaces) S.wplaces = await api("/api/watches/places");
       S.watchErr = null;
     }
     if (name === "more") { S.more = await api("/api/more"); await loadActivity(false); }
@@ -639,16 +640,31 @@ function viewWatchNew() {
     <div class="note">Rides (BlaBlaCar) can't be watched: the site blocks automatic checks.</div>`, { act: "go", v: "watches", label: "Cancel" });
 }
 
-function wfield(label, key, value, type = "text", hint = "") {
-  return `<label class="row fld"><div class="m"><div class="s">${label}</div><input data-wf="${key}" type="${type}" value="${esc(value ?? "")}" placeholder="${esc(hint)}" ${type === "number" ? 'inputmode="numeric" min="1"' : ""} autocomplete="off"></div></label>`;
+function wfield(label, key, value, type = "text", hint = "", list = "") {
+  return `<label class="row fld"><div class="m"><div class="s">${label}</div><input data-wf="${key}" type="${type}" value="${esc(value ?? "")}" placeholder="${esc(hint)}" ${type === "number" ? 'inputmode="numeric" min="1"' : ""} ${list ? `list="${list}"` : ""} autocomplete="off"></div></label>`;
+}
+// Bus routes watched before: one tap fills the route, its time window and price; only the day is left to pick.
+const sameRoute = (a, b) => ["from", "to", "boarding", "dropping"].every(k => (a[k] || "").trim().toLowerCase() === (b[k] || "").trim().toLowerCase());
+function routeNote(r) {
+  const any = (r.leave_from || "00:00") === "00:00" && (r.leave_to || "23:59") === "23:59";
+  return [r.boarding && r.boarding !== r.from ? `from ${r.boarding}` : "", any ? "any time" : `${clock12(r.leave_from)}–${clock12(r.leave_to)}`,
+    r.max_price ? `under ${fmtMoney0(r.max_price)}` : ""].filter(Boolean).join(" · ");
+}
+function pastRoutes() {
+  const P2 = S.wplaces;
+  if (!P2) return "";
+  const lists = [["wcities", P2.cities], ["wboarding", P2.boarding], ["wdropping", P2.dropping]]
+    .map(([id, names]) => `<datalist id="${id}">${(names || []).map(n => `<option value="${esc(n)}"></option>`).join("")}</datalist>`).join("");
+  const chips = (P2.routes || []).slice(0, 4).map((r, i) => `<button class="${sameRoute(r, S.wform.params) ? "on" : ""}" data-act="watch-route" data-v="${i}">${esc(r.from)} → ${esc(r.to)}<small>${esc(routeNote(r))}</small></button>`).join("");
+  return `${lists}${chips ? `<div class="sec" style="margin-top:6px">Your routes</div><div class="chips" style="margin-bottom:12px">${chips}</div>` : ""}`;
 }
 
 function viewWatchForm() {
   const f = S.wform, p = f.params, t = S.wtest;
   let fields = "";
-  if (f.kind === "bus") fields = `<div class="card">
-    ${wfield("From (city)", "from", p.from, "text", "e.g. Bangalore")}${wfield("Boarding point (optional)", "boarding", p.boarding, "text", "e.g. Silk Board")}
-    ${wfield("To (city)", "to", p.to, "text", "e.g. Chennai")}${wfield("Dropping point (optional)", "dropping", p.dropping, "text", "e.g. Tambaram")}
+  if (f.kind === "bus") fields = `${pastRoutes()}<div class="card">
+    ${wfield("From (city)", "from", p.from, "text", "e.g. Bangalore", "wcities")}${wfield("Boarding point (optional)", "boarding", p.boarding, "text", "e.g. Silk Board", "wboarding")}
+    ${wfield("To (city)", "to", p.to, "text", "e.g. Chennai", "wcities")}${wfield("Dropping point (optional)", "dropping", p.dropping, "text", "e.g. Tambaram", "wdropping")}
     ${wfield("Date", "day", f.day, "date")}
     <div class="row fld"><div class="m"><div class="s">Leaving between</div><div class="times"><input data-wf="leave_from" type="time" value="${esc(p.leave_from || "00:00")}"> and <input data-wf="leave_to" type="time" value="${esc(p.leave_to || "23:59")}"></div></div></div>
     ${wfield("Tell me when the cheapest is under ₹ (optional)", "max_price", p.max_price, "number", "e.g. 500")}</div>`;
@@ -947,6 +963,11 @@ document.addEventListener("click", async e => {
       break;
     }
     case "watch-every-form": S.wform.every = Number(v); render(false); break;
+    case "watch-route": {
+      const r = S.wplaces.routes[Number(v)], f = S.wform.params;
+      ["from", "to", "boarding", "dropping", "leave_from", "leave_to", "max_price", "from_id", "to_id", "from_name", "to_name"].forEach(k => delete f[k]);
+      Object.assign(f, { leave_from: "00:00", leave_to: "23:59" }, r); S.wtest = null; render(false); break;
+    }
     case "watch-read": {
       S.wbusy = "read"; render(false);
       try { const r = await api("/api/watches/read", { method: "POST", body: { url: S.wform.params.url } }); S.wform.options = r.options; S.wform.params.name = r.title; }
@@ -969,7 +990,7 @@ document.addEventListener("click", async e => {
       try {
         const w = f.id ? await api(`/api/watches/${f.id}`, { method: "PUT", body: { params: f.params, every: f.every, day: f.day } })
           : await api("/api/watches", { method: "POST", body: { kind: f.kind, params: f.params, day: f.day, every: f.every } });
-        S.wbusy = false; S.watches = null; S.wform = null; S.wtest = null; delete S.watch[w.id];
+        S.wbusy = false; S.watches = null; S.wform = null; S.wtest = null; S.wplaces = null; delete S.watch[w.id];
         toast(f.id ? "Saved" : "Watching. Jarvis tells you when it finds it."); navigate(`#watches/${w.id}`);
       } catch (err) { S.wbusy = false; render(false); toast(err.message); }
       break;

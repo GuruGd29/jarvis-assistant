@@ -62,6 +62,23 @@ class Filling(unittest.TestCase):
         self.assertEqual((form["kind"], form["params"]["url"]), ("page", "https://www.amazon.in/dp/B09XS7JWHH"))
 
 
+class Routes(unittest.TestCase):
+    def test_past_routes_newest_first_once_each(self):
+        a = {"from": "Bangalore ", "to": "Madurai", "leave_from": "20:00", "leave_to": "02:00", "max_price": 800,
+             "from_id": "122"}
+        b = {"from": "Bangalore", "to": "Chennai", "boarding": "Silk Board", "dropping": "Tambaram"}
+        routes = watches.remembered(watches.remembered([], a), b)
+        self.assertEqual([r["to"] for r in routes], ["Chennai", "Madurai"])
+        self.assertEqual(routes[1], {"from": "Bangalore", "to": "Madurai", "leave_from": "20:00", "leave_to": "02:00",
+                                     "max_price": 800})  # only what the form needs, tidied
+        again = watches.remembered(routes, {**a, "max_price": 600})
+        self.assertEqual([(r["to"], r.get("max_price")) for r in again], [("Madurai", 600), ("Chennai", None)])
+        many = []
+        for i in range(30):
+            many = watches.remembered(many, {"from": "A", "to": f"Town {i}"})
+        self.assertEqual((len(many), many[0]["to"]), (watches.KEEP_ROUTES, "Town 29"))
+
+
 class Reading(unittest.TestCase):
     def test_a_night_window_ends_the_next_morning(self):
         start, end = sites.window(date(2026, 11, 6), "20:00", "02:00")
