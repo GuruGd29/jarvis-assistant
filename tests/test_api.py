@@ -97,6 +97,7 @@ class BadInput(unittest.TestCase):
         self.check(400, "/api/settings", "PUT", {"quiet": {"from": "25:99"}})
         self.check(400, "/api/push/subscribe", "POST", {"endpoint": "not-a-url"})
         self.check(404, "/api/tasks/999999999/done", "POST", {"done": True})
+        self.assertEqual(call("/api/money/sync")[0], 405)  # only a POST reads the bank emails
 
 
 if __name__ == "__main__":

@@ -4,7 +4,8 @@ Most banks email you after every payment ("Rs. 450 debited from your account end
 those alerts from Gmail, every 30 minutes, into a table of transactions. Totals are then **added up by the database,
 not by the AI**, so "How much did I spend this week?" gets an exact answer, and the app's **Money** screen shows
 spending by day, week, month and category. If the computer was off or asleep, the next run reads back to the last
-saved payment (up to 90 days), so nothing is missed.
+saved payment (up to 90 days), so nothing is missed. To see a payment you just made without waiting, tap the
+refresh button next to **Money** at the top of the screen: it reads the new alerts at once.
 
 You need [Google connected](google.md) first. All of this stays on your machine.
 
