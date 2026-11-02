@@ -43,6 +43,10 @@ MODELS_DIR = SYSTEM_DIR / "models"
 # Voice messages: whisper.cpp's server with this model (docs/voice.md); without the file the app has no mic button.
 WHISPER_MODEL = Path(os.environ.get("JARVIS_WHISPER_MODEL") or MODELS_DIR / "ggml-large-v3-turbo-q8_0.bin").expanduser()
 WHISPER_PORT = int(os.environ.get("JARVIS_WHISPER_PORT", "8793"))
+# Names the voice model should expect (apps, banks, people, places), so it spells them right instead of guessing.
+VOICE_WORDS = os.environ.get("JARVIS_VOICE_WORDS", "Jarvis")
+# Keep the last N voice messages and their text in logs/voice/ to check how well it hears you (0 = keep none).
+VOICE_KEEP = int(os.environ.get("JARVIS_VOICE_KEEP", "0"))
 
 # ~600 tokens per chunk; overlap keeps a sentence that straddles a boundary findable.
 CHUNK_CHARS = int(os.environ.get("JARVIS_CHUNK_CHARS", "2400"))

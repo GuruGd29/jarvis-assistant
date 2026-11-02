@@ -30,5 +30,20 @@ Build whisper.cpp ([its README](https://github.com/ggml-org/whisper.cpp#quick-st
 JARVIS_WHISPER_MODEL=/home/ubuntu/jarvis-system/models/ggml-small-q8_0.bin
 ```
 
+## Getting names right
+
+Whisper knows common words but not your names, so "BookMyShow" can come out as "book video". List the apps, banks,
+people and places you say often in `.env`, then restart the app:
+
+```
+JARVIS_VOICE_WORDS=Jarvis, BookMyShow, Zomato, Swiggy, HDFC, ICICI, Telegram, Velachery
+```
+
+Each message is also decoded carefully (5 candidates rather than the first guess). On a test clip with background
+noise this turned "Paramburu" and "Vela Cherry" into "Paramaguru" and "Velachery", at the same speed.
+
+To see how well it hears you, set `JARVIS_VOICE_KEEP=10`: the last 10 voice messages and the text each became are
+kept in `logs/voice/` (on this computer only; older ones are deleted as new ones arrive).
+
 `JARVIS_WHISPER_PORT` (default 8793) is the local port the app talks to whisper.cpp on. Its log is
 `logs/whisper.log`.
