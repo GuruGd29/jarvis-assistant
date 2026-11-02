@@ -241,7 +241,7 @@ input[type="time"] { font: 500 15px var(--font); padding: 5px 8px; border-radius
 .btn { text-align: center; }
 a.btn { display: inline-block; text-decoration: none; }
 a.btn.wide { display: block; }
-.fld .s { margin: 0 0 2px; }
+.fld .s { margin: 0 0 2px; white-space: normal; }
 .fld .t { white-space: normal; }
 .fld input { width: 100%; font: 500 15.5px/1.3 var(--font); padding: 2px 0; }
 .fld input::placeholder { color: var(--text-3); font-weight: 400; }

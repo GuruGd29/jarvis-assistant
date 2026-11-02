@@ -181,7 +181,7 @@ def form_from(a: dict, text: str, today: date) -> dict:
         named = places(text)
         if named:
             for place, city, key in ((named[0], "from", "boarding"), (named[1], "to", "dropping")):
-                if not params[key] and sites._norm(place) != sites._norm(params[city] or place):
+                if not params[key] and not sites.same_place(place, params[city] or place):
                     params[key] = place
                 params[city] = params[city] or place
     elif kind == "movie":
@@ -201,8 +201,9 @@ def last_city() -> str:
     return (row or {}).get("city") or ""
 
 
-def clean(kind: str, params: dict, day: str | None) -> tuple[dict, date | None]:
-    """Checked details, or ValueError with what to fix."""
+def clean(kind: str, params: dict, day: str | None, new_day: bool = True) -> tuple[dict, date | None]:
+    """Checked details, or ValueError with what to fix. `new_day` False: the day was not changed (a saved watch's
+    details can be edited after its day has passed)."""
     if kind not in KINDS:
         raise ValueError("Pick bus, movie or web page.")
     p = {k: v for k, v in (params or {}).items() if v not in (None, "", [])}
@@ -210,12 +211,15 @@ def clean(kind: str, params: dict, day: str | None) -> tuple[dict, date | None]:
     if kind != "page":
         if not when:
             raise ValueError("Pick the day to watch.")
-        if when < _now().date():
+        if new_day and when < _now().date():
             raise ValueError("That day has passed. Pick today or a later day.")
     if kind == "bus":
         if not p.get("from") or not p.get("to"):
             raise ValueError("Fill in both cities: where from and where to.")
         p["leave_from"], p["leave_to"] = _clock_or(p.get("leave_from"), "00:00"), _clock_or(p.get("leave_to"), "23:59")
+        for point, city in (("boarding", "from"), ("dropping", "to")):
+            if p.get(point) and sites.same_place(p[point], p[city]):
+                del p[point]  # "Banglore" as a boarding point in Bangalore: anywhere in the city
         if p.get("max_price") is not None:
             p["max_price"] = _positive(p["max_price"], "The price")
     elif kind == "movie":
@@ -385,24 +389,38 @@ def start(watch_id: int, day: str | None, every: int | None) -> dict:
     return _row(row)
 
 
-def change(watch_id: int, params: dict | None = None, every: int | None = None, paused: bool | None = None) -> dict:
+# Details a site was looked up from, and what was looked up: a new city, movie or link needs a new look-up.
+_LOOKED_UP = ((("from", "to"), ("from_id", "to_id", "from_name", "to_name")),
+              (("movie", "city"), ("code", "slug", "city_slug", "movie_name")),
+              (("url",), ("selector", "what", "sample", "baseline")))
+
+
+def change(watch_id: int, params: dict | None = None, every: int | None = None, paused: bool | None = None,
+           day: str | None = None) -> dict:
     w = get(watch_id)
     p = w["params"]
-    if params is not None:
-        p, _ = clean(w["kind"], {**p, **params}, w.get("watch_on"))
+    day = day or w.get("watch_on")
+    if params is not None or day != w.get("watch_on"):
+        new = {**p, **(params or {})}
+        for asked, found in _LOOKED_UP:
+            if any(new.get(k) != p.get(k) for k in asked):
+                for key in found:
+                    if key not in (params or {}):
+                        new.pop(key, None)
+        p, _ = clean(w["kind"], new, day, new_day=day != w.get("watch_on"))
     every = every if every in EVERY[w["kind"]] else w["every_minutes"]
     state = w["state"]
     if paused is True and state == "watching":
         state = "paused"
     elif paused is False and state == "paused":
         state = "watching"
-    when = date.fromisoformat(w["watch_on"]) if w.get("watch_on") else None
+    when = date.fromisoformat(day) if day else None
     with _db() as conn:
         row = conn.execute(
-            "UPDATE watches SET params = %s, title = %s, every_minutes = %s, state = %s, until_at = %s, "
+            "UPDATE watches SET params = %s, title = %s, every_minutes = %s, state = %s, watch_on = %s, until_at = %s, "
             "next_at = CASE WHEN %s = 'watching' THEN now() ELSE NULL END WHERE id = %s RETURNING *",
-            (Jsonb(p), title_for(w["kind"], p), every, state, until_for(w["kind"], p, when) if when else None, state,
-             watch_id)).fetchone()
+            (Jsonb(p), title_for(w["kind"], p), every, state, when, until_for(w["kind"], p, when) if when else None,
+             state, watch_id)).fetchone()
     return _row(row)
 
 
