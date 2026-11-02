@@ -42,6 +42,15 @@ class Filling(unittest.TestCase):
                                           "dropping": "Tambaram", "leave_from": "20:00", "leave_to": "02:00",
                                           "max_price": 500})
 
+    def test_a_misspelt_city_is_the_city_not_a_boarding_point(self):
+        model = {"kind": "bus", "from_city": "Bangalore", "to_city": "Mannargudi", "day": "Thursday", "max_price": 500}
+        params = watches.form_from(model, "Banglore to Mannargudi on Thursday night under 500", MONDAY)["params"]
+        self.assertEqual((params["from"], params["boarding"], params["dropping"]), ("Bangalore", "", ""))
+        for a, b in [("Banglore", "Bangalore"), ("Bengaluru", "Bangalore"), ("Madras", "Chennai"), ("Trichy", "Tiruchirappalli")]:
+            self.assertTrue(sites.same_place(a, b), (a, b))
+        for a, b in [("Silk Board", "Bangalore"), ("Tambaram", "Chennai"), ("Majestic", "Bengaluru")]:
+            self.assertFalse(sites.same_place(a, b), (a, b))
+
     def test_a_place_the_user_never_said_is_dropped(self):
         model = {"kind": "bus", "from_city": "Bangalore", "to_city": "Chennai", "boarding_point": "Majestic",
                  "dropping_point": "Tambaram", "day": "tonight", "max_price": None}
@@ -131,6 +140,9 @@ class Finding(unittest.TestCase):
             watches.clean("bus", {"from": "A", "to": "B"}, "2020-01-01")
         with self.assertRaisesRegex(ValueError, "Read page"):
             watches.clean("page", {"url": "https://example.com"}, None)
+        params, _ = watches.clean("bus", {"from": "Bangalore", "to": "Chennai", "boarding": "Banglore",
+                                          "dropping": "Tambaram"}, "2099-01-01")
+        self.assertEqual((params.get("boarding"), params.get("dropping")), (None, "Tambaram"))
         params, day = watches.clean("bus", {"from": "A", "to": "B", "max_price": "499"}, "2099-01-01")
         self.assertEqual((params["max_price"], params["leave_from"], day), (499, "00:00", date(2099, 1, 1)))
 

@@ -268,7 +268,8 @@ async def watch_change(request: Request) -> Response:
     body = await _body(request)
     paused = body.get("paused") if isinstance(body.get("paused"), bool) else None
     try:
-        return _json(await run_in_threadpool(watches.change, _watch_id(request), body.get("params"), _every(body), paused))
+        return _json(await run_in_threadpool(watches.change, _watch_id(request), body.get("params"), _every(body), paused,
+                                             body.get("day")))
     except LookupError:
         return _error("no such watch", 404)
     except ValueError as error:

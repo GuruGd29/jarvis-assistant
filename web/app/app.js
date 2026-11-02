@@ -559,7 +559,7 @@ function watchRow(w, section) {
   const right = section === "found"
     ? `<div class="rt">${w.found && w.found.value != null ? `<span class="v">${fmtMoney0(w.found.value)}</span>` : ""}<span class="tag found">Found</span></div>`
     : section === "saved" ? `<button class="btn s" data-act="watch-start-open" data-v="${w.id}">Start</button>`
-    : `<div class="rt"><span class="tag ${broken ? "warn" : "dim"}">${w.state === "paused" ? "Paused" : broken ? "Check" : "Watching"}</span></div>`;
+    : w.state === "paused" || broken ? `<div class="rt"><span class="tag ${broken ? "warn" : "dim"}">${w.state === "paused" ? "Paused" : "Check"}</span></div>` : "";
   const third = section === "found" ? esc(w.found ? w.found.text : "")
     : section === "saved" ? (w.last_on ? `Last used ${shortDay(w.last_on)}${w.last_best != null ? ` · lowest ${fmtMoney0(w.last_best)}` : ""}` : "Ready to start")
     : watchNow(w);
@@ -647,14 +647,14 @@ function viewWatchForm() {
   const f = S.wform, p = f.params, t = S.wtest;
   let fields = "";
   if (f.kind === "bus") fields = `<div class="card">
-    ${wfield("From (city)", "from", p.from, "text", "Bangalore")}${wfield("Boarding point (optional)", "boarding", p.boarding, "text", "Silk Board")}
-    ${wfield("To (city)", "to", p.to, "text", "Chennai")}${wfield("Dropping point (optional)", "dropping", p.dropping, "text", "Tambaram")}
+    ${wfield("From (city)", "from", p.from, "text", "e.g. Bangalore")}${wfield("Boarding point (optional)", "boarding", p.boarding, "text", "e.g. Silk Board")}
+    ${wfield("To (city)", "to", p.to, "text", "e.g. Chennai")}${wfield("Dropping point (optional)", "dropping", p.dropping, "text", "e.g. Tambaram")}
     ${wfield("Date", "day", f.day, "date")}
     <div class="row fld"><div class="m"><div class="s">Leaving between</div><div class="times"><input data-wf="leave_from" type="time" value="${esc(p.leave_from || "00:00")}"> and <input data-wf="leave_to" type="time" value="${esc(p.leave_to || "23:59")}"></div></div></div>
-    ${wfield("Tell me when the cheapest is under (₹, optional)", "max_price", p.max_price, "number", "500")}</div>`;
+    ${wfield("Tell me when the cheapest is under ₹ (optional)", "max_price", p.max_price, "number", "e.g. 500")}</div>`;
   else if (f.kind === "movie") fields = `<div class="card">
-    ${wfield("Movie (name or BookMyShow link)", "movie", p.movie, "text", "Jailer 2")}${wfield("City", "city", p.city, "text", "Bengaluru")}
-    ${wfield("Theatres (optional, separated by commas)", "theatres", (p.theatres || []).join(", "), "text", "PVR Forum, Nexus")}
+    ${wfield("Movie (name or BookMyShow link)", "movie", p.movie, "text", "e.g. Jailer 2")}${wfield("City", "city", p.city, "text", "e.g. Bengaluru")}
+    ${wfield("Theatres (optional, separated by commas)", "theatres", (p.theatres || []).join(", "), "text", "e.g. PVR Forum, Nexus")}
     ${wfield("Date", "day", f.day, "date")}${wfield("Shows after", "after", p.after || "00:00", "time")}</div>`;
   else {
     const opts = f.options || [];
@@ -967,7 +967,7 @@ document.addEventListener("click", async e => {
     case "watch-save": {
       const f = S.wform; S.wbusy = "save"; render(false);
       try {
-        const w = f.id ? await api(`/api/watches/${f.id}`, { method: "PUT", body: { params: f.params, every: f.every } })
+        const w = f.id ? await api(`/api/watches/${f.id}`, { method: "PUT", body: { params: f.params, every: f.every, day: f.day } })
           : await api("/api/watches", { method: "POST", body: { kind: f.kind, params: f.params, day: f.day, every: f.every } });
         S.wbusy = false; S.watches = null; S.wform = null; S.wtest = null; delete S.watch[w.id];
         toast(f.id ? "Saved" : "Watching. Jarvis tells you when it finds it."); navigate(`#watches/${w.id}`);

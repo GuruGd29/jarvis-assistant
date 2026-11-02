@@ -5,6 +5,7 @@ off-screen, loads as few pages as it needs and closes it. On a Mac, keyboard foc
 user was in. Nothing here gets around a block: a site that refuses raises Blocked, and the watch tells the user.
 """
 import asyncio
+import difflib
 import os
 import re
 import subprocess
@@ -97,6 +98,26 @@ def _words(text: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", (text or "").lower()))
 
 
+# Other names people use for the same city; anything spelt closely enough also counts ("Banglore").
+_SAME_CITY = [{"bengaluru", "bangalore", "bengalooru"}, {"chennai", "madras"}, {"mumbai", "bombay"},
+              {"kolkata", "calcutta"}, {"tiruchirappalli", "trichy", "tiruchy", "tiruchi"}, {"kochi", "cochin"},
+              {"thiruvananthapuram", "trivandrum"}, {"puducherry", "pondicherry", "pondy"}, {"mysuru", "mysore"},
+              {"mangaluru", "mangalore"}, {"thanjavur", "tanjore"}, {"coimbatore", "kovai"},
+              {"visakhapatnam", "vizag"}, {"vijayawada", "bezawada"}]
+
+
+def same_place(a: str, b: str) -> bool:
+    """Two names for one city: "Banglore" and "Bangalore", "Bengaluru" and "Bangalore"."""
+    a, b = _norm(a), _norm(b)
+    if not a or not b:
+        return False
+    if a == b or difflib.SequenceMatcher(None, a, b).ratio() >= 0.8:
+        return True
+    near = lambda x: {n for group in _SAME_CITY for n in group
+                      if any(difflib.SequenceMatcher(None, x, g).ratio() >= 0.8 for g in group)}
+    return bool(near(a) & near(b))
+
+
 def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
@@ -123,7 +144,8 @@ async def _redbus_city(page, name: str) -> tuple[str, str]:
     city = next((d for d in docs if d.get("locationType") == "CITY"), docs[0] if docs else None)
     if not city or not str(city.get("ID", "")).isdigit():
         raise NotFound(f"redBus doesn't know a city called “{name}”. Check the spelling.")
-    return str(city["ID"]), city.get("locationName") or city.get("Name") or name
+    found = city.get("locationName") or city.get("Name") or name
+    return str(city["ID"]), re.sub(r"\s*\(All Locations\)", "", found, flags=re.I)  # redBus's name for the whole city
 
 
 async def _redbus_cities(page, src: str, dst: str) -> dict:
@@ -223,8 +245,11 @@ async def redbus(p: dict, day: date) -> dict:
             p = {**p, **resolved}
         for d in sorted({start.date(), end.date()}):
             buses, filters = await _redbus_day(page, p, d)
-            boarding, b_names = _stops(filters.get("gridBoardingPoints") or {}, p.get("boarding"))
-            dropping, d_names = _stops(filters.get("gridDroppingPoints") or {}, p.get("dropping"))
+            # A "point" that is only the city's name spelt another way means anywhere in the city.
+            board = "" if any(same_place(p.get("boarding"), p.get(k)) for k in ("from", "from_name")) else p.get("boarding")
+            drop = "" if any(same_place(p.get("dropping"), p.get(k)) for k in ("to", "to_name")) else p.get("dropping")
+            boarding, b_names = _stops(filters.get("gridBoardingPoints") or {}, board)
+            dropping, d_names = _stops(filters.get("gridDroppingPoints") or {}, drop)
             if boarding == set():
                 missing.append(f"no boarding point called “{p['boarding']}” (it has {', '.join(b_names[:6])})")
             if dropping == set():
@@ -262,6 +287,7 @@ async def bookmyshow_movie(name: str, city: str) -> dict:
     if match:
         return {"city": match.group(1) or _slug(city), "slug": match.group(2), "code": match.group(3)}
     want = _norm(name)
+    near = []  # titles that contain the name: "Rajini: The Jailer 2" for "Jailer 2", used only if none is exact
     for listing in (f"/explore/movies-{_slug(city)}", f"/explore/upcoming-movies-{_slug(city)}"):
         async with browser_page() as page:
             await _open(page, BMS + listing)
@@ -271,9 +297,15 @@ async def bookmyshow_movie(name: str, city: str) -> dict:
                                         ".map(a => [a.innerText.split('\\n')[0], a.href])")
         for title, href in links:
             match = _BMS_MOVIE.search(href or "")
-            if match and want and (_norm(title) == want or (len(want) > 3 and want in _norm(title))):
-                return {"city": match.group(1) or _slug(city), "slug": match.group(2), "code": match.group(3),
-                        "movie": title}
+            if not match or not want:
+                continue
+            movie = {"city": match.group(1) or _slug(city), "slug": match.group(2), "code": match.group(3), "movie": title}
+            if _norm(title) == want:
+                return movie
+            if len(want) > 3 and want in _norm(title):
+                near.append(movie)
+    if near:
+        return min(near, key=lambda m: len(_norm(m["movie"])))
     raise NotFound(f"BookMyShow has no “{name}” in {city.title()} yet. Paste the movie's BookMyShow link instead.")
 
 
