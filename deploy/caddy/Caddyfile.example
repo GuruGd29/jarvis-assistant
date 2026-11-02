@@ -1,14 +1,9 @@
-# Jarvis: HTTPS in front of Open WebUI so phones on the home Wi-Fi can use the microphone
+# Jarvis: HTTPS in front of the Jarvis web app, so phones on the home Wi-Fi can install it and use the microphone
 # (browsers only allow the mic on secure pages). Certificates come from Caddy's own local CA;
 # the phone trusts it once by installing root.crt from the http address below.
 {
 	local_certs
 	skip_install_trust
-}
-
-https://your-mac.local:3443, https://192.168.1.10:3443, https://localhost:3443 {
-	tls internal
-	reverse_proxy 127.0.0.1:3000
 }
 
 # The Jarvis web app (Home Screen app). Replies stream, so responses are flushed straight away.
