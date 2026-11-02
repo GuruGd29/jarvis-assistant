@@ -29,8 +29,8 @@ Also: <a href="docs/screenshots/more.png">More screen</a> · <a href="docs/scree
 
 | | |
 |---|---|
-| 💬 **Chat** | Ask anything, in English or your own language (Tamil and Tanglish are tested weekly). It replies in the language you write in, and can read replies aloud. Tap the mic to speak instead of typing: the speech becomes text on your own computer ([docs/voice.md](docs/voice.md)). |
-| 📄 **Your files** | Put documents in `~/Jarvis` (PDF, Word, text, Markdown, CSV). Jarvis indexes them and answers from them, naming the file: *"Your car insurance renews on 15 December 2026. Source: car-insurance.md"*. It can also copy one Google Drive folder when you say "sync drive". |
+| 💬 **Chat** | Ask anything, in English or your own language (Tamil and Tanglish are tested weekly). It replies in the language you write in, and can read replies aloud. Tap the mic to speak instead of typing: the speech becomes text on your own computer ([docs/voice.md](docs/voice.md)). The paperclip attaches a file to that chat only ([docs/files.md](docs/files.md)). |
+| 📄 **Your files** | Put documents in `~/Jarvis` (PDF, Word, text, Markdown, CSV). Jarvis indexes them and answers from them, naming the file: *"Your car insurance renews on 15 December 2026. Source: car-insurance.md"*. It can also copy one Google Drive folder when you say "sync drive". In the app, **More → Your files** adds a document from your phone or computer and makes it searchable at once. |
 | 📅 **Calendar and tasks** | Reads Google and iCloud calendars, keeps its own tasks with reminders, and can read your iPhone Reminders. It adds a calendar event only after you say yes. |
 | 📧 **Email** | Reads Gmail (read-only) to summarise your inbox. It can never send, reply or delete. |
 | 💰 **Money** | Turns your bank's alert emails into exact spending totals by day, week, month and category, plus a **Cards** view: each credit card's bill, part payments, amount left and due date. Totals are worked out by the database, never guessed by the AI. |
