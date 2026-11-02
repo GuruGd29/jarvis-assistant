@@ -453,10 +453,11 @@ def insights(start: str, end: str) -> dict:
             "note": "From bank alert emails only; categories are guessed from merchant names."}
 
 
-_MONEY_WORDS = re.compile(r"\b(spen[dt]|spending|expenses?|paid|pay(ment)?s?|transactions?|debited|credited|"
-                          r"received|money|upi|how much)\b"
+_ENGLISH_MONEY_WORDS = (r"\b(spen[dt]|spending|expenses?|paid|pay(ment)?s?|transactions?|debited|credited|"
+                        r"received|money|upi|how much)\b")
+_MONEY_WORDS = re.compile(_ENGLISH_MONEY_WORDS
                           # Tamil and Tanglish stems ("selavu", "kattinen"); Tamil vowel signs are not \w, so no \b there.
-                          r"|\b(selav|chelav|panam|kaasu|kasu|kattin|anuppin)|செலவ|பணம்|காசு|கட்டண|கட்டின|செலுத்த|அனுப்பின", re.I)
+                          + r"|\b(selav|chelav|panam|kaasu|kasu|kattin|anuppin)|செலவ|பணம்|காசு|கட்டண|கட்டின|செலுத்த|அனுப்பின", re.I)
 # Periods in English, Tamil and Tanglish; "last week" is checked before "week", and so on.
 _YESTERDAY = re.compile(r"yesterday|நேற்று|நேத்து|\bne(t|th)(r|th)?u|\bnethaiku|\bnethiku", re.I)
 _LAST = r"(?:last|pona|pone|kadantha|போன|கடந்த)\s*"
@@ -502,6 +503,15 @@ def period_from_text(text: str, today: date | None = None) -> tuple[str, str] | 
     if all(m.group(0).lower() in ("pay", "pays", "payment", "payments", "how much") for m in _MONEY_WORDS.finditer(text)):
         return None
     return str(today), str(today)
+
+
+def in_english(text: str, period: tuple[str, str]) -> str | None:
+    """'indha vaaram evlo selavu?' -> 'How much did I spend from 2026-10-26 to 2026-11-01?', for the small model,
+    which often did not understand Tanglish; None when the question already has English money words."""
+    if re.search(_ENGLISH_MONEY_WORDS, text or "", re.I):
+        return None
+    return f"How much did I spend on {period[0]}?" if period[0] == period[1] else \
+        f"How much did I spend from {period[0]} to {period[1]}?"
 
 
 def main() -> None:

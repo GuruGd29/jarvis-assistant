@@ -181,11 +181,9 @@ def format_calendar(a: dict[str, Any]) -> str:
 def format_money(s: dict[str, Any]) -> str:
     d = s["display"]  # totals already written in the user's currency and number style
     # Without "no need to call spending_summary" the model fetched the same totals again, and reading that tool's
-    # answer took minutes on a 2-core server (the calendar block says the same for the same reason). "The message
-    # asks about" is for Tanglish: given the totals for "indha vaaram evlo selavu?" alone, the model said it did not
-    # understand the question.
-    lines = [f"[Jarvis money (EXACT) for {s['period']}; the message asks about the user's money in this period: "
-             "quote these totals; no need to call spending_summary for these dates]",
+    # answer took minutes on a 2-core server (the calendar block says the same for the same reason).
+    lines = [f"[Jarvis money (EXACT) for {s['period']}: quote these totals; no need to call spending_summary for "
+             "these dates]",
              f"Spending total: {d['spending_total']} ({len(s['spending'])} payments)"]
     lines += [f"- {item}" for item in s["spending"][:MAX_MONEY_LINES]]
     if len(s["spending"]) > MAX_MONEY_LINES:
@@ -194,6 +192,9 @@ def format_money(s: dict[str, Any]) -> str:
                  f"Own-account transfers: {d['own_account_transfers_total']} | "
                  f"Card bill payments (in spending): {d['card_bill_payments_total']} | "
                  f"Card purchases (not in spending): {d['credit_card_purchases_total']}")
+    if s.get("in_english"):
+        # Given the totals for "indha vaaram evlo selavu?" alone, the model often said it did not understand.
+        lines.append(f"[The user wrote in Tamil or Tanglish; roughly: \"{s['in_english']}\"]")
     return "\n".join(lines)
 
 
