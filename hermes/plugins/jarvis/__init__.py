@@ -141,6 +141,15 @@ kaattu kaatu pakkam ellam ellaam innaiku inniki inaiku inru nethu netru vaaram v
 padikkatha padikatha padikaatha minnanjal""".split())
 
 
+# A file attached to one chat in the app (jarvis/web/files.py) comes inside the user's message. It is for that
+# conversation only: never searched against, learned from or read as a command, so it is cut out first.
+_CHAT_FILE = re.compile(r"\[Attached to this chat only \(not saved to the user's files\): [^\n]*\]\n<<<FILE\n[\s\S]*?\nFILE>>>\n?")
+
+
+def own_words(text: str) -> str:
+    return _CHAT_FILE.sub("", text or "").strip()
+
+
 def email_query(message: str) -> Optional[str]:
     """Gmail search for a message that asks about email, e.g. 'what did amazon email me about' -> 'amazon newer_than:30d'."""
     if not _EMAIL_WORDS.search(message or ""):
@@ -248,6 +257,7 @@ class JarvisMemoryProvider(MemoryProvider):
         # calendar change can be approved. A clear "yes" approves the newest proposal.
         if kwargs.get("author_is_bot"):
             return
+        message = own_words(message)
         self._quick_reply_note = None
         self._memory_note = None
         try:
@@ -293,6 +303,7 @@ class JarvisMemoryProvider(MemoryProvider):
         return "\n".join(lines)
 
     def prefetch(self, query: str, *, session_id: str = "") -> str:
+        query = own_words(query)
         attachment_note = getattr(self, "_attachment_note", None) or self._save_attachments(query)
         self._attachment_note = None
         block = self._context(query)
@@ -370,7 +381,7 @@ class JarvisMemoryProvider(MemoryProvider):
     def sync_turn(self, user_content: str, assistant_content: str, *, session_id: str = "", **kwargs) -> None:
         # Queue only; extracting facts here would hold up the reply and evict the chat model's prompt cache.
         author = kwargs.get("turn_author") or {}
-        text = (user_content or "").strip()
+        text = own_words(user_content)
         if not self._enabled or author.get("is_bot") or len(text) < 15 or _NOT_WORTH_LEARNING.match(text):
             return
         if _MEMORY_COMMAND.match(text):

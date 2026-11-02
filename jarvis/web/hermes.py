@@ -10,6 +10,7 @@ from pathlib import Path
 import httpx
 
 from .. import config
+from . import files
 
 HERMES = os.environ.get("JARVIS_HERMES_URL", "http://127.0.0.1:8642")
 
@@ -71,7 +72,8 @@ async def messages(session_id: str) -> list[dict]:
     out, tools = [], []
     for m in raw:
         if m.get("role") == "user" and m.get("content"):
-            out.append({"role": "user", "text": m["content"]})
+            attached, own = files.split_message(m["content"])  # a file attached to the chat shows as a chip
+            out.append({"role": "user", "text": own, **({"file": attached} if attached else {})})
             tools = []
         elif m.get("role") == "tool" and m.get("tool_name"):
             label = tool_label(m["tool_name"])

@@ -4,7 +4,7 @@ const SHELL = "jarvis-shell-v1";
 const DATA = "jarvis-data-v1";
 const SHELL_FILES = ["/", "/static/app.css", "/static/app.js", "/static/icons/icon-192.png", "/manifest.webmanifest"];
 // The screens' data, saved for reading offline. Chat replies, health and push always need the computer.
-const SAVED_API = /^\/api\/(today|iphone-reminders|money|cards|more|settings|activity|chats|watches)/;
+const SAVED_API = /^\/api\/(today|iphone-reminders|money|cards|more|settings|activity|chats|watches|files)/;
 // Every screen answers in well under a second when the computer is reachable (0.25 s at most, measured); when it is
 // off, the phone can wait a minute for an answer that never comes. After this long the saved copy is shown.
 const WAIT_MS = 4000;

@@ -319,9 +319,10 @@ a.btn.wide { display: block; }
   .scroll { padding: 26px max(40px, calc((100% - 1600px) / 2)) 48px; scrollbar-width: thin; container-type: inline-size; }
   .view.sub .scroll, .view.sub.w .scroll { padding-bottom: 48px; }
   #app[data-route="more"] .scroll, #app[data-route="settings"] .scroll, #app[data-route="activity"] .scroll,
-  #app[data-route="renewals"] .scroll { padding-left: max(40px, calc((100% - 680px) / 2)); padding-right: max(40px, calc((100% - 680px) / 2)); }
+  #app[data-route="renewals"] .scroll, #app[data-route="files"] .scroll { padding-left: max(40px, calc((100% - 680px) / 2)); padding-right: max(40px, calc((100% - 680px) / 2)); }
   .navbar { padding: 14px max(24px, calc((100% - 1600px) / 2 - 8px)) 4px; }
-  #app[data-route="settings"] .navbar, #app[data-route="activity"] .navbar, #app[data-route="renewals"] .navbar {
+  #app[data-route="settings"] .navbar, #app[data-route="activity"] .navbar, #app[data-route="renewals"] .navbar,
+  #app[data-route="files"] .navbar {
     padding-left: max(24px, calc((100% - 680px) / 2 - 8px)); padding-right: max(24px, calc((100% - 680px) / 2 - 8px)); }
   /* two columns only when each gets 380 px; a narrower window gets one column, by itself */
   .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 0 22px; align-items: start; }
@@ -365,3 +366,21 @@ a.btn.wide { display: block; }
   .ib:hover, .acts button:hover, .pernav .arr:hover { background: var(--surface-2); }
   .row.tap, .catrow { cursor: pointer; }
 }
+
+/* files: the paperclip's chip above the message box, the file on a sent message, Your files */
+.attached { display: flex; align-items: center; gap: 10px; margin: 0 4px 8px; padding: 8px 6px 8px 12px; border-radius: 14px; max-width: 440px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.attached > svg { width: 18px; height: 18px; flex: none; color: var(--text-2); }
+.attached.reading > svg { animation: spin 1s linear infinite; }
+.attached span { flex: 1; min-width: 0; font: 400 12.5px/1.35 var(--font); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attached b { display: block; font: 600 14px var(--font); color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.attached button { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: var(--text-2); flex: none; }
+.attached button svg { width: 15px; height: 15px; }
+.fchip { display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin: -2px -4px 8px; border-radius: 12px; background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line); white-space: normal; }
+.fchip svg { width: 16px; height: 16px; flex: none; color: var(--text-2); }
+.fchip span { font: 400 12px/1.3 var(--font); color: var(--text-2); min-width: 0; }
+.fchip b { display: block; font: 600 13.5px var(--font); color: var(--text); overflow-wrap: anywhere; }
+.btn.wide svg { width: 17px; height: 17px; display: inline-block; vertical-align: -3px; margin-right: 6px; }
+.card.big .btn.wide { margin-top: 12px; }
+body.dropping #view { outline: 2px dashed var(--text-3); outline-offset: -10px; }

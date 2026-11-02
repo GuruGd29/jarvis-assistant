@@ -11,6 +11,7 @@ import os
 import sys
 from datetime import date
 from pathlib import Path
+from urllib.parse import unquote
 
 import httpx
 import psycopg
@@ -25,7 +26,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from .. import config, money, watches
-from . import data, hermes, notify, voice
+from . import data, files, hermes, notify, voice
 
 APP_DIR = config.SYSTEM_DIR / "web" / "app"
 PORT = int(os.environ.get("JARVIS_WEB_PORT", "8791"))
@@ -108,8 +109,9 @@ async def delete_chat(request: Request) -> Response:
     return _json({"ok": True})
 
 
-async def _run_turn(session_id: str, text: str, queue: asyncio.Queue, client: dict) -> None:
-    """Runs the whole reply even if the phone disconnects; the reply is saved by Hermes either way."""
+async def _run_turn(session_id: str, text: str, queue: asyncio.Queue, client: dict, shown: str | None = None) -> None:
+    """Runs the whole reply even if the phone disconnects; the reply is saved by Hermes either way. `shown` is what the
+    chat list shows of the user's message when `text` carries an attached file."""
     final = {"t": "error", "message": "Jarvis could not finish that reply."}
     try:
         async for event in hermes.stream_turn(session_id, text):
@@ -121,7 +123,7 @@ async def _run_turn(session_id: str, text: str, queue: asyncio.Queue, client: di
         final = {"t": "error", "message": f"Jarvis is not reachable ({type(error).__name__})."}
         await queue.put(final)
     if final["t"] == "done":
-        await run_in_threadpool(_touch_chat, session_id, text, final["text"])
+        await run_in_threadpool(_touch_chat, session_id, shown or text, final["text"])
         # Wait until the response stream has either handed the reply to the phone or closed without it.
         try:
             await asyncio.wait_for(client["settled"].wait(), timeout=15)
@@ -130,6 +132,46 @@ async def _run_turn(session_id: str, text: str, queue: asyncio.Queue, client: di
         if not client["delivered"]:
             await run_in_threadpool(notify.notify, "replies", "Jarvis replied",
                                     final["text"][:300] or "Your answer is ready.", {"url": f"/#chat/{session_id}"})
+
+
+# --- files: attached to one chat, or added to the user's files ----------------------------------------------------
+
+async def _upload(request: Request) -> tuple[str, bytes]:
+    """The file the app sends as the request body, its name in X-File-Name."""
+    if int(request.headers.get("content-length") or 0) > files.MAX_BYTES:
+        raise ValueError("That file is over 20 MB.")
+    name, data = unquote(request.headers.get("x-file-name", "")).strip(), await request.body()
+    if not name or not data:
+        raise ValueError("No file came through. Try again.")
+    return name, data
+
+
+async def attach_to_chat(request: Request) -> Response:
+    try:
+        name, data = await _upload(request)
+        return _json(await run_in_threadpool(files.attach, name, data), 201)
+    except ValueError as error:
+        return _error(str(error))
+
+
+async def my_files(request: Request) -> Response:
+    return _json(await run_in_threadpool(files.my_files))
+
+
+async def add_my_file(request: Request) -> Response:
+    try:
+        name, data = await _upload(request)
+        return _json(await run_in_threadpool(files.add_file, request.query_params.get("folder", "documents"), name, data), 201)
+    except ValueError as error:
+        return _error(str(error))
+
+
+async def remove_my_file(request: Request) -> Response:
+    try:
+        await run_in_threadpool(files.remove_file, request.query_params.get("path", ""))
+    except LookupError:
+        return _error("no such file", 404)
+    return _json({"ok": True})
 
 
 async def voice_to_text(request: Request) -> Response:
@@ -150,17 +192,27 @@ async def voice_to_text(request: Request) -> Response:
 
 async def send_message(request: Request) -> Response:
     session_id = request.path_params["sid"]
-    text = str((await _body(request)).get("text", "")).strip()
+    body = await _body(request)
+    text, attachment = str(body.get("text", "")).strip(), body.get("attachment")
+    if not text and attachment:
+        text = "What's in this file? Give me a short summary."
     if not text:
         return _error("message is empty")
     if len(text) > 8000:
         return _error("message is too long")
     if not await run_in_threadpool(_known_chat, session_id):
         return _error("no such chat", 404)
+    shown = None
+    if attachment:
+        try:
+            message, name = await run_in_threadpool(files.message_with, str(attachment), text)
+        except ValueError as error:
+            return _error(str(error))
+        text, shown = message, f"{name}: {text}"
     queue: asyncio.Queue = asyncio.Queue()
     # delivered: the final event reached the phone; settled: the stream finished one way or the other.
     client = {"delivered": False, "settled": asyncio.Event()}
-    task = asyncio.create_task(_run_turn(session_id, text, queue, client))
+    task = asyncio.create_task(_run_turn(session_id, text, queue, client, shown))
     _RUNNING.add(task)
     task.add_done_callback(_RUNNING.discard)
 
@@ -451,7 +503,9 @@ routes = [
     Route("/api/chats", list_chats, methods=["GET"]), Route("/api/chats", new_chat, methods=["POST"]),
     Route("/api/chats/{sid}", get_chat, methods=["GET"]), Route("/api/chats/{sid}", delete_chat, methods=["DELETE"]),
     Route("/api/chats/{sid}/send", send_message, methods=["POST"]),
-    Route("/api/voice", voice_to_text, methods=["POST"]),
+    Route("/api/voice", voice_to_text, methods=["POST"]), Route("/api/attach", attach_to_chat, methods=["POST"]),
+    Route("/api/files", my_files), Route("/api/files", add_my_file, methods=["POST"]),
+    Route("/api/files", remove_my_file, methods=["DELETE"]),
     Route("/api/today", today), Route("/api/iphone-reminders", iphone_reminders),
     Route("/api/tasks/{tid:int}/done", task_done, methods=["POST"]),
     Route("/api/medicine", medicine, methods=["POST"]),

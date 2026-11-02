@@ -128,6 +128,9 @@ const I = {
   list: sv('<path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>', 2.2),
   watches: sv('<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'),
   plus: sv('<path d="M12 5v14M5 12h14"/>', 2.2),
+  clip: sv('<path d="M20 11.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8.5-8.5a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5l7.8-7.8"/>', 1.9),
+  upload: sv('<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 14v5.5h14V14"/>', 2),
+  x: sv('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>', 2.2),
   bus: sv('<rect x="4.5" y="3.5" width="15" height="14" rx="3"/><path d="M4.5 10.5h15M8 17.5V20M16 17.5V20M8 14h.01M16 14h.01"/>'),
   film: sv('<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M3.5 9.5h17M8 5l2 4.5M13 5l2 4.5"/>'),
   globe: sv('<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.5 5.4 3.5 8.5s-1 5.9-3.5 8.5c-2.5-2.6-3.5-5.4-3.5-8.5s1-5.9 3.5-8.5z"/>'),
@@ -139,6 +142,7 @@ const S = {
   route: "chat", chatId: null, chats: [], msgs: [], streaming: null, drawer: false,
   today: null, todayErr: null, iphone: null, money: {}, period: "week", moneyErr: null, moneyTab: "spending", cards: null, cardSel: null, syncing: false, savedAt: null,
   watches: null, watchErr: null, watch: {}, warg: "", wtext: "", wform: null, wtest: null, wbusy: false, wstart: null, wplaces: null,
+  attach: null, files: null, filesErr: null, fileFolder: "documents", fileBusy: false, // chat attachment; your files
   moneyOn: { today: null, week: null, month: null, year: null }, cat: null, allPays: false, // null = the current period
   mic: "idle", // idle | rec | busy (turning the recording into text)
   more: null, settings: null, activity: null, unread: 0, pushState: "unknown",
@@ -155,7 +159,7 @@ document.getElementById("app").innerHTML = `
   <div class="offline" id="offline">Offline · can't reach Jarvis</div>`;
 
 const TABS = [["chat", "Chat"], ["today", "Today"], ["money", "Money"], ["watches", "Watches"], ["more", "More"]];
-const mainTab = () => ["settings", "activity", "renewals"].includes(S.route) ? "more" : S.route;
+const mainTab = () => ["settings", "activity", "renewals", "files"].includes(S.route) ? "more" : S.route;
 function tabBadge(k) {
   if (k === "today") return S.today ? S.today.tasks.filter(t => !t.done && t.due_on && t.due_on <= todayISO()).length
     + S.today.medicines.filter(m => m.past && m.status === "due").length : 0;
@@ -204,7 +208,7 @@ function navigate(hash, replace = false) {
 }
 function route() {
   const [name, arg] = here.replace(/^#/, "").split("/");
-  const known = ["chat", "today", "money", "watches", "more", "settings", "activity", "renewals"];
+  const known = ["chat", "today", "money", "watches", "more", "settings", "activity", "renewals", "files"];
   S.route = known.includes(name) ? name : "chat";
   S.warg = name === "watches" ? (arg || "") : "";
   if (S.route === "chat") openChat(arg || null);
@@ -212,7 +216,7 @@ function route() {
 }
 
 function render(animate = true) {
-  const views = { chat: viewChat, today: viewToday, money: viewMoney, watches: viewWatchesRoute, more: viewMore, settings: viewSettings, activity: viewActivity, renewals: viewRenewals };
+  const views = { chat: viewChat, today: viewToday, money: viewMoney, watches: viewWatchesRoute, more: viewMore, settings: viewSettings, activity: viewActivity, renewals: viewRenewals, files: viewFiles };
   const keep = S.route === "watches" && !animate ? [...$$("#view .scroll, #view .listcol")].map(e => e.scrollTop) : []; // a refresh keeps your place
   $("#app").dataset.route = S.route;
   $("#view").innerHTML = views[S.route]();
@@ -242,6 +246,7 @@ async function load(name) {
       S.watchErr = null;
     }
     if (name === "more") { S.more = await api("/api/more"); await loadActivity(false); }
+    if (name === "files") { S.files = await api("/api/files"); S.filesErr = null; }
     if (name === "settings") { S.settings = await api("/api/settings"); await refreshPushState(); }
     if (name === "activity") { S.activity = await api("/api/activity", S.savedAt ? {} : { method: "POST" }); S.unread = 0; }
     if (name === "renewals" && !S.today) { S.today = await api("/api/today"); }
@@ -249,6 +254,7 @@ async function load(name) {
     if (name === "today") S.todayErr = e.message;
     else if (name === "money") S.moneyErr = e.message;
     else if (name === "watches") S.watchErr = e.message;
+    else if (name === "files") S.filesErr = e.message;
     else toast(e.message);
   }
   if (S.route === name) render(false);
@@ -304,7 +310,7 @@ function watchForReply(id) {
 }
 
 function msgHtml(m, i) {
-  if (m.role === "user") return `<div class="u">${esc(m.text)}</div>`;
+  if (m.role === "user") return `<div class="u">${m.file ? `<div class="fchip">${I.file}<span><b>${esc(m.file.name)}</b>${esc(m.file.info || "")}</span></div>` : ""}${esc(m.text)}</div>`;
   const tools = (m.tools || []).map((t, k) => {
     const live = m.pending && k === m.tools.length - 1 && !m.text;
     return `<div class="tool ${live ? "live" : ""}">${live ? I.spin : I.ok} ${esc(t)}</div>`;
@@ -336,7 +342,9 @@ function viewChat() {
       <button class="ib" data-act="new-chat" aria-label="New chat">${I.edit}</button></div>
     <div class="thread" id="thread">${S.msgs.length ? S.msgs.map(msgHtml).join("") : welcome}</div>
     ${sugg}
-    <div class="dock"><form class="composer frost" data-form="send">
+    <div class="dock">${attachChip()}<form class="composer frost" data-form="send">
+      <button class="mic" id="attachBtn" type="button" data-act="attach" aria-label="Attach a file to this chat">${I.clip}</button>
+      <input type="file" id="attachInput" accept="${ACCEPT}" hidden>
       <textarea id="box" rows="1" placeholder="${MIC_HINT[S.mic]}" aria-label="Message" enterkeyhint="send"></textarea>
       ${P.voice ? `<button class="mic ${S.mic}" id="micBtn" type="button" data-act="mic" aria-label="${S.mic === "rec" ? "Stop recording" : "Voice message"}" ${S.mic === "busy" ? "disabled" : ""}>${S.mic === "rec" ? I.stop : I.mic}</button>` : ""}
       <button class="send" id="sendBtn" type="submit" aria-label="${S.streaming ? "Stop" : "Send"}" ${S.streaming ? "" : "disabled"}>${S.streaming ? I.stop : I.send}</button>
@@ -356,7 +364,62 @@ function autosize(el) {
 }
 function updateSend() {
   const btn = $("#sendBtn"); if (!btn) return;
-  btn.disabled = !S.streaming && !draft.trim();
+  btn.disabled = !S.streaming && !draft.trim() && !(S.attach && S.attach.id);
+}
+
+// ---------- files ----------
+// The 📎 in Chat is for that chat only (like ChatGPT or Claude); More → Your files adds to what Jarvis can search.
+const ACCEPT = ".pdf,.docx,.txt,.md,.markdown,.csv,.json,.html,.htm";
+const sizeLabel = b => b < 1024 ? `${b} B` : b < 1048576 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+async function upload(url, file) {
+  if (file.size > 20e6) throw new Error("That file is over 20 MB.");
+  if (!await reachable()) throw new Error(OFFLINE);
+  let res;
+  try { res = await fetch(url, { method: "POST", headers: { "X-File-Name": encodeURIComponent(file.name), "Content-Type": "application/octet-stream" }, body: file }); }
+  catch { throw new Error("Can't reach Jarvis. Check your Wi-Fi or VPN."); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Something went wrong (${res.status}).`);
+  return data;
+}
+function attachChip() {
+  const a = S.attach;
+  if (!a) return "";
+  return `<div class="attached ${a.state}">${a.state === "reading" ? I.spin : I.file}<span><b>${esc(a.name)}</b>${a.state === "reading" ? "Reading…" : esc(a.info || "")}${a.cut ? " · only the first part fits" : ""}</span>
+    <button type="button" data-act="attach-remove" aria-label="Remove the file">${I.x}</button></div>`;
+}
+async function addMyFile(file) {
+  if (!file) return;
+  S.fileBusy = true; render(false);
+  try { const r = await upload(`/api/files?folder=${S.fileFolder}`, file); toast(r.note); await load("files"); }
+  catch (e) { toast(e.message); }
+  S.fileBusy = false; render(false);
+}
+function viewFiles() {
+  const F = S.files;
+  const folders = [["documents", "Documents"], ["finance", "Finance"], ["health", "Health"], ["notes", "Notes"]];
+  const label = Object.fromEntries([...folders, ["email-export", "Email exports"]]);
+  const add = `<div class="card big"><div class="k">Add a file</div>
+      <div class="text">Jarvis reads it now and can answer from it in any chat, naming the file. PDF, Word, text, Markdown or CSV, up to 20 MB. It stays on your computer.</div>
+      <div class="k" style="margin:14px 0 8px">Put it in</div>
+      <div class="seg">${folders.map(([k, n]) => `<button class="${S.fileFolder === k ? "on" : ""}" data-act="files-folder" data-v="${k}">${n}</button>`).join("")}</div>
+      <button class="btn p wide" data-act="files-add" ${S.fileBusy ? "disabled" : ""}>${S.fileBusy ? "Reading the file…" : `${I.upload} Choose a file`}</button>
+      <input type="file" id="filesInput" accept="${ACCEPT}" hidden>
+      ${isTouch ? "" : '<div class="note">Or drop a file anywhere on this page.</div>'}</div>`;
+  if (!F) return sub("Your files", `${add}${S.filesErr ? `<div class="card empty">${esc(S.filesErr)} <button class="btn s" data-act="reload">Try again</button></div>` : wskel}`);
+  const state = x => x.searchable ? "Jarvis can search it" : x.readable ? "Not read yet" : "Can't be read (a photo or other file)";
+  const lists = F.folders.filter(f => f.files.length).map(f => `<div class="sec">${label[f.folder] || f.folder} · ${f.files.length}</div><div class="card">${f.files.map(x =>
+    `<div class="row"><span class="ic">${I.file}</span><div class="m"><div class="t">${esc(x.name)}</div><div class="s">${sizeLabel(x.size)} · ${dayLabel(x.added.slice(0, 10))} · ${state(x)}</div></div>
+      <button class="ib" data-act="files-remove" data-v="${esc(x.path)}" aria-label="Delete ${esc(x.name)}">${I.trash}</button></div>`).join("")}</div>`).join("");
+  return sub("Your files", `${add}${lists || '<div class="note">No files yet. Add your first one above.</div>'}
+    <div class="note">A file you attach in Chat with the paperclip is for that chat only: it isn't added here and Jarvis doesn't keep it.</div>`);
+}
+async function attachFile(file) {
+  if (!file) return;
+  if (S.streaming) { toast("Wait for the reply to finish"); return; }
+  S.attach = { state: "reading", name: file.name }; render(false);
+  try { S.attach = { state: "ready", ...(await upload("/api/attach", file)) }; }
+  catch (e) { S.attach = null; toast(e.message); }
+  render(false);
 }
 
 // ---------- voice messages ----------
@@ -438,7 +501,8 @@ function redrawThread() {
 
 async function send(text) {
   text = (text || "").trim();
-  if (!text || S.streaming) return;
+  const attached = S.attach && S.attach.id ? S.attach : null;
+  if ((!text && !attached) || S.streaming) return;
   draft = "";
   try {
     if (!S.chatId) {
@@ -449,13 +513,15 @@ async function send(text) {
     if (!await reachable()) throw new Error(OFFLINE);
   } catch (e) { toast(e.message); draft = text; render(false); return; }
   const reply = { role: "assistant", text: "", tools: [], pending: true };
-  S.msgs.push({ role: "user", text }, reply);
+  S.msgs.push({ role: "user", text: text || (attached ? "What's in this file? Give me a short summary." : ""),
+    ...(attached ? { file: { name: attached.name, info: attached.info } } : {}) }, reply);
+  S.attach = null;
   const controller = new AbortController();
   S.streaming = controller;
   render(false);
   try {
     const res = await fetch(`/api/chats/${encodeURIComponent(S.chatId)}/send`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }), signal: controller.signal });
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, attachment: attached ? attached.id : undefined }), signal: controller.signal });
     if (!res.ok || !res.body) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "Jarvis could not answer."); }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -877,7 +943,7 @@ function viewMore() {
     <div class="sec">Your data</div>
     <div class="card">
       ${info(I.brain, "Memory", M ? `${M.facts} facts · ${M.episodes} chat summaries${M.memory_review ? ` · ${M.memory_review} to review: reply “clean up” in chat` : ""}` : "…")}
-      ${info(I.file, "Files", M ? `${M.documents} documents indexed from your Jarvis folder` : "…")}
+      ${row("go", "files", I.file, "Your files", M ? `${M.documents} documents Jarvis can search · add more` : "Documents Jarvis can search")}
       ${info(I.list, "Tasks", M ? `${M.open_tasks} open Jarvis task${M.open_tasks === 1 ? "" : "s"}` : "…")}
     </div>
     <div class="note">Jarvis runs on your own computer. Ask in chat “what do you know about me” to see your memory, or “forget …” to remove something.</div>
@@ -1080,6 +1146,15 @@ document.addEventListener("click", async e => {
       break;
     case "ask": send(v); break;
     case "mic": micToggle(); break;
+    case "attach": $("#attachInput").click(); break;
+    case "attach-remove": S.attach = null; render(false); break;
+    case "files-folder": S.fileFolder = v; render(false); break;
+    case "files-add": $("#filesInput").click(); break;
+    case "files-remove": {
+      if (!confirm(`Delete ${v.split("/").pop()} from your files? Jarvis will no longer find it.`)) break;
+      try { await api(`/api/files?path=${encodeURIComponent(v)}`, { method: "DELETE" }); toast("Deleted"); load("files"); } catch (err) { toast(err.message); }
+      break;
+    }
     case "retry": {
       const lastUser = [...S.msgs].reverse().find(m => m.role === "user");
       if (!lastUser || S.streaming) break;
@@ -1157,6 +1232,12 @@ document.addEventListener("click", async e => {
   }
 });
 document.addEventListener("change", e => {
+  if (e.target.id === "attachInput" || e.target.id === "filesInput") {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";  // choosing the same file again still counts
+    if (file) (e.target.id === "attachInput" ? attachFile : addMyFile)(file);
+    return;
+  }
   const q = e.target.closest("[data-quiet]");
   if (q && q.value) saveSettings({ quiet: { [q.dataset.quiet]: q.value } });
   if (e.target.dataset.wstart === "day" && e.target.value && S.wstart) { S.wstart.day = e.target.value; render(false); }
@@ -1226,3 +1307,16 @@ renderDrawer();
 loadActivity(false).then(renderTabs).catch(() => {});
 api("/api/today").then(t => { S.today = t; renderTabs(); }).catch(() => {});
 setInterval(() => { if (document.visibilityState === "visible" && S.route === "watches" && !/new|form|start/.test(S.warg)) load("watches"); }, 30000);
+// On a computer a file dropped on Chat is attached to that chat; dropped on Your files it is added to your files.
+const dropTarget = () => ({ chat: attachFile, files: addMyFile })[S.route];
+addEventListener("dragover", e => {
+  if (!dropTarget() || !e.dataTransfer || !Array.from(e.dataTransfer.types).includes("Files")) return;
+  e.preventDefault(); document.body.classList.add("dropping");
+});
+addEventListener("dragleave", e => { if (!e.relatedTarget) document.body.classList.remove("dropping"); });
+addEventListener("drop", e => {
+  document.body.classList.remove("dropping");
+  const file = e.dataTransfer && e.dataTransfer.files[0], take = dropTarget();
+  if (!file || !take) return;
+  e.preventDefault(); take(file);
+});
