@@ -210,10 +210,12 @@ def serve() -> None:
                 sys.stdout.flush()
                 continue
             if request.get("op") == "money":  # exact totals for a money question, for the plugin's prefetch
-                from .money import insights, period_from_text, summary
+                from .money import in_english, insights, period_from_text, summary
 
                 period = period_from_text(request.get("message", ""))
                 result = summary(*period) if period else None
+                if result:
+                    result["in_english"] = in_english(request.get("message", ""), period)
                 if result and period[0] != period[1]:
                     # "How much on food this month?": the plugin prints the note line, so categories ride on it.
                     cats = insights(*period)["by_category"]

@@ -31,6 +31,14 @@ class MoneyPeriods(unittest.TestCase):
         self.assertEqual(self.period("kadaisi 10 naal selavu"), ("2026-10-22", "2026-10-31"))
         self.assertEqual(self.period("indha vaaram evlo selavu panniruken?"), ("2026-10-26", "2026-10-31"))
 
+    def test_tamil_and_tanglish_questions_get_an_english_meaning(self):
+        week = ("2026-10-26", "2026-10-31")
+        self.assertEqual(money.in_english("indha vaaram evlo selavu panniruken?", week),
+                         "How much did I spend from 2026-10-26 to 2026-10-31?")
+        self.assertEqual(money.in_english("இன்னைக்கு எவ்வளவு செலவு?", ("2026-10-31", "2026-10-31")),
+                         "How much did I spend on 2026-10-31?")
+        self.assertIsNone(money.in_english("How much did I spend this week?", week))
+
     def test_weekdays(self):
         self.assertEqual(self.period("Why did I pay ₹99,999 to Apple last Tuesday?"), ("2026-10-27", "2026-10-27"))
         self.assertEqual(self.period("what did I spend on Saturday"), ("2026-10-31", "2026-10-31"))
