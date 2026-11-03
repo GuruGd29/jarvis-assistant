@@ -5,9 +5,12 @@
 - added to their files (More → Your files): saved into ~/Jarvis/<folder>/ and indexed at once, so any chat can find
   and quote it, like the files Jarvis already reads from that folder.
 """
+import contextlib
+import io
 import json
 import re
 import shutil
+import tempfile
 import time
 import uuid
 from datetime import datetime, timezone
@@ -16,7 +19,7 @@ from pathlib import Path
 import psycopg
 from pgvector.psycopg import register_vector
 
-from .. import config, ingest
+from .. import config, ingest, ocr
 from ..parse import parse_file
 
 ATTACH_DIR = config.SYSTEM_DIR / "state" / "attachments"
@@ -25,6 +28,8 @@ MAX_BYTES = 20_000_000
 MAX_CHARS = 60_000  # about 15,000 words: what the chat model can read with room left for the conversation
 FOLDERS = ("documents", "finance", "health", "notes")
 READABLE = sorted(config.SUPPORTED_SUFFIXES)
+VIEW_CHARS = 200_000  # the quick view shows this much of what Jarvis read
+PICTURE_WIDTH = 1400  # PDF pages and HEIC photos are shown as JPEGs this wide
 
 # How an attached file travels inside the user's message to Hermes. The Jarvis plugin strips this block before it
 # searches, learns or looks for commands; the app shows it as a file chip.
@@ -45,8 +50,17 @@ def safe_name(name: str) -> str:
 
 def _readable(name: str) -> None:
     if Path(name).suffix.lower() not in config.SUPPORTED_SUFFIXES:
-        raise ValueError(f"Jarvis can read {', '.join(s.lstrip('.') for s in READABLE if s not in ('.htm', '.markdown'))}"
-                         " files. Photos and other files aren't readable yet.")
+        photos = sorted(s.lstrip(".").upper() for s in config.IMAGE_SUFFIXES if s != ".jpeg")
+        raise ValueError("Jarvis can read PDF, Word, text, Markdown, CSV, JSON and web page files"
+                         + (f", and photos ({', '.join(photos)})." if photos else
+                            ". Photos need text recognition (Tesseract, docs/files.md)."))
+
+
+def _no_text() -> str:
+    """Why a file came out empty."""
+    if ocr.available():
+        return "no words were found in it"
+    return "a scanned PDF needs text recognition (Tesseract, docs/files.md)"
 
 
 def _text(path: Path) -> tuple[str, int | None]:
@@ -80,7 +94,7 @@ def attach(name: str, data: bytes) -> dict:
         raise ValueError(f"Couldn't read {name}: it may be damaged or password-protected.") from error
     if not text.strip():
         shutil.rmtree(folder, ignore_errors=True)
-        raise ValueError(f"{name} has no text Jarvis can read (a scanned PDF or a photo needs text recognition).")
+        raise ValueError(f"{name} has no text Jarvis can read: {_no_text()}.")
     words, info = len(text.split()), _info(pages, len(text.split()))
     (folder / "text.txt").write_text(text[:MAX_CHARS])
     (folder / "about.json").write_text(json.dumps({"name": name, "info": info}))
@@ -170,16 +184,99 @@ def add_file(folder: str, name: str, data: bytes) -> dict:
         raise ValueError(f"Couldn't read {name}: it may be damaged or password-protected.") from error
     if status == "empty":
         return {"path": str(target.relative_to(config.DATA_ROOT)), "name": target.name, "searchable": False,
-                "note": "Saved, but it has no text Jarvis can read (a scanned PDF needs text recognition)."}
+                "note": f"Saved, but it has no text Jarvis can read: {_no_text()}."}
     return {"path": str(target.relative_to(config.DATA_ROOT)), "name": target.name, "searchable": True,
             "note": f"Saved and ready: Jarvis can answer from {target.name} in any chat."}
 
 
+def _mine(relative: str) -> Path:
+    """One of the user's files in ~/Jarvis, by its path there; nothing outside it, nothing hidden."""
+    target = (config.DATA_ROOT / (relative or "")).resolve()
+    root = config.DATA_ROOT.resolve()
+    if not target.is_file() or not target.is_relative_to(root) or any(
+            p.startswith(".") for p in target.relative_to(root).parts):
+        raise LookupError("no such file")
+    return target
+
+
+def _kind(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        return "pdf"
+    if suffix in {".jpg", ".jpeg", ".png", ".webp", ".heic", ".gif"}:
+        return "photo"
+    return "text" if suffix in config.SUPPORTED_SUFFIXES else "other"
+
+
+def view(relative: str) -> dict:
+    """What the quick view in Your files shows: the file's details and the text Jarvis reads in it."""
+    target = _mine(relative)
+    relative = target.relative_to(config.DATA_ROOT.resolve())
+    kind, stat, pages, sections, error = _kind(target), target.stat(), None, [], None
+    try:
+        if kind == "pdf":
+            import pypdfium2
+
+            with contextlib.closing(pypdfium2.PdfDocument(str(target))) as pdf:
+                pages = len(pdf)
+        if target.suffix.lower() in config.SUPPORTED_SUFFIXES:
+            sections = [{"heading": s.heading, "page": s.page, "text": s.text.strip()} for s in parse_file(target)
+                        if s.text and s.text.strip()]
+    except Exception:
+        kind, error = "other", "Jarvis couldn't read this file: it may be damaged or password-protected."
+    shown, cut = [], False
+    for section in sections:
+        room = VIEW_CHARS - sum(len(s["text"]) for s in shown)
+        if room <= 0:
+            cut = True
+            break
+        cut = cut or len(section["text"]) > room
+        shown.append({**section, "text": section["text"][:room]})
+    with _db() as conn:
+        searchable = conn.execute("SELECT 1 FROM documents WHERE path IN (%s, %s)",
+                                  (str(target), str(config.DATA_ROOT / relative))).fetchone()
+    return {"path": str(relative), "name": target.name, "folder": relative.parts[0], "kind": kind,
+            "size": stat.st_size, "added": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+            "pages": pages, "sections": shown, "cut": cut, "error": error, "searchable": bool(searchable),
+            "readable": target.suffix.lower() in config.SUPPORTED_SUFFIXES,
+            "picture": kind == "pdf" or target.suffix.lower() == ".heic"}
+
+
+def raw(relative: str) -> Path:
+    """The file itself, for the quick view and the Open button."""
+    return _mine(relative)
+
+
+def picture(relative: str, page: int = 1) -> bytes:
+    """A JPEG of a PDF page, or of a HEIC photo (browsers other than Safari can't show HEIC)."""
+    from PIL import Image, ImageOps
+
+    target = _mine(relative)
+    if target.suffix.lower() == ".pdf":
+        import pypdfium2
+
+        with contextlib.closing(pypdfium2.PdfDocument(str(target))) as pdf:
+            if not 1 <= page <= len(pdf):
+                raise LookupError("no such page")
+            width = pdf[page - 1].get_width() or 612
+            image = pdf[page - 1].render(scale=min(4.0, PICTURE_WIDTH / width)).to_pil()
+    elif target.suffix.lower() == ".heic" and config.HEIC_CONVERTER:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp, "photo.jpg")
+            ocr.convert_heic(target, out)
+            with Image.open(out) as converted:
+                image = ImageOps.exif_transpose(converted).copy()
+        image.thumbnail((PICTURE_WIDTH * 2, PICTURE_WIDTH * 2))
+    else:
+        raise LookupError("no picture for this file")
+    buffer = io.BytesIO()
+    image.convert("RGB").save(buffer, "JPEG", quality=82)
+    return buffer.getvalue()
+
+
 def remove_file(relative: str) -> None:
     """Delete a file from ~/Jarvis and from the index."""
-    target = (config.DATA_ROOT / (relative or "")).resolve()
-    if not target.is_file() or not target.is_relative_to(config.DATA_ROOT.resolve()):
-        raise LookupError("no such file")
+    target = _mine(relative)
     target.unlink()
     with _db() as conn:
         conn.execute("DELETE FROM documents WHERE path IN (%s, %s)", (str(target), str(config.DATA_ROOT / relative)))

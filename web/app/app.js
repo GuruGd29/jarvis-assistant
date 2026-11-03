@@ -123,7 +123,8 @@ const I = {
   pill: sv('<rect x="3" y="8" width="18" height="8" rx="4" transform="rotate(-35 12 12)"/><path d="M9.5 8.7l5 6.6"/>'),
   renew: sv('<path d="M19 8a7.5 7.5 0 0 0-13.5 1M5 16a7.5 7.5 0 0 0 13.5-1M19 3.5V8h-4.5M5 20.5V16h4.5"/>'),
   brain: sv('<path d="M9 4.5a3 3 0 0 0-3 3 3 3 0 0 0-1.5 5.5A3 3 0 0 0 9 18v1.5M15 4.5a3 3 0 0 1 3 3 3 3 0 0 1 1.5 5.5A3 3 0 0 1 15 18v1.5M9 4.5a3 3 0 0 1 6 0V19.5"/>'),
-  file: sv('<path d="M6 3h8l4 4v14H6zM14 3v4h4"/>'), bell: sv('<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/>'),
+  file: sv('<path d="M6 3h8l4 4v14H6zM14 3v4h4"/>'), photo: sv('<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4"/>'),
+  bell: sv('<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/>'),
   inbox: sv('<path d="M4 13l2.5-8h11L20 13v6H4zM4 13h5l1 2h4l1-2h5"/>'), share: sv('<path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7.5h14V12"/>'),
   list: sv('<path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>', 2.2),
   watches: sv('<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'),
@@ -211,12 +212,13 @@ function route() {
   const known = ["chat", "today", "money", "watches", "more", "settings", "activity", "renewals", "files"];
   S.route = known.includes(name) ? name : "chat";
   S.warg = name === "watches" ? (arg || "") : "";
+  try { S.farg = name === "files" && arg ? decodeURIComponent(arg) : ""; } catch { S.farg = ""; } // #files/<path>: a file opened
   if (S.route === "chat") openChat(arg || null);
   else { render(); load(S.route); }
 }
 
 function render(animate = true) {
-  const views = { chat: viewChat, today: viewToday, money: viewMoney, watches: viewWatchesRoute, more: viewMore, settings: viewSettings, activity: viewActivity, renewals: viewRenewals, files: viewFiles };
+  const views = { chat: viewChat, today: viewToday, money: viewMoney, watches: viewWatchesRoute, more: viewMore, settings: viewSettings, activity: viewActivity, renewals: viewRenewals, files: () => S.farg ? viewFile() : viewFiles() };
   const keep = S.route === "watches" && !animate ? [...$$("#view .scroll, #view .listcol")].map(e => e.scrollTop) : []; // a refresh keeps your place
   $("#app").dataset.route = S.route;
   $("#view").innerHTML = views[S.route]();
@@ -246,7 +248,11 @@ async function load(name) {
       S.watchErr = null;
     }
     if (name === "more") { S.more = await api("/api/more"); await loadActivity(false); }
-    if (name === "files") { S.files = await api("/api/files"); S.filesErr = null; }
+    if (name === "files" && S.farg) { // one file opened: its details and what Jarvis read, the list only if not there yet
+      const path = S.farg; S.fviewErr = null;
+      const v = await api(`/api/files/view?path=${encodeURIComponent(path)}`);
+      if (S.farg === path) S.fview = v;
+    } else if (name === "files") { S.files = await api("/api/files"); S.filesErr = null; }
     if (name === "settings") { S.settings = await api("/api/settings"); await refreshPushState(); }
     if (name === "activity") { S.activity = await api("/api/activity", S.savedAt ? {} : { method: "POST" }); S.unread = 0; }
     if (name === "renewals" && !S.today) { S.today = await api("/api/today"); }
@@ -254,6 +260,7 @@ async function load(name) {
     if (name === "today") S.todayErr = e.message;
     else if (name === "money") S.moneyErr = e.message;
     else if (name === "watches") S.watchErr = e.message;
+    else if (name === "files" && S.farg) S.fviewErr = e.message;
     else if (name === "files") S.filesErr = e.message;
     else toast(e.message);
   }
@@ -310,7 +317,7 @@ function watchForReply(id) {
 }
 
 function msgHtml(m, i) {
-  if (m.role === "user") return `<div class="u">${m.file ? `<div class="fchip">${I.file}<span><b>${esc(m.file.name)}</b>${esc(m.file.info || "")}</span></div>` : ""}${esc(m.text)}</div>`;
+  if (m.role === "user") return `<div class="u">${m.file ? `<div class="fchip">${isPhoto(m.file.name) ? I.photo : I.file}<span><b>${esc(m.file.name)}</b>${esc(m.file.info || "")}</span></div>` : ""}${esc(m.text)}</div>`;
   const tools = (m.tools || []).map((t, k) => {
     const live = m.pending && k === m.tools.length - 1 && !m.text;
     return `<div class="tool ${live ? "live" : ""}">${live ? I.spin : I.ok} ${esc(t)}</div>`;
@@ -369,7 +376,7 @@ function updateSend() {
 
 // ---------- files ----------
 // The 📎 in Chat is for that chat only (like ChatGPT or Claude); More → Your files adds to what Jarvis can search.
-const ACCEPT = ".pdf,.docx,.txt,.md,.markdown,.csv,.json,.html,.htm";
+const ACCEPT = ".pdf,.docx,.txt,.md,.markdown,.csv,.json,.html,.htm" + (P.photos ? ",.jpg,.jpeg,.png,.webp,.heic,image/*" : "");
 const sizeLabel = b => b < 1024 ? `${b} B` : b < 1048576 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`;
 async function upload(url, file) {
   if (file.size > 20e6) throw new Error("That file is over 20 MB.");
@@ -384,7 +391,7 @@ async function upload(url, file) {
 function attachChip() {
   const a = S.attach;
   if (!a) return "";
-  return `<div class="attached ${a.state}">${a.state === "reading" ? I.spin : I.file}<span><b>${esc(a.name)}</b>${a.state === "reading" ? "Reading…" : esc(a.info || "")}${a.cut ? " · only the first part fits" : ""}</span>
+  return `<div class="attached ${a.state}">${a.state === "reading" ? I.spin : isPhoto(a.name) ? I.photo : I.file}<span><b>${esc(a.name)}</b>${a.state === "reading" ? "Reading…" : esc(a.info || "")}${a.cut ? " · only the first part fits" : ""}</span>
     <button type="button" data-act="attach-remove" aria-label="Remove the file">${I.x}</button></div>`;
 }
 async function addMyFile(file) {
@@ -399,19 +406,50 @@ function viewFiles() {
   const folders = [["documents", "Documents"], ["finance", "Finance"], ["health", "Health"], ["notes", "Notes"]];
   const label = Object.fromEntries([...folders, ["email-export", "Email exports"]]);
   const add = `<div class="card big"><div class="k">Add a file</div>
-      <div class="text">Jarvis reads it now and can answer from it in any chat, naming the file. PDF, Word, text, Markdown or CSV, up to 20 MB. It stays on your computer.</div>
+      <div class="text">Jarvis reads it now and can answer from it in any chat, naming the file. PDF, Word, ${P.photos ? "photos and scans, " : ""}text, Markdown or CSV, up to 20 MB. It stays on your computer.</div>
       <div class="k" style="margin:14px 0 8px">Put it in</div>
       <div class="seg">${folders.map(([k, n]) => `<button class="${S.fileFolder === k ? "on" : ""}" data-act="files-folder" data-v="${k}">${n}</button>`).join("")}</div>
       <button class="btn p wide" data-act="files-add" ${S.fileBusy ? "disabled" : ""}>${S.fileBusy ? "Reading the file…" : `${I.upload} Choose a file`}</button>
       <input type="file" id="filesInput" accept="${ACCEPT}" hidden>
       ${isTouch ? "" : '<div class="note">Or drop a file anywhere on this page.</div>'}</div>`;
   if (!F) return sub("Your files", `${add}${S.filesErr ? `<div class="card empty">${esc(S.filesErr)} <button class="btn s" data-act="reload">Try again</button></div>` : wskel}`);
-  const state = x => x.searchable ? "Jarvis can search it" : x.readable ? "Not read yet" : "Can't be read (a photo or other file)";
   const lists = F.folders.filter(f => f.files.length).map(f => `<div class="sec">${label[f.folder] || f.folder} · ${f.files.length}</div><div class="card">${f.files.map(x =>
-    `<div class="row"><span class="ic">${I.file}</span><div class="m"><div class="t">${esc(x.name)}</div><div class="s">${sizeLabel(x.size)} · ${dayLabel(x.added.slice(0, 10))} · ${state(x)}</div></div>
+    `<div class="row tap" data-act="file-open" data-v="${esc(x.path)}" role="button" aria-label="Open ${esc(x.name)}"><span class="ic">${isPhoto(x.name) ? I.photo : I.file}</span>
+      <div class="m"><div class="t">${esc(x.name)}</div><div class="s">${sizeLabel(x.size)} · ${dayLabel(x.added.slice(0, 10))} · ${fileState(x)}</div></div>
       <button class="ib" data-act="files-remove" data-v="${esc(x.path)}" aria-label="Delete ${esc(x.name)}">${I.trash}</button></div>`).join("")}</div>`).join("");
   return sub("Your files", `${add}${lists || '<div class="note">No files yet. Add your first one above.</div>'}
     <div class="note">A file you attach in Chat with the paperclip is for that chat only: it isn't added here and Jarvis doesn't keep it.</div>`);
+}
+const isPhoto = name => /\.(jpe?g|png|webp|heic|gif)$/i.test(name);
+const fileState = x => x.searchable ? "Jarvis can search it" : x.readable ? "Not read yet" : "Jarvis can't read this kind of file";
+// Quick view of one of your files: the file itself (a photo, or a PDF's pages as pictures) and the text Jarvis read in it.
+function viewFile() {
+  const V = S.fview && S.fview.path === S.farg ? S.fview : null;
+  const name = S.farg.split("/").pop();
+  const page = body => `<section class="view sub fv"><div class="navbar"><button class="back" data-act="go" data-v="files">${I.back} Your files</button><div class="title">${esc(name)}</div></div>
+    <div class="scroll">${body}</div></section>`;
+  if (!V) return page(S.fviewErr ? `<div class="card empty">${esc(S.fviewErr)} <button class="btn s" data-act="reload">Try again</button></div>`
+    : `<div class="card big"><div class="skel" style="width:70%"></div><div class="skel"></div><div class="skel" style="width:40%"></div></div>`);
+  const q = encodeURIComponent(V.path), raw = `/api/files/raw?path=${q}`, folder = { "email-export": "Email exports" }[V.folder] || V.folder[0].toUpperCase() + V.folder.slice(1);
+  const shown = Math.min(V.pages || 0, S.fpages || 10);
+  const preview = V.kind === "photo" ? `<img class="fpic" src="${V.picture ? `/api/files/picture?path=${q}` : raw}" alt="${esc(V.name)}">`
+    : V.kind === "pdf" ? Array.from({ length: shown }, (_, i) => `<img class="fpage" loading="lazy" src="/api/files/picture?path=${q}&page=${i + 1}" alt="Page ${i + 1} of ${V.pages}">`).join("")
+      + (V.pages > shown ? `<button class="btn s wide" data-act="file-more">Show more pages · ${shown} of ${V.pages}</button>` : "") : "";
+  const mono = /\.(csv|json)$/i.test(V.name) ? " mono" : "";
+  const read = V.error ? `<div class="err">${esc(V.error)}</div>`
+    : !V.readable ? '<div class="text">Jarvis can\'t read this kind of file, so there is nothing to show here. Download it to open it on this device.</div>'
+    : !V.sections.length ? '<div class="text">Jarvis found no words in this file.</div>'
+    : V.sections.map(x => `${x.page && V.pages > 1 ? `<div class="k">Page ${x.page}</div>` : x.heading ? `<div class="k">${esc(x.heading)}</div>` : ""}<div class="ftext${mono}">${esc(x.text)}</div>`).join("")
+      + (V.cut ? '<div class="note">Only the first part is shown here. Open the file to see all of it.</div>' : "");
+  const opens = V.kind !== "other";
+  const about = `<div class="card big"><div class="fname">${esc(V.name)}</div><div class="d">${esc(folder)} · ${sizeLabel(V.size)}${V.pages ? ` · ${V.pages} page${V.pages === 1 ? "" : "s"}` : ""} · ${dayLabel(V.added.slice(0, 10))}</div>
+      <div class="d">${fileState(V)}</div>
+      <div class="two"><a class="btn p" href="${raw}" target="_blank" rel="noopener" ${opens ? "" : `download="${esc(V.name)}"`}>${opens ? "Open" : "Download"}</a>
+        <button class="btn s" data-act="files-remove" data-v="${esc(V.path)}">Delete</button></div></div>`;
+  const what = V.kind === "text" ? "In this file" : V.kind === "photo" ? "Text Jarvis read in the photo" : V.kind === "pdf" ? "Text Jarvis read" : "Text";
+  if (!preview) return page(`${about}<div class="sec">${what}</div><div class="card big">${read}</div>`);
+  return page(`<div class="cols"><div>${about}<div class="sec">${V.kind === "pdf" ? "Pages" : "Photo"}</div><div class="fview">${preview}</div></div>
+    <div><div class="sec">${what}</div><div class="card big">${read}</div></div></div>`);
 }
 async function attachFile(file) {
   if (!file) return;
@@ -1150,9 +1188,14 @@ document.addEventListener("click", async e => {
     case "attach-remove": S.attach = null; render(false); break;
     case "files-folder": S.fileFolder = v; render(false); break;
     case "files-add": $("#filesInput").click(); break;
+    case "file-open": S.fview = null; S.fpages = 10; navigate(`#files/${encodeURIComponent(v)}`); break;
+    case "file-more": S.fpages = (S.fpages || 10) + 10; render(false); break;
     case "files-remove": {
       if (!confirm(`Delete ${v.split("/").pop()} from your files? Jarvis will no longer find it.`)) break;
-      try { await api(`/api/files?path=${encodeURIComponent(v)}`, { method: "DELETE" }); toast("Deleted"); load("files"); } catch (err) { toast(err.message); }
+      try {
+        await api(`/api/files?path=${encodeURIComponent(v)}`, { method: "DELETE" }); toast("Deleted"); S.files = null;
+        if (S.farg) navigate("#files"); else load("files");
+      } catch (err) { toast(err.message); }
       break;
     }
     case "retry": {
@@ -1275,6 +1318,11 @@ if (isTouch) {
   window.visualViewport?.addEventListener("resize", fitKeyboard);
   window.visualViewport?.addEventListener("scroll", fitKeyboard);
 }
+// A photo or page the browser can't show (HEIC without a converter, a damaged file): say so instead of a broken image.
+document.addEventListener("error", e => {
+  if (!e.target.matches?.(".fpic, .fpage")) return;
+  e.target.replaceWith(Object.assign(document.createElement("div"), { className: "card empty", textContent: "This can't be shown here. Open it to see it." }));
+}, true);
 document.addEventListener("keydown", e => {
   if (e.target.id === "box" && e.key === "Enter" && !e.shiftKey && !isTouch && !e.isComposing) { e.preventDefault(); send(draft); }
   if (e.key === "Escape" && S.drawer) { S.drawer = false; renderDrawer(); }

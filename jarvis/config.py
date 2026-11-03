@@ -2,6 +2,7 @@
 import copy
 import os
 import re
+import shutil
 from pathlib import Path
 
 from babel import Locale
@@ -102,4 +103,12 @@ def money(amount: float, decimals: bool = True) -> str:
 # A calendar change proposed by Jarvis must be approved by the user within this window.
 PENDING_APPROVAL_MINUTES = 10
 
-SUPPORTED_SUFFIXES ={".pdf", ".docx", ".md", ".markdown", ".txt", ".csv", ".json", ".html", ".htm"}
+DOCUMENT_SUFFIXES = {".pdf", ".docx", ".md", ".markdown", ".txt", ".csv", ".json", ".html", ".htm"}
+# Photos are read with text recognition (Tesseract, jarvis/ocr.py), so only when it is installed. HEIC also needs a
+# converter: sips on a Mac, heif-convert (libheif) on Linux.
+TESSERACT = os.environ.get("JARVIS_TESSERACT") or shutil.which("tesseract") or next(  # launchd's PATH may lack Homebrew
+    (p for p in ("/opt/homebrew/bin/tesseract", "/usr/local/bin/tesseract", "/usr/bin/tesseract") if Path(p).exists()),
+    None)
+HEIC_CONVERTER = shutil.which("sips") or shutil.which("heif-convert")
+IMAGE_SUFFIXES = ({".jpg", ".jpeg", ".png", ".webp"} | ({".heic"} if HEIC_CONVERTER else set())) if TESSERACT else set()
+SUPPORTED_SUFFIXES = DOCUMENT_SUFFIXES | IMAGE_SUFFIXES

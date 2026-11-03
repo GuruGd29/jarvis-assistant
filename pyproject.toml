@@ -8,6 +8,7 @@ dependencies = [
   "pgvector",
   "fastembed",
   "pypdf",
+  "pypdfium2",
   "python-docx",
   "mcp[cli]>=2.3,<3",
   "watchdog",

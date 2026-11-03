@@ -166,6 +166,34 @@ async def add_my_file(request: Request) -> Response:
         return _error(str(error))
 
 
+async def view_my_file(request: Request) -> Response:
+    try:
+        return _json(await run_in_threadpool(files.view, request.query_params.get("path", "")))
+    except LookupError:
+        return _error("That file is no longer in your files.", 404)
+
+
+async def my_file_itself(request: Request) -> Response:
+    """The file as it is, shown in the browser where it can be (PDFs, photos, text), else downloaded."""
+    try:
+        path = await run_in_threadpool(files.raw, request.query_params.get("path", ""))
+    except LookupError:
+        return _error("That file is no longer in your files.", 404)
+    headers = {"Cache-Control": "private, no-cache", "X-Content-Type-Options": "nosniff"}
+    if path.suffix.lower() != ".pdf":  # a saved web page can't run its scripts here (Chrome shows no PDF when sandboxed)
+        headers["Content-Security-Policy"] = "sandbox"
+    return FileResponse(path, filename=path.name, content_disposition_type="inline", headers=headers)
+
+
+async def my_file_picture(request: Request) -> Response:
+    try:
+        page = int(request.query_params.get("page") or 1)
+        jpeg = await run_in_threadpool(files.picture, request.query_params.get("path", ""), page)
+    except (LookupError, ValueError):
+        return _error("no such page", 404)
+    return Response(jpeg, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+
 async def remove_my_file(request: Request) -> Response:
     try:
         await run_in_threadpool(files.remove_file, request.query_params.get("path", ""))
@@ -461,7 +489,8 @@ async def health(request: Request) -> Response:
 def _profile() -> str:
     """The user's name, number/date style and currency for the app, as a <meta> tag (no inline script needed)."""
     profile = {"name": config.OWNER_NAME, "locale": config.LOCALE.replace("_", "-"), "currency": config.CURRENCY,
-               "host": "mac" if sys.platform == "darwin" else "other", "voice": voice.available()}
+               "host": "mac" if sys.platform == "darwin" else "other", "voice": voice.available(),
+               "photos": bool(config.IMAGE_SUFFIXES)}
     return f'<meta name="jarvis-profile" content="{html.escape(json.dumps(profile))}">'
 
 
@@ -505,7 +534,8 @@ routes = [
     Route("/api/chats/{sid}/send", send_message, methods=["POST"]),
     Route("/api/voice", voice_to_text, methods=["POST"]), Route("/api/attach", attach_to_chat, methods=["POST"]),
     Route("/api/files", my_files), Route("/api/files", add_my_file, methods=["POST"]),
-    Route("/api/files", remove_my_file, methods=["DELETE"]),
+    Route("/api/files", remove_my_file, methods=["DELETE"]), Route("/api/files/view", view_my_file),
+    Route("/api/files/raw", my_file_itself), Route("/api/files/picture", my_file_picture),
     Route("/api/today", today), Route("/api/iphone-reminders", iphone_reminders),
     Route("/api/tasks/{tid:int}/done", task_done, methods=["POST"]),
     Route("/api/medicine", medicine, methods=["POST"]),

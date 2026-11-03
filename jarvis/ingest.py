@@ -90,7 +90,6 @@ _ATTACHMENT = re.compile(r"(?:sent a (?:text )?document: '([^']+)'.*?saved at: |
 _DOMAIN_HINTS = [("health", r"blood|lab|report|prescription|medical|hospital|doctor|scan|test result|health|மருத்துவ"),
                  ("finance", r"bill|invoice|receipt|statement|bank|salary|payslip|tax|itr|loan|emi|பில்"),
                  ("notes", r"\bnote|idea|list|todo")]
-IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
 
 
 def save_attachments(message: str) -> list[dict]:
@@ -107,7 +106,7 @@ def save_attachments(message: str) -> list[dict]:
         target = config.DATA_ROOT / domain / "telegram" / f"{datetime.now():%Y-%m-%d} {name}"
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
-        status = "saved (photos are not searchable yet: no text recognition)"
+        status = "saved (Jarvis can't read this kind of file)"
         if is_indexable(target):
             with psycopg.connect(config.DB_DSN) as conn:
                 register_vector(conn)
