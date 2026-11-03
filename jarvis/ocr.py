@@ -6,6 +6,7 @@ state/ocr/ by the file's content, so indexing again or opening the file in Your 
 import hashlib
 import json
 import os
+import re
 import subprocess
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
@@ -120,4 +121,13 @@ def _tesseract(picture: Path) -> str:
                             text=True, timeout=TIMEOUT, env={**os.environ, "OMP_THREAD_LIMIT": "1"})
     if result.returncode:
         raise RuntimeError(result.stderr.strip()[-300:] or "text recognition failed")
-    return result.stdout.replace("\f", "").strip()
+    return clean(result.stdout)
+
+
+# Tesseract puts an invisible joiner-breaker (U+200C) after a virama (Tamil's pulli ், Hindi's halant ्, ...), so
+# "ராஜேஷ் குமார்" wouldn't match what it read. Real text almost never has one there.
+_AFTER_VIRAMA = re.compile("(?<=[\u094d\u09cd\u0a4d\u0acd\u0b4d\u0bcd\u0c4d\u0ccd\u0d4d])\u200c")
+
+
+def clean(text: str) -> str:
+    return _AFTER_VIRAMA.sub("", text.replace("\f", "")).strip()

@@ -81,6 +81,13 @@ def picture_of(lines: list[str], size=(1400, 900)):
     return image
 
 
+class TextRecognitionOutput(unittest.TestCase):
+    def test_tamil_words_match_after_reading(self):
+        read = "நோயாளி பெயர்\u200c: ராஜேஷ்\u200c குமார்\u200c\n\f"
+        self.assertEqual(ocr.clean(read), "நோயாளி பெயர்: ராஜேஷ் குமார்")
+        self.assertEqual(ocr.clean("नमस्\u200cते"), "नमस्ते")
+
+
 @unittest.skipUnless(ocr.available(), "Tesseract isn't installed (docs/files.md)")
 class TextRecognition(unittest.TestCase):
     def setUp(self):
