@@ -65,5 +65,6 @@ brew install tesseract
 curl -fLo "$(brew --prefix)/share/tessdata/tam.traineddata" https://github.com/tesseract-ocr/tessdata_fast/raw/main/tam.traineddata
 ```
 
-Restart the app afterwards. Without Tesseract, photos can't be added and a scanned PDF has no text, as before.
+Restart the app afterwards. Homebrew keeps that file inside Tesseract's own folder, so after
+`brew upgrade tesseract` run the `curl` line again. Without Tesseract, photos can't be added and a scanned PDF has no text, as before.
 Photos in Google Drive aren't copied by "sync drive" (a Drive full of photos would fill the disk); scanned PDFs are.
