@@ -128,6 +128,12 @@ sudo "$REPO/.venv/bin/playwright" install-deps chromium >/dev/null
 cd "$REPO"
 .venv/bin/python -c "from jarvis import config as c; print(f'  {c.OWNER_NAME or \"(no name)\"}, {c.LOCALE}, ' \
   f'{c.money(1234567.5)}, {c.TIMEZONE}, {c.LANGUAGES}')" || fail "a setting in $ENV_FILE is not valid (see above)."
+# Text recognition for photos and scanned PDFs (docs/files.md), in English and the languages set above.
+ocr_packages="$(.venv/bin/python -c 'from jarvis import ocr; print(" ".join("tesseract-ocr-" + c.replace("_", "-") for c in ocr.wanted()))')"
+sudo apt-get install -y -q tesseract-ocr libheif-examples >/dev/null
+for package in $ocr_packages; do
+  sudo apt-get install -y -q "$package" >/dev/null 2>&1 || echo "  No text recognition package $package: photos in that language read as English only."
+done
 .venv/bin/jarvis-migrate
 mkdir -p "$HOME/Jarvis"/{documents,finance,health,notes} "$REPO/logs" "$REPO/state" "$REPO/secrets"
 chmod 700 "$REPO/secrets"

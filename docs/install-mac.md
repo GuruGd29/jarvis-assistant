@@ -9,7 +9,7 @@ Requirements: Apple silicon (M1 or newer), 16 GB memory or more, 25 GB free disk
 ## 1. Tools, Postgres and Ollama
 
 ```bash
-brew install git python@3.12 postgresql@17 pgvector caddy
+brew install git python@3.12 postgresql@17 pgvector caddy tesseract   # tesseract: text in photos and scans
 brew services start postgresql@17
 ```
 

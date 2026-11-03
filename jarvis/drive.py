@@ -75,8 +75,8 @@ def _local_path(item: dict, parts: tuple[str, ...]) -> Path | None:
     if item["mimeType"] in EXPORTS:
         suffix = EXPORTS[item["mimeType"]][0]
         name = name if name.lower().endswith(suffix) else name + suffix
-    elif Path(name).suffix.lower() not in config.SUPPORTED_SUFFIXES:
-        return None  # photos, zips and the like: nothing Jarvis can read
+    elif Path(name).suffix.lower() not in config.DOCUMENT_SUFFIXES:
+        return None  # zips and the like; photos too, so a Drive full of them isn't copied (scanned PDFs are read)
     parts = tuple(_safe(p) for p in parts)
     if parts and parts[0].lower() in DOMAIN_FOLDERS:
         return config.DATA_ROOT / parts[0].lower() / "Drive" / Path(*parts[1:], name)

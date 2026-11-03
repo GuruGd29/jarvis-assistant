@@ -4,6 +4,12 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import config, ocr
+
+# A PDF page with less text than this is likely a scan (some scanner apps stamp a line of text on it): it is also
+# read as a picture, and whichever reading has more text is kept.
+SCANNED_PAGE_CHARS = 60
+
 
 @dataclass
 class Section:
@@ -16,6 +22,9 @@ def parse_file(path: Path) -> list[Section]:
     suffix = path.suffix.lower()
     if suffix == ".pdf":
         return _parse_pdf(path)
+    if suffix in config.IMAGE_SUFFIXES:
+        text = ocr.read_image(path)
+        return [Section(None, None, text)] if text.strip() else []
     if suffix == ".docx":
         return _parse_docx(path)
     if suffix in (".md", ".markdown"):
@@ -29,12 +38,13 @@ def _parse_pdf(path: Path) -> list[Section]:
     from pypdf import PdfReader
 
     reader = PdfReader(str(path))
-    sections = []
-    for number, page in enumerate(reader.pages, start=1):
-        text = page.extract_text() or ""
-        if text.strip():
-            sections.append(Section(None, number, text))
-    return sections
+    pages = {number: page.extract_text() or "" for number, page in enumerate(reader.pages, start=1)}
+    scanned = [n for n, text in pages.items() if len(re.sub(r"\s", "", text)) < SCANNED_PAGE_CHARS]
+    if scanned and ocr.available():
+        for number, text in ocr.read_pages(path, scanned).items():
+            if len(text.strip()) > len(pages[number].strip()):
+                pages[number] = text
+    return [Section(None, number, text) for number, text in pages.items() if text.strip()]
 
 
 def _parse_docx(path: Path) -> list[Section]:
