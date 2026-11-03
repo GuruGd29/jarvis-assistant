@@ -40,10 +40,10 @@ jobs:
       JARVIS_OWNER_NAME: Test
       JARVIS_LANGUAGES: Tamil and English (Tanglish too)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Cache the search reranker
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: models
           key: reranker-bge-v2-m3-int8-v1
@@ -71,7 +71,7 @@ jobs:
 
       - name: Upload the report (HTML + CSV + logs)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: jarvis-test-report
           path: reports/
