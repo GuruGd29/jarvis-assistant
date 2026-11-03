@@ -31,3 +31,10 @@ job jarvis-memory-review     "0 20 * * 0"   jarvis-memory-review.sh    # Sunday:
 job jarvis-ingest            "*/15 * * * *" jarvis-ingest.sh           # index new and changed files
 # Backups only once they are set up (docs/backups.md), so a fresh install does not report failures every night.
 [ ! -f "$repo/secrets/backup.env" ] || job jarvis-backup "0 3 * * *" jarvis-backup.sh
+
+# Jobs made before Telegram was set up, or brought from another computer (bin/server.sh move), deliver where they
+# should now.
+awk -v want="$deliver" '/^  [0-9a-f]{12} /{id=$1; name=""} /^    Name: /{name=$2}
+  /^    Deliver: /{if (name ~ /^jarvis-/ && $2 != want) print id}' <<< "$existing" | while read -r id; do
+  "$hermes" cron edit "$id" --deliver "$deliver" < /dev/null >/dev/null && echo "  ~ $id now delivers to $deliver"
+done

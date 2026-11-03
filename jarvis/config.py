@@ -79,6 +79,9 @@ CURRENCY = (os.environ.get("JARVIS_CURRENCY") or (get_territory_currencies(_babe
 LANGUAGES = os.environ.get("JARVIS_LANGUAGES") or _babel_locale.get_language_name("en")  # e.g. "Tamil and English"
 # Web push needs a contact address for the push services (Apple, Google, Mozilla); never shown to anyone else.
 CONTACT_EMAIL = os.environ.get("JARVIS_CONTACT_EMAIL", "").strip()
+# On a server (docs/server.md): the names the app is opened by, e.g. "10.8.0.1". When set, the app answers only to
+# them and refuses changes sent from other websites. Empty on a Mac at home, where the app runs as before.
+HOSTS = [h.strip().lower() for h in os.environ.get("JARVIS_HOSTS", "").split(",") if h.strip()]
 # Read the Reminders app on this Mac (iPhone Reminders via iCloud): only when set to "on", since it is personal data
 # that macOS would otherwise hand over to any process that asks once.
 APPLE_REMINDERS = (os.environ.get("JARVIS_APPLE_REMINDERS") or "off").lower() == "on"
