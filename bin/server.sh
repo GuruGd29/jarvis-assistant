@@ -101,13 +101,13 @@ EOF
 
 phone() {
   local png
-  png="$(mktemp -t jarvis-phone-vpn).png"
+  png="$(mktemp -d)/jarvis-phone-vpn.png"
   on_server "qrencode -t png -s 8 -o - < jarvis-vpn/phone.conf" > "$png"
   chmod 600 "$png"
   open "$png"
   echo "Scan the QR code in the WireGuard app on your phone (+ -> Create from QR code), then switch the tunnel on."
   if [ -t 0 ]; then read -rp "Press Enter when it's scanned (the picture is then deleted). "; else sleep 180; fi
-  rm -f "$png"
+  rm -rf "$(dirname "$png")"
 }
 
 vpn() {
