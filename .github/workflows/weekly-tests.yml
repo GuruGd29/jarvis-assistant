@@ -51,6 +51,9 @@ jobs:
       - name: Install Jarvis (install.sh) and add fake data
         run: tests/ci/setup.sh
 
+      - name: Server scripts (VPN, HTTPS, database copy, updates)
+        run: tests/ci/server-check.sh
+
       - name: Unit tests
         run: .venv/bin/python -m unittest discover tests -v
 

@@ -13,6 +13,7 @@ import base64
 import json
 import sys
 from datetime import datetime, timedelta
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import psycopg
@@ -114,10 +115,18 @@ def public_key() -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
 
+# On a server, sign-ups are taken only for these push services (Safari, Chrome, Firefox, Edge), so nobody can make
+# Jarvis send requests to an address of their choosing.
+PUSH_SERVICES = ("web.push.apple.com", "fcm.googleapis.com", "push.services.mozilla.com", "notify.windows.com")
+
+
 def subscribe(sub: dict, user_agent: str | None) -> None:
     keys = sub.get("keys") or {}
     if not (sub.get("endpoint", "").startswith("https://") and keys.get("p256dh") and keys.get("auth")):
         raise ValueError("not a push subscription")
+    host = (urlsplit(sub["endpoint"]).hostname or "").lower()
+    if config.HOSTS and not any(host == s or host.endswith(f".{s}") for s in PUSH_SERVICES):
+        raise ValueError("not a known push service")
     with connect() as conn:
         conn.execute("""INSERT INTO push_subscriptions (endpoint, p256dh, auth, user_agent) VALUES (%s, %s, %s, %s)
                         ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth""",

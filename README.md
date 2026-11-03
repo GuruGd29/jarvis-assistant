@@ -157,6 +157,8 @@ what's missing. This exact installer runs from scratch every week in the [weekly
 machine set up like Oracle's free server.
 
 **New to servers?** [docs/oracle-cloud.md](docs/oracle-cloud.md) walks through creating the free Oracle server.
+**Already running Jarvis on a Mac?** [docs/server.md](docs/server.md) moves it to a server, one command per step
+(`bin/server.sh`): VPN, HTTPS, your data, then updates from the Mac with automatic roll-back.
 
 ### Mac
 

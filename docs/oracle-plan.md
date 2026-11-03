@@ -1,6 +1,7 @@
 # Jarvis on Oracle Cloud — build plan
 
 Target: Oracle Always Free **Ampere A1, 2 OCPU / 12 GB RAM**, Ubuntu 24.04 (ARM64), no GPU.
+**The steps to follow are in [server.md](server.md)**; this page is the background and the plan behind them.
 Everything below is open source and free. Nothing here needs a payment.
 
 **Expected speed** (estimates, measured in phase 8): short replies 20–60 s, email/calendar

@@ -11,7 +11,7 @@ import os
 import sys
 from datetime import date
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 
 import httpx
 import psycopg
@@ -509,6 +509,34 @@ async def manifest(request: Request) -> Response:
     return FileResponse(APP_DIR / "manifest.webmanifest", media_type="application/manifest+json")
 
 
+def _host_name(netloc: str) -> str:
+    """"10.8.0.1:443" -> "10.8.0.1", "[::1]:8791" -> "::1"."""
+    try:
+        return (urlsplit(f"//{netloc}").hostname or "").lower()
+    except ValueError:
+        return ""
+
+
+class ServerGuard(BaseHTTPMiddleware):
+    """On a server (JARVIS_HOSTS set): answer only to Jarvis's own host names, which stops DNS-rebinding tricks, and
+    refuse changes sent from other websites, so a page open in the same browser can't use the app."""
+    LOCAL = {"127.0.0.1", "localhost", "::1"}  # the scheduled jobs and health checks on the server itself
+    MAX_BODY = 25_000_000  # a 20 MB file plus room
+
+    async def dispatch(self, request, call_next):
+        allowed = set(config.HOSTS) | self.LOCAL
+        if _host_name(request.headers.get("host", "")) not in allowed:
+            return _error("Unknown address for Jarvis.", 421)
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            site, origin = request.headers.get("sec-fetch-site"), request.headers.get("origin")
+            elsewhere = origin and _host_name(urlsplit(origin).netloc) not in allowed
+            if (site and site not in ("same-origin", "none")) or elsewhere:
+                return _error("Refused: that request came from another website.", 403)
+        if int(request.headers.get("content-length") or 0) > self.MAX_BODY:
+            return _error("That is too large to send.", 413)
+        return await call_next(request)
+
+
 class SecurityHeaders(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
@@ -583,11 +611,12 @@ async def server_error(request: Request, error: Exception) -> Response:
         log.warning("Hermes unavailable on %s: %s", request.url.path, error)
         return _error("Jarvis is restarting. Try again in a minute.", 503)
     log.exception("unexpected error on %s %s", request.method, request.url.path)
-    return _error("Something went wrong on the Mac. The details were logged.", 500)
+    where = "the Mac" if sys.platform == "darwin" else "the server"
+    return _error(f"Something went wrong on {where}. The details were logged.", 500)
 
 
-app = Starlette(routes=routes, middleware=[Middleware(SecurityHeaders)], lifespan=lifespan,
-                exception_handlers={Exception: server_error})
+app = Starlette(routes=routes, lifespan=lifespan, exception_handlers={Exception: server_error},
+                middleware=[Middleware(SecurityHeaders)] + ([Middleware(ServerGuard)] if config.HOSTS else []))
 
 
 def main() -> None:

@@ -14,7 +14,8 @@ Everything here is free and open source (WireGuard, Caddy).
 
 ## Server: WireGuard and HTTPS
 
-The commands run on the server. Replace `YOUR_SERVER_IP` with its public IP.
+`deploy/server/prepare.sh` does all of this for you (see [server.md](server.md)); these are the same steps by
+hand. The commands run on the server. Replace `YOUR_SERVER_IP` with its public IP.
 
 ### 1. Open the WireGuard port
 

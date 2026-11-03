@@ -17,6 +17,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
 HERMES_COMMIT="bf0203a794a07aac3ff764972ab9087baa4e4f4e"   # the Hermes Agent version Jarvis is tested with
+WHISPER_VERSION="v1.9.5"   # whisper.cpp for voice messages, the same version as on a Mac (brew)
 HERMES_HOME="$HOME/.hermes"
 HERMES_BIN="$HERMES_HOME/hermes-agent/.hermes/bin/hermes"
 CHAT_BASE="qwen3:4b-instruct-2507-q4_K_M"
@@ -137,6 +138,28 @@ done
 .venv/bin/jarvis-migrate
 mkdir -p "$HOME/Jarvis"/{documents,finance,health,notes} "$REPO/logs" "$REPO/state" "$REPO/secrets"
 chmod 700 "$REPO/secrets"
+
+# Voice messages (docs/voice.md): whisper.cpp's server, built here, with the small model, which is quick enough
+# without a graphics chip. JARVIS_INSTALL_VOICE=no leaves voice out.
+if [ "${JARVIS_INSTALL_VOICE:-yes}" != no ]; then
+  say "Voice messages: whisper.cpp $WHISPER_VERSION and the small model (about 270 MB)"
+  if [ ! -x /usr/local/bin/whisper-server ]; then
+    sudo apt-get install -y -q cmake >/dev/null
+    src="$(mktemp -d)"
+    git clone -q --depth 1 --branch "$WHISPER_VERSION" https://github.com/ggml-org/whisper.cpp.git "$src"
+    cmake -S "$src" -B "$src/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF >/dev/null
+    cmake --build "$src/build" -j "$(nproc)" --target whisper-server >/dev/null
+    sudo install -m 755 "$src/build/bin/whisper-server" /usr/local/bin/whisper-server
+    rm -rf "$src"
+  fi
+  mkdir -p "$REPO/models"
+  model="$REPO/models/ggml-small-q8_0.bin"
+  if [ ! -f "$model" ]; then
+    curl -fsSL -o "$model.part" https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q8_0.bin
+    mv "$model.part" "$model"
+  fi
+  env_set "$ENV_FILE" JARVIS_WHISPER_MODEL "$model"
+fi
 
 # ---------- 5. Ollama and the models ----------
 say "Ollama and the models (about 4 GB to download)"
