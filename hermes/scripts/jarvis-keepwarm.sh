@@ -6,7 +6,7 @@
 unset PYTHONPATH PYTHONHOME VIRTUAL_ENV
 # Failure messages go through jarvis-notify as "Important problems" (see the other jarvis scripts).
 {
-  for target in "generate qwen3-4b-instruct-64k" "embed bge-m3"; do
+  for target in "generate qwen3.5-4b-64k" "embed bge-m3"; do
     set -- $target
     extra=""; [ "$1" = embed ] && extra=',"input":[]'
     out=$(curl -s -m 120 "http://127.0.0.1:11434/api/$1" -d "{\"model\":\"$2\",\"keep_alive\":\"2h\"$extra}")

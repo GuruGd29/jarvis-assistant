@@ -73,7 +73,7 @@ _OWN_CURRENCY = {config.CURRENCY, config.CURRENCY_SYMBOL} | ({"INR", "RS", "RS."
 
 def ask_model(subject: str, body: str, received: datetime) -> dict:
     response = httpx.post(f"{config.OLLAMA_URL}/api/generate", timeout=900, json={
-        "model": config.CHAT_MODEL, "stream": False, "format": SCHEMA, "keep_alive": "2h",
+        "model": config.CHAT_MODEL, "stream": False, "think": False, "format": SCHEMA, "keep_alive": "2h",
         "prompt": _PROMPT.format(received=f"{received:%Y-%m-%d}", subject=subject, body=body[:4000]),
         "options": {"temperature": 0},  # the model's own num_ctx, so it is not reloaded
     })

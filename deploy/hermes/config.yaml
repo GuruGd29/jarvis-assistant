@@ -39,7 +39,7 @@ memory:
 model:
   base_url: http://127.0.0.1:11434/v1
   context_length: 65536
-  default: qwen3-4b-instruct-64k
+  default: qwen3.5-4b-64k
   provider: ollama-launch
 platform_toolsets:
   api_server:
@@ -49,9 +49,9 @@ platform_toolsets:
 providers:
   ollama-launch:
     api: http://127.0.0.1:11434/v1
-    default_model: qwen3-4b-instruct-64k
+    default_model: qwen3.5-4b-64k
     models:
-      - qwen3-4b-instruct-64k
+      - qwen3.5-4b-64k
     name: Ollama
 streaming:
   enabled: false

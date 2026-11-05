@@ -8,7 +8,7 @@ Categories:
   Functional       parsing and totals, deterministic (no model)
   Search           the document search Jarvis feeds the model
   API              the app server
-  Chatbot          real replies from Hermes + Qwen3 4B, graded on facts in the reply
+  Chatbot          real replies from Hermes + Qwen3.5 4B, graded on facts in the reply
   Hallucination    questions whose honest answer is "I don't have that"
   Security         prompt injection in a document or a message
   Consistency      the same question asked in separate chats (drift)
@@ -513,7 +513,7 @@ def pf_empty():
 
 
 SEEDED = "Test copy of Jarvis seeded with fake data (seed.py)"
-CHAT = SEEDED + "; Hermes, Qwen3 4B and the Jarvis plugin running"
+CHAT = SEEDED + "; Hermes, Qwen3.5 4B and the Jarvis plugin running"
 CASES = [
     Case("FN-01", "Parse an HDFC UPI debit alert", "Functional", "None", ["Parse a sample HDFC UPI alert email"],
          "₹450 debit to ZOMATO from a/c 1111, kind upi_debit", fn_hdfc_alert),

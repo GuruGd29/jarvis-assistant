@@ -86,7 +86,7 @@ HOSTS = [h.strip().lower() for h in os.environ.get("JARVIS_HOSTS", "").split(","
 # that macOS would otherwise hand over to any process that asks once.
 APPLE_REMINDERS = (os.environ.get("JARVIS_APPLE_REMINDERS") or "off").lower() == "on"
 # The local chat model: answers chats and reads bank emails the built-in readers don't know.
-CHAT_MODEL = os.environ.get("JARVIS_CHAT_MODEL") or "qwen3-4b-instruct-64k"
+CHAT_MODEL = os.environ.get("JARVIS_CHAT_MODEL") or "qwen3.5-4b-64k"
 # Bank emails from banks without a built-in reader: "nightly" reads them once a night (an AI read pushes the chat
 # out of the model's memory, which costs minutes on a CPU server), "always" on every money sync, "off" never.
 MONEY_AI = (os.environ.get("JARVIS_MONEY_AI") or "nightly").lower()
