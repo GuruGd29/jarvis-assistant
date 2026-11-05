@@ -50,6 +50,11 @@ providers:
   ollama-launch:
     api: http://127.0.0.1:11434/v1
     default_model: qwen3.5-4b-64k
+    # Ollama's OpenAI-style API ignores the Modelfile's temperature and top_p (it uses 1.0 unless the request
+    # sends them), so Hermes sends Qwen's settings: at 1.0 the model sometimes wandered into another language.
+    extra_body:
+      temperature: 0.7
+      top_p: 0.8
     models:
       - qwen3.5-4b-64k
     name: Ollama
