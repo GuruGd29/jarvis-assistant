@@ -188,10 +188,15 @@ if ! grep -q "provider: jarvis" "$HERMES_HOME/config.yaml" 2>/dev/null; then
   [ ! -f "$HERMES_HOME/config.yaml" ] || cp "$HERMES_HOME/config.yaml" "$HERMES_HOME/config.yaml.before-jarvis"
   sed "s#__VENV__#$REPO/.venv#" deploy/hermes/config.yaml > "$HERMES_HOME/config.yaml"
 fi
-# Settings from before the switch to Qwen3.5 4B name the old chat model: only that name changes.
-if grep -q "qwen3-4b-instruct-64k" "$HERMES_HOME/config.yaml"; then
-  cp "$HERMES_HOME/config.yaml" "$HERMES_HOME/config.yaml.before-qwen3.5"
-  sed -i "s/qwen3-4b-instruct-64k/$CHAT_MODEL/g" "$HERMES_HOME/config.yaml"
+# Settings from before the switch to Qwen3.5 4B get the new model's name and the temperature Hermes sends (see
+# deploy/hermes/config.yaml); nothing else changes, and the old file is kept as config.yaml.before-qwen3.5.
+cfg="$HERMES_HOME/config.yaml"
+if grep -q "qwen3-4b-instruct-64k" "$cfg" || ! grep -q "^    extra_body:" "$cfg"; then
+  cp "$cfg" "$cfg.before-qwen3.5"
+  sed -i "s/qwen3-4b-instruct-64k/$CHAT_MODEL/g" "$cfg"
+  grep -q "^    extra_body:" "$cfg" || awk '{ print }
+    /^    default_model: / && !done { print "    extra_body:\n      temperature: 0.7\n      top_p: 0.8"; done = 1 }' \
+    "$cfg" > "$cfg.new" && cat "$cfg.new" > "$cfg" && rm "$cfg.new"
 fi
 touch "$HERMES_HOME/.env" && chmod 600 "$HERMES_HOME/.env"
 env_set "$HERMES_HOME/.env" API_SERVER_ENABLED true

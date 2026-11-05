@@ -157,6 +157,20 @@ class BankEmailsReadByAI(unittest.TestCase):
     def test_not_a_transaction(self):
         self.assertEqual(self.read(email_type="other", kind="none")[0], "not_a_transaction")
 
+    def test_amount_with_currency_and_named_month(self):
+        # Qwen3.5 4B copies "INR 18,450.00" and "18 Nov 2026" as written; both are still checked against the email.
+        body = ("Your statement for Axis Bank Credit Card XX7788 is ready. Total Amount Due: INR 18,450.00. "
+                "Minimum Amount Due: INR 920.00. Payment Due Date: 18 Nov 2026.")
+        answer = {**self.ANSWER, "email_type": "card_statement", "kind": "none", "amount": "", "bank": "Axis Bank",
+                  "card_or_account": "credit card", "last_digits": "7788", "statement_total_due": "INR 18,450.00",
+                  "statement_minimum_due": "INR 920.00", "statement_due_date": "18 Nov 2026"}
+        outcome, row = money_ai.read_email("Statement", body, self.RECEIVED, answer=answer)
+        self.assertEqual((outcome, row["total_due"], row["min_due"], row["due_on"]),
+                         ("card_statement", 18450.0, 920.0, date(2026, 11, 18)))
+        self.assertEqual(self.read(amount="Rs.2,350.00")[1]["amount"], 2350.0)
+        self.assertEqual(self.read(amount="INR 23,500.00")[0], "amount_not_in_email")
+        self.assertIsNone(money_ai._day("05-11-2026", self.RECEIVED.date(), 0, 62))  # day or month first: unknown
+
     def test_number_styles(self):
         self.assertEqual([money_ai._number(x) for x in ("1,50,000.00", "1,250.00", "1.234,56", "2 499,00", "12,50", "1,234")],
                          [150000.0, 1250.0, 1234.56, 2499.0, 12.5, 1234.0])

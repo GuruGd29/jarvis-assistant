@@ -86,8 +86,9 @@ def _flat(text: str) -> str:
 
 
 def _amount_in(text: str, written: str) -> float | None:
-    """The amount, if the model's copy of it really is in the email; None otherwise."""
-    written = _flat(written).strip(" .")
+    """The amount, if the model's copy of it really is in the email; None otherwise. A currency the model copied
+    with it ("INR 18,450.00", "Rs.2,350.00", "1,299 INR") is left out."""
+    written = re.sub(r"^\D+|\D+$", "", _flat(written))
     if not re.fullmatch(r"\d[\d,.' ]*", written) or not re.search(
             rf"(?<!\d)(?<!\d[.,]){re.escape(written)}(?![\d]|[.,]\d)", _flat(text)):
         return None
@@ -114,11 +115,24 @@ def _number(written: str) -> float | None:
     return float(f"{whole}.{frac or 0}")
 
 
+# Dates the model sometimes copies as written instead of as YYYY-MM-DD; only with the month's name, since
+# 05-11-2026 means 5 November or 11 May depending on the bank.
+_NAMED_MONTH_DATES = ("%d %b %Y", "%d %B %Y", "%d %b, %Y", "%d %B, %Y", "%b %d, %Y", "%B %d, %Y", "%d-%b-%Y")
+
+
 def _day(text: str, near: date, before: int, after: int) -> date | None:
+    text = _flat(text)
     try:
-        day = date.fromisoformat(text.strip())
+        day = date.fromisoformat(text)
     except ValueError:
-        return None
+        for fmt in _NAMED_MONTH_DATES:
+            try:
+                day = datetime.strptime(text, fmt).date()
+                break
+            except ValueError:
+                continue
+        else:
+            return None
     return day if near - timedelta(days=before) <= day <= near + timedelta(days=after) else None
 
 
