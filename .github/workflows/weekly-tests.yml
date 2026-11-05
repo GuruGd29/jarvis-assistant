@@ -1,6 +1,6 @@
 # Weekly test run: installs Jarvis with the real installer (install.sh) on a GitHub runner set up like the planned
 # Oracle server (ARM64 Ubuntu, the model on 2 CPU cores), adds fake data, and runs tests/ci/run_tests.py, so the
-# installer, the code, Hermes and the Qwen3 4B model are tested together. No secrets are used and none of the
+# installer, the code, Hermes and the Qwen3.5 4B model are tested together. No secrets are used and none of the
 # owner's data is involved, so the public logs and reports are safe to share.
 name: Weekly tests
 

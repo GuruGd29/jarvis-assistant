@@ -153,7 +153,7 @@ async def fill(text: str) -> dict:
     """The watch's details from a sentence, by the local AI; the user checks them before saving."""
     async with httpx.AsyncClient(timeout=180) as client:
         response = await client.post(f"{config.OLLAMA_URL}/api/generate", json={
-            "model": config.CHAT_MODEL, "stream": False, "format": FILL_SCHEMA, "keep_alive": "2h",
+            "model": config.CHAT_MODEL, "stream": False, "think": False, "format": FILL_SCHEMA, "keep_alive": "2h",
             "prompt": _FILL_PROMPT.format(today=f"{_now():%A %d %B %Y}", text=text[:500]),
             "options": {"temperature": 0}})  # the model's own num_ctx, so it is not reloaded
     response.raise_for_status()

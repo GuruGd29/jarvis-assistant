@@ -20,8 +20,8 @@ HERMES_COMMIT="bf0203a794a07aac3ff764972ab9087baa4e4f4e"   # the Hermes Agent ve
 WHISPER_VERSION="v1.9.5"   # whisper.cpp for voice messages, the same version as on a Mac (brew)
 HERMES_HOME="$HOME/.hermes"
 HERMES_BIN="$HERMES_HOME/hermes-agent/.hermes/bin/hermes"
-CHAT_BASE="qwen3:4b-instruct-2507-q4_K_M"
-CHAT_MODEL="qwen3-4b-instruct-64k"
+CHAT_BASE="qwen3.5:4b-q4_K_M"
+CHAT_MODEL="qwen3.5-4b-64k"
 ME="$(id -un)"
 YES="${JARVIS_INSTALL_YES:-}"
 
@@ -187,6 +187,11 @@ ln -sfn "$HERMES_BIN" "$HOME/.local/bin/hermes"
 if ! grep -q "provider: jarvis" "$HERMES_HOME/config.yaml" 2>/dev/null; then
   [ ! -f "$HERMES_HOME/config.yaml" ] || cp "$HERMES_HOME/config.yaml" "$HERMES_HOME/config.yaml.before-jarvis"
   sed "s#__VENV__#$REPO/.venv#" deploy/hermes/config.yaml > "$HERMES_HOME/config.yaml"
+fi
+# Settings from before the switch to Qwen3.5 4B name the old chat model: only that name changes.
+if grep -q "qwen3-4b-instruct-64k" "$HERMES_HOME/config.yaml"; then
+  cp "$HERMES_HOME/config.yaml" "$HERMES_HOME/config.yaml.before-qwen3.5"
+  sed -i "s/qwen3-4b-instruct-64k/$CHAT_MODEL/g" "$HERMES_HOME/config.yaml"
 fi
 touch "$HERMES_HOME/.env" && chmod 600 "$HERMES_HOME/.env"
 env_set "$HERMES_HOME/.env" API_SERVER_ENABLED true

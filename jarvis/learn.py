@@ -134,7 +134,8 @@ def _extract(entries: list[dict], day) -> tuple[list[str], str]:
     text = "\n".join(f"USER: {e['text']}" + (f"\nJARVIS: {e['reply']}" if e.get("reply") else "") for e in entries)
     response = httpx.post(f"{config.OLLAMA_URL}/api/generate", timeout=300, json={
         "model": EXTRACT_MODEL, "prompt": _EXTRACT_PROMPT.format(day=f"{day:%A %d %B %Y}") + text, "format": "json", "stream": False,
-        "keep_alive": "2h", "options": {"temperature": 0},  # the model's own num_ctx, so it is not reloaded
+        "think": False, "keep_alive": "2h",
+        "options": {"temperature": 0},  # the model's own num_ctx, so it is not reloaded
     })
     response.raise_for_status()
     found = json.loads(response.json()["response"])
@@ -201,7 +202,7 @@ def review_memory() -> list[dict]:
     listing = "\n".join(f"#{r[0]} ({r[2]:%d %b %Y}) {r[1]}" for r in rows)
     response = httpx.post(f"{config.OLLAMA_URL}/api/generate", timeout=600, json={
         "model": EXTRACT_MODEL, "prompt": _REVIEW_PROMPT.format(facts=listing), "format": "json",
-        "stream": False, "keep_alive": "2h", "options": {"temperature": 0}})
+        "stream": False, "think": False, "keep_alive": "2h", "options": {"temperature": 0}})
     response.raise_for_status()
     picked = json.loads(response.json()["response"]).get("remove", [])
     suggestions, seen = [], set()

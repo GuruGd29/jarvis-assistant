@@ -43,7 +43,7 @@ Also: <a href="docs/screenshots/more.png">More screen</a> · <a href="docs/scree
 ## How it works
 
 ```
- Phone app (web app) ──HTTPS──▶ Caddy ──▶ app server (jarvis/web) ──▶ Hermes Agent ──▶ Ollama (Qwen3 4B)
+ Phone app (web app) ──HTTPS──▶ Caddy ──▶ app server (jarvis/web) ──▶ Hermes Agent ──▶ Ollama (Qwen3.5 4B)
  Telegram ─────────────────────────────────────────────────────────▶ Hermes Agent        │
                                                                      │  Jarvis plugin     │
                                                                      ▼  + tools (MCP)     ▼
@@ -56,7 +56,7 @@ Also: <a href="docs/screenshots/more.png">More screen</a> · <a href="docs/scree
   the scheduled jobs. Jarvis adds a **plugin** that puts exact facts into each turn (money totals, calendar,
   medicines, file passages, remembered facts), and **tools** the model can call (search, add a task, propose an
   event).
-- **[Ollama](https://ollama.com)** runs the AI models on your own machine: **Qwen3 4B Instruct** (Apache 2.0) for
+- **[Ollama](https://ollama.com)** runs the AI models on your own machine: **Qwen3.5 4B** (Apache 2.0) for
   chat, **bge-m3** (MIT) for search and the **bge-reranker-v2-m3** reranker, all multilingual.
 - **Postgres with pgvector** stores the search index, tasks, money, health records and memory.
 - **The app server** (`jarvis/web`) serves the phone app, streams chat replies and sends push notifications.
@@ -113,7 +113,7 @@ privacy, zero cost, exact answers about your own life, and [public weekly tests]
 
 | Item | Cost |
 |---|---|
-| Software: Jarvis, Hermes Agent, Ollama, Qwen3, Postgres, Caddy, WireGuard, restic | Free, open source |
+| Software: Jarvis, Hermes Agent, Ollama, Qwen3.5, Postgres, Caddy, WireGuard, restic | Free, open source |
 | Oracle Cloud Always Free Ampere A1 server (2 OCPU, 12 GB memory) | Free ([guide](docs/oracle-cloud.md)) |
 | Google sign-in for Calendar, Gmail and Drive (your own Google Cloud project) | Free |
 | Telegram bot (optional) | Free |
@@ -312,7 +312,7 @@ labels and formatting. To limit CPU use, install with `JARVIS_MODEL_THREADS=2` (
 
 **Can my family use it?** Each install is for one person; run one install per person.
 
-**Which languages does it speak?** Whatever Qwen3 handles well, which includes most major languages. English, Tamil
+**Which languages does it speak?** Whatever Qwen3.5 handles well, which includes most major languages. English, Tamil
 and Tanglish are tested weekly. Set `JARVIS_LANGUAGES`.
 
 **Does it work without the internet?** Chat, files, tasks, medicines and money it has already read all work
@@ -329,7 +329,7 @@ used daily. It's shared so anyone can run their own. Ideas, bug reports and pull
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Built on [Hermes Agent](https://github.com/NousResearch/hermes-agent) (Nous Research, MIT),
-[Ollama](https://ollama.com) (MIT), [Qwen3](https://github.com/QwenLM/Qwen3) (Apache 2.0),
+[Ollama](https://ollama.com) (MIT), [Qwen3.5](https://huggingface.co/Qwen/Qwen3.5-4B) (Apache 2.0),
 [BGE-M3 and the BGE reranker](https://github.com/FlagOpen/FlagEmbedding),
 [PostgreSQL](https://www.postgresql.org) with [pgvector](https://github.com/pgvector/pgvector),
 [Babel](https://babel.pocoo.org) and [restic](https://restic.net).

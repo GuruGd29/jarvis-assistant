@@ -345,7 +345,7 @@ function viewChat() {
       <button data-act="ask" data-v="Do I have any unread important emails?">Email<small>unread & important</small></button></div>` : "";
   return `<section class="view chat">
     <div class="cbar"><button class="ib" data-act="drawer-open" aria-label="Chats">${I.menu}</button>
-      <div class="ttl"><b>${esc(title)}</b><span>Qwen3 4B · on your ${P.host === "mac" ? "Mac" : "own computer"}</span></div>
+      <div class="ttl"><b>${esc(title)}</b><span>Qwen3.5 4B · on your ${P.host === "mac" ? "Mac" : "own computer"}</span></div>
       <button class="ib" data-act="new-chat" aria-label="New chat">${I.edit}</button></div>
     <div class="thread" id="thread">${S.msgs.length ? S.msgs.map(msgHtml).join("") : welcome}</div>
     ${sugg}

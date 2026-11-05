@@ -47,9 +47,9 @@ psql -d jarvis -c "CREATE EXTENSION IF NOT EXISTS vector"
 Ollama's settings for Jarvis are applied at login by `bin/startup.sh` (step 7). Download the models now:
 
 ```bash
-ollama pull qwen3:4b-instruct-2507-q4_K_M
+ollama pull qwen3.5:4b-q4_K_M
 ollama pull bge-m3
-ollama create qwen3-4b-instruct-64k -f deploy/ollama/Modelfile
+ollama create qwen3.5-4b-64k -f deploy/ollama/Modelfile
 ```
 
 ## 5. Hermes Agent
