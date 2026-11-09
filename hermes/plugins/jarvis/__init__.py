@@ -124,6 +124,67 @@ atexit.register(_SHARED_SEARCH.close)
 
 
 _TAMIL_SCRIPT = re.compile(r"[\u0B80-\u0BFF]")
+# Tanglish (Tamil typed in English letters): the 4B model reads it unevenly ("naalaiku kaalaila 9 manikku" became
+# the 9th) and writes it badly, so a note next to the question gives the meaning of the Tamil words it has and asks
+# for plain English (SOUL.md allows Tanglish or English). Measured with 5 Tanglish questions x 8: right in English
+# letters 28 of 40 times without the note, 40 of 40 with it. Meaning: spellings people type.
+_TANGLISH_MEANINGS = {
+    "today": "inniki inniku innaiku inaiku inru",
+    "tomorrow": "naalaiku naalaikku nalaiku naalai",
+    "yesterday": "nethu netru",
+    "day after tomorrow": "naalanniki naalanniku",
+    "in the morning": "kaalai kaalaila kalaila kaalaiyila kaalaiyile",
+    "in the afternoon": "madhiyam mathiyam madhiyanam",
+    "in the evening": "saayangalam sayangalam saayanthiram",
+    "at night": "raathiri rathiri raatri",
+    "at (o'clock)": "manikku maniku",
+    "week": "vaaram varam",
+    "month": "maasam masam",
+    "year": "varusham varusam",
+    "next": "adutha aduththa",
+    "last (previous)": "pona poona",
+    "this": "indha intha",
+    "that": "andha antha",
+    "how much": "evlo evvalavu evalavu",
+    "when": "eppo",
+    "what": "enna",
+    "where": "enga",
+    "who": "yaaru",
+    "how": "eppadi epdi",
+    "why": "edhuku ethuku",
+    "which": "endha entha",
+    "spending": "selavu selavugal",
+    "money": "kaasu panam",
+    "need to pay": "kattanum kattanam",
+    "paid": "kattinen kattiten",
+    "spent / did": "panniruken pannirukken panninen",
+    "can do": "pannalaam pannalam",
+    "need to do": "pannanum",
+    "do it / please do": "pannu pannunga",
+    "tell me": "sollu sollunga",
+    "show me": "kaattu kaatu",
+    "will become / will happen": "aagum agum",
+    "is there / have": "irukku iruku irukka irukaa",
+    "no / not": "illa illai",
+    "yes": "aama aamaa",
+    "okay": "seri",
+    "a little": "konjam",
+    "very": "romba",
+    "all": "ellam ellaam",
+    "about": "pathi patthi",
+    "rain": "mazhai",
+    "season / time": "kaalam kaalathula kaalathil",
+    "home": "veedu veetla veettula",
+    "work / job": "velai vela",
+    "food": "saapadu saapaadu",
+    "medicine": "marundhu marunthu mathirai",
+    "hospital": "aaspathri aaspatri",
+    "need / want": "venum vendum",
+    "need to go": "poganum",
+    "buy": "vaanganum vaangu",
+    "in / at (place)": "la le",
+}
+_TANGLISH = {word: meaning for meaning, words in _TANGLISH_MEANINGS.items() for word in words.split()}
 _EMAIL_WORDS = re.compile(r"\b(e-?mails?|mails?|inbox|gmail)\b"
                           # Tamil and Tanglish; Tamil vowel signs are not \w, so no \b there
                           r"|\bminnanjal|மெயில்|மின்னஞ்சல்|இன்பாக்ஸ்|ஜிமெயில்", re.I)
@@ -148,6 +209,19 @@ _CHAT_FILE = re.compile(r"\[Attached to this chat only \(not saved to the user's
 
 def own_words(text: str) -> str:
     return _CHAT_FILE.sub("", text or "").strip()
+
+
+def tanglish_note(message: str) -> str:
+    """The note for a message in Tanglish, with the meaning of its Tamil words; "" for English or Tamil script.
+    Two different Tamil words at least (short ones like "la" don't count alone), so English isn't taken for it."""
+    if _TAMIL_SCRIPT.search(message or ""):
+        return ""
+    words = list(dict.fromkeys(w for w in re.findall(r"[a-z]+", (message or "").lower()) if w in _TANGLISH))
+    if len([w for w in words if len(w) > 3]) < 2:
+        return ""
+    meanings = "; ".join(f"{w} = {_TANGLISH[w]}" for w in words)
+    return ("[The user wrote Tamil in English letters (Tanglish). Reply in simple, plain English, with no Tamil "
+            f"script. Its Tamil words: {meanings}.]")
 
 
 def email_query(message: str) -> Optional[str]:
@@ -314,6 +388,9 @@ class JarvisMemoryProvider(MemoryProvider):
         if block and _TAMIL_SCRIPT.search(query or ""):
             block += ("\n\n[The user wrote in Tamil: reply in Tamil script, in 2-4 short sentences unless they ask "
                       "for detail, keeping names, amounts, dates and file names exactly as written.]")
+        note = tanglish_note(query)
+        if note:
+            block = (block + "\n\n" if block else "") + note
         return block
 
     def _context(self, query: str) -> str:
