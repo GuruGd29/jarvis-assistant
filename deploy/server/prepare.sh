@@ -9,6 +9,8 @@
 # keys, profiles and settings already there are kept. bin/server.sh setup runs it for you from the Mac.
 # CADDY_CA_DIR=<folder with root.crt and root.key>: use that certificate authority for HTTPS (your Mac's), so a phone
 # that already trusts it needs no new certificate.
+# JARVIS_HTTPS_PORT=<port>: the app's HTTPS port on the VPN address. Normally 443; 8443 when another program already
+# uses 443 (Coolify's proxy, for one), so the app is then https://10.8.0.1:8443.
 set -euo pipefail
 
 PUBLIC_IP="${1:-}"
@@ -52,8 +54,8 @@ sudo systemctl enable --now fail2ban >/dev/null 2>&1 || echo "  Warning: fail2ba
 
 # ---------- 4. Firewall: WireGuard in; everything on the VPN ----------
 # Oracle's Ubuntu images refuse everything not allowed in iptables (iptables-persistent, rules in
-# /etc/iptables/rules.v4); other servers come with ufw. The two can't be installed together, so whichever is there
-# is used. Jarvis's own services listen on 127.0.0.1 or the VPN address only.
+# /etc/iptables/rules.v4), ahead of any ufw rules; other servers come with ufw only. Jarvis's own services listen on
+# 127.0.0.1 or the VPN address only.
 say "Firewall: WireGuard (UDP $PORT) from the internet, Jarvis only on the VPN"
 if ! dpkg -s iptables-persistent >/dev/null 2>&1 && command -v ufw >/dev/null; then
   sudo ufw allow "$PORT/udp" >/dev/null && sudo ufw allow in on wg0 >/dev/null
@@ -63,7 +65,17 @@ else
   sudo apt-get install -y -q iptables-persistent >/dev/null
   sudo iptables -C INPUT -p udp --dport "$PORT" -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p udp --dport "$PORT" -j ACCEPT
   sudo iptables -C INPUT -i wg0 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -i wg0 -j ACCEPT
-  sudo netfilter-persistent save >/dev/null
+  # Kept for the next boot: only these two rules go into the saved set, ahead of its "refuse everything else" rule.
+  # Saving all the live rules would also store Docker's and ufw's (Coolify runs in Docker), which they make again
+  # themselves at boot.
+  rules=/etc/iptables/rules.v4
+  if sudo grep -q '^-A INPUT -j REJECT' "$rules" 2>/dev/null; then
+    for rule in "-A INPUT -p udp -m udp --dport $PORT -j ACCEPT" "-A INPUT -i wg0 -j ACCEPT"; do
+      sudo grep -qxF -- "$rule" "$rules" || sudo sed -i "/^-A INPUT -j REJECT/i $rule" "$rules"
+    done
+  else
+    sudo netfilter-persistent save >/dev/null
+  fi
 fi
 
 # ---------- 5. WireGuard: the private network, with a profile for the phone and one for the computer ----------
@@ -93,7 +105,17 @@ sudo systemctl enable wg-quick@wg0 >/dev/null 2>&1
 sudo systemctl restart wg-quick@wg0
 
 # ---------- 6. HTTPS for the app, on the VPN address only ----------
-say "HTTPS for the app at https://$SERVER_VPN_IP (Caddy)"
+# 443 unless another program already listens on it (Caddy itself doesn't count, when this runs again).
+HTTPS_PORT="${JARVIS_HTTPS_PORT:-}"
+if [ -z "$HTTPS_PORT" ]; then
+  HTTPS_PORT=443
+  if sudo ss -Hltnp 'sport = :443' | grep -qv '"caddy"'; then
+    HTTPS_PORT=8443
+    echo "  Port 443 is taken by another program ($(sudo ss -Hltnp 'sport = :443' | grep -v '"caddy"' | grep -o '(("[^"]*"' | head -1 | tr -d '("')), so the app uses 8443."
+  fi
+fi
+APP_URL="https://$SERVER_VPN_IP$([ "$HTTPS_PORT" = 443 ] || echo ":$HTTPS_PORT")"
+say "HTTPS for the app at $APP_URL (Caddy)"
 if [ -n "${CADDY_CA_DIR:-}" ] && [ -f "$CADDY_CA_DIR/root.key" ]; then
   # Your Mac's certificate authority: a phone that trusts it already trusts this server too. Certificates Caddy
   # made from another authority before are dropped, so it makes new ones from this one.
@@ -105,13 +127,15 @@ if [ -n "${CADDY_CA_DIR:-}" ] && [ -f "$CADDY_CA_DIR/root.key" ]; then
 fi
 sudo tee /etc/caddy/Caddyfile >/dev/null <<EOF
 # Jarvis (deploy/server/prepare.sh): the app over HTTPS on the VPN address only. Replies stream, so they are passed
-# on straight away.
+# on straight away. No port 80 redirect: the app is only ever opened by its https:// address, and port 80 may belong
+# to another program.
 {
 	local_certs
 	skip_install_trust
+	auto_https disable_redirects
 }
 
-https://$SERVER_VPN_IP {
+$APP_URL {
 	bind $SERVER_VPN_IP
 	tls internal
 	reverse_proxy 127.0.0.1:8791 {
@@ -130,6 +154,6 @@ say "The server is ready for install.sh"
 cat <<EOF
   VPN profiles:  $VPN_DIR/phone.conf and $VPN_DIR/computer.conf (private keys: keep them private)
   Phone:         qrencode -t ansiutf8 < $VPN_DIR/phone.conf    then scan it in the WireGuard app
-  The app:       https://$SERVER_VPN_IP with the VPN on, once Jarvis is installed
+  The app:       $APP_URL with the VPN on, once Jarvis is installed
   Oracle:        allow UDP $PORT in the network's security list (docs/server.md); once the VPN works, remove TCP 22
 EOF

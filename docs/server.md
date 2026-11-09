@@ -22,6 +22,8 @@ and memory use); Jarvis keeps its models in memory, well above that.
 - `deploy/server/prepare.sh`: security updates, a swap file, SSH with keys only, a firewall that lets in only
   WireGuard, the WireGuard VPN with one profile for your phone and one for your Mac, and HTTPS for the app at
   `https://10.8.0.1`, on the VPN only. With your Mac's certificate authority, so your phone trusts it already.
+  When another program already has port 443 (Coolify's proxy, for one), the app is at **`https://10.8.0.1:8443`**
+  instead; the script says so. Use that address wherever this guide says `https://10.8.0.1`.
 - `install.sh`: Jarvis itself (the same installer the weekly test runs on this kind of server), with voice (the
   small whisper.cpp model, quick without a graphics card) and text recognition.
 - `bin/server.sh`, on the Mac: runs the above for you, then moves your data and switches over.
@@ -60,6 +62,13 @@ from other websites (`JARVIS_HOSTS`).
 
 `bin/server.sh status` shows what runs on the server; `bin/server.sh back` undoes the switch (Jarvis starts on the
 Mac again; anything new on the server stays there).
+
+### With Coolify (or other Docker apps) on the same server
+
+They work side by side: Jarvis takes port 8443 on the VPN address, and only its own two firewall rules are saved.
+Docker's published ports go around the server's firewall, so Oracle's security list is what decides who reaches
+them: don't open Coolify's dashboard (8000) to the internet, use `http://10.8.0.1:8000` with the VPN on. Coolify
+needs about 2 GB; building big apps on the same 12 GB server can slow Jarvis down.
 
 ## Changing Jarvis after the move
 
