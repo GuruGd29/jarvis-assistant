@@ -48,7 +48,9 @@ say "Checking this computer"
 [ "$(id -u)" != 0 ] || fail "run this as your normal user, not root (it asks for sudo when needed)."
 [ "$(uname -s)" = Linux ] || fail "this installer is for Linux. On a Mac, follow docs/install-mac.md."
 command -v apt-get >/dev/null || fail "this installer needs Ubuntu or Debian (apt-get)."
-sudo -v || fail "your user needs sudo rights."
+# A user allowed sudo without a password (cloud servers) is not asked for one: sudo-rs, Ubuntu's sudo from 25.10,
+# asks on "sudo -v" even then.
+sudo -n true 2>/dev/null || sudo -v || fail "your user needs sudo rights."
 mem_gb=$(awk '/MemTotal/ {printf "%d", $2 / 1000000}' /proc/meminfo)
 disk_gb=$(df -Pk "$HOME" | awk 'NR == 2 {printf "%d", $4 / 1000000}')
 echo "  $(uname -m), ${mem_gb} GB memory, ${disk_gb} GB free disk"
