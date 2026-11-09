@@ -3,7 +3,8 @@
   jarvis-auth google   needs secrets/google-client.json (OAuth "Desktop app" client); opens Google's consent page
                        (on a server: --port 8085, with `ssh -L 8085:127.0.0.1:8085` from your computer; docs/google.md)
   jarvis-auth icloud   asks for your Apple ID and an app-specific password (appleid.apple.com > Sign-In and Security)
-  jarvis-auth status   shows which calendars are connected
+  jarvis-auth status   shows which calendars are connected, and how the app signs in
+  jarvis-auth password sets the password for signing in to the app (docs/sign-in.md); signs every device out
 """
 import argparse
 import getpass
@@ -57,18 +58,33 @@ def status() -> None:
     for path in (calendars.GOOGLE_CLIENT, calendars.GOOGLE_TOKEN, calendars.ICLOUD_SECRET):
         if path.exists():
             print(f"  {path.name}: mode {oct(path.stat().st_mode & 0o777)}")
+    from .web import login
+    ways = (["password"] if login.password_set() else []) + (["Google"] if login.google_client() else [])
+    print("App sign-in:", " and ".join(ways) if ways else "off (anyone who can reach the app can use it)")
+
+
+def password() -> None:
+    from .web import login
+
+    first = getpass.getpass("New password for the Jarvis app (at least 12 characters): ")
+    if len(first) < 12:
+        sys.exit("Too short: use at least 12 characters, for example four random words.")
+    if getpass.getpass("Type it again: ") != first:
+        sys.exit("The two didn't match. Nothing was changed.")
+    login.set_password(first)
+    print("Password set. Every device is signed out; sign in again in the app.")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("target", choices=["google", "icloud", "status"])
+    parser.add_argument("target", choices=["google", "icloud", "status", "password"])
     parser.add_argument("--port", type=int, default=0, help="google: wait for Google's reply on this port "
                         "(for a server, through an SSH tunnel) and print the sign-in link instead of opening a browser")
     args = parser.parse_args()
     if args.target == "google":
         google(args.port)
     else:
-        {"icloud": icloud, "status": status}[args.target]()
+        {"icloud": icloud, "status": status, "password": password}[args.target]()
 
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from .. import config, money, watches
-from . import data, files, hermes, notify, voice
+from . import data, files, hermes, login, notify, voice
 
 APP_DIR = config.SYSTEM_DIR / "web" / "app"
 PORT = int(os.environ.get("JARVIS_WEB_PORT", "8791"))
@@ -490,7 +490,7 @@ def _profile() -> str:
     """The user's name, number/date style and currency for the app, as a <meta> tag (no inline script needed)."""
     profile = {"name": config.OWNER_NAME, "locale": config.LOCALE.replace("_", "-"), "currency": config.CURRENCY,
                "host": "mac" if sys.platform == "darwin" else "other", "voice": voice.available(),
-               "photos": bool(config.IMAGE_SUFFIXES)}
+               "photos": bool(config.IMAGE_SUFFIXES), "signin": login.enabled()}
     return f'<meta name="jarvis-profile" content="{html.escape(json.dumps(profile))}">'
 
 
@@ -557,6 +557,9 @@ class SecurityHeaders(BaseHTTPMiddleware):
 
 routes = [
     Route("/", index), Route("/sw.js", service_worker), Route("/manifest.webmanifest", manifest),
+    Route("/login", login.page), Route("/login", login.submit, methods=["POST"]),
+    Route("/logout", login.logout, methods=["POST"]),
+    Route("/auth/google", login.google_start), Route("/auth/google/callback", login.google_back),
     Route("/api/chats", list_chats, methods=["GET"]), Route("/api/chats", new_chat, methods=["POST"]),
     Route("/api/chats/{sid}", get_chat, methods=["GET"]), Route("/api/chats/{sid}", delete_chat, methods=["DELETE"]),
     Route("/api/chats/{sid}/send", send_message, methods=["POST"]),
@@ -616,7 +619,8 @@ async def server_error(request: Request, error: Exception) -> Response:
 
 
 app = Starlette(routes=routes, lifespan=lifespan, exception_handlers={Exception: server_error},
-                middleware=[Middleware(SecurityHeaders)] + ([Middleware(ServerGuard)] if config.HOSTS else []))
+                middleware=[Middleware(SecurityHeaders)] + ([Middleware(ServerGuard)] if config.HOSTS else [])
+                + [Middleware(login.SignInGuard)])
 
 
 def main() -> None:

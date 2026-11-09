@@ -70,12 +70,15 @@ function md(src) {
   return out.join("");
 }
 
+// Signed out, or the sign-in ran out: go to the sign-in page. Never resolves, so nothing shows an error meanwhile.
+function toSignIn() { location.replace("/login"); return new Promise(() => {}); }
 async function api(path, opts = {}) {
   const init = { method: opts.method || "GET", headers: {} };
   if (opts.body !== undefined) { init.body = JSON.stringify(opts.body); init.headers["Content-Type"] = "application/json"; }
   if (init.method !== "GET" && !await reachable()) throw new Error(OFFLINE);
   let res;
   try { res = await fetch(path, init); } catch { setOffline(true); throw new Error("Can't reach Jarvis. Check your Wi-Fi or VPN."); }
+  if (res.status === 401) return toSignIn();
   S.savedAt = res.headers.get("X-Jarvis-Saved"); // set when the service worker answered with the phone's saved copy
   setOffline(!!S.savedAt, S.savedAt);
   const data = await res.json().catch(() => ({}));
@@ -132,6 +135,7 @@ const I = {
   clip: sv('<path d="M20 11.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8.5-8.5a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5l7.8-7.8"/>', 1.9),
   upload: sv('<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 14v5.5h14V14"/>', 2),
   x: sv('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>', 2.2),
+  out: sv('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>'),
   bus: sv('<rect x="4.5" y="3.5" width="15" height="14" rx="3"/><path d="M4.5 10.5h15M8 17.5V20M16 17.5V20M8 14h.01M16 14h.01"/>'),
   film: sv('<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M3.5 9.5h17M8 5l2 4.5M13 5l2 4.5"/>'),
   globe: sv('<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.5 5.4 3.5 8.5s-1 5.9-3.5 8.5c-2.5-2.6-3.5-5.4-3.5-8.5s1-5.9 3.5-8.5z"/>'),
@@ -384,6 +388,7 @@ async function upload(url, file) {
   let res;
   try { res = await fetch(url, { method: "POST", headers: { "X-File-Name": encodeURIComponent(file.name), "Content-Type": "application/octet-stream" }, body: file }); }
   catch { throw new Error("Can't reach Jarvis. Check your Wi-Fi or VPN."); }
+  if (res.status === 401) return toSignIn();
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Something went wrong (${res.status}).`);
   return data;
@@ -491,6 +496,7 @@ async function micToggle() {
     try {
       const res = await fetch("/api/voice", { method: "POST", headers: { "Content-Type": "audio/wav" },
         body: await toWav(new Blob(chunks, { type: recorder.mimeType })) });
+      if (res.status === 401) return toSignIn();
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Something went wrong (${res.status}).`);
       if (!data.text) toast("Didn't catch that. Try again a little closer to the phone.");
@@ -560,6 +566,7 @@ async function send(text) {
   try {
     const res = await fetch(`/api/chats/${encodeURIComponent(S.chatId)}/send`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, attachment: attached ? attached.id : undefined }), signal: controller.signal });
+    if (res.status === 401) return toSignIn();
     if (!res.ok || !res.body) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "Jarvis could not answer."); }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -984,6 +991,8 @@ function viewMore() {
       ${row("go", "files", I.file, "Your files", M ? `${M.documents} documents Jarvis can search · add more` : "Documents Jarvis can search")}
       ${info(I.list, "Tasks", M ? `${M.open_tasks} open Jarvis task${M.open_tasks === 1 ? "" : "s"}` : "…")}
     </div>
+    ${P.signin ? `<div class="sec">Account</div>
+    <div class="card">${row("sign-out", "", I.out, "Sign out", "On this device", "")}</div>` : ""}
     <div class="note">Jarvis runs on your own computer. Ask in chat “what do you know about me” to see your memory, or “forget …” to remove something.</div>
   </div></section>`;
 }
@@ -1087,6 +1096,11 @@ document.addEventListener("click", async e => {
     // The Chat tab returns to the conversation you were in, not a blank chat.
     case "go": if (v === "money") S.cat = null; navigate(v === "chat" && S.chatId ? `#chat/${S.chatId}` : `#${v}`); break;
     case "reload": load(S.route); break;
+    case "sign-out":
+      if (!confirm("Sign out of Jarvis on this device?")) break;
+      try { await fetch("/logout", { method: "POST" }); } catch { toast("Can't reach Jarvis. Try again when it's back."); break; }
+      if ("caches" in window) await caches.delete("jarvis-data-v1").catch(() => {}); // what the screens last showed
+      location.replace("/login"); break;
     case "watch-new": S.wtext = ""; S.wform = null; S.wtest = null; navigate("#watches/new"); break;
     case "watch-type": S.wform = blankWatch(v); S.wtest = null; navigate("#watches/form"); break;
     case "watch-open": navigate(`#watches/${v}`); break;

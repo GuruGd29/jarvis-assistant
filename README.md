@@ -211,8 +211,9 @@ currency, and each email is read once, at night by default so it doesn't slow yo
 - **Nothing listens on the internet.** Ollama, Postgres, Hermes and the app server listen on `127.0.0.1` only. On a
   server set up with [docs/remote-access.md](docs/remote-access.md), the only port open to the internet is
   WireGuard, and your phone joins that private network to use the app.
-- **The app has no login of its own.** It relies on being reachable only from your own devices, through WireGuard
-  or your home Wi-Fi. **Never expose it directly to the internet.**
+- **Sign-in.** The app can ask for a password, "Sign in with Google", or both ([docs/sign-in.md](docs/sign-in.md)).
+  Without one it relies on being reachable only from your own devices, through WireGuard or your home Wi-Fi, and it
+  refuses to answer on a public address until a sign-in is set.
 - **Read-only where possible.** Gmail, Drive and iPhone Reminders are read-only. A calendar event is added only after
   you reply "yes" to Jarvis's proposal. Jarvis never sends email or pays anything.
 - **Prompt injection.** Sentences in files or emails that try to instruct the assistant ("ignore previous

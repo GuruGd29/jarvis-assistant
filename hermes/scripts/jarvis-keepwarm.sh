@@ -17,10 +17,11 @@ unset PYTHONPATH PYTHONHOME VIRTUAL_ENV
   echo "$health" | grep -q '"ok": *true' || echo "⚠️ The Jarvis app is unhealthy: ${health:-the app server is not answering}"
   # The front door only where it is set up (docs/remote-access.md): Caddy on a Mac, or on a server's VPN address.
   # A machine without it is not reported every 20 minutes.
-  # The server's address is in its Caddyfile: https://10.8.0.1, or :8443 when another program has port 443.
+  # The server's address is in its Caddyfile: https://10.8.0.1, or :8443 when another program has port 443. The
+  # manifest answers without signing in, so this works with the app's sign-in on.
   server_app=$(grep -m1 -oE '^https://10\.8\.0\.1(:[0-9]+)?' /etc/caddy/Caddyfile 2>/dev/null)
-  for front in "/opt/homebrew/var/lib/caddy/pki/authorities/local/root.crt https://localhost:3444/" \
-               "/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt ${server_app:-https://10.8.0.1}/"; do
+  for front in "/opt/homebrew/var/lib/caddy/pki/authorities/local/root.crt https://localhost:3444/manifest.webmanifest" \
+               "/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt ${server_app:-https://10.8.0.1}/manifest.webmanifest"; do
     set -- $front
     [ -r "$1" ] || continue
     code=$(curl -s -m 10 --cacert "$1" -o /dev/null -w '%{http_code}' "$2")
