@@ -57,11 +57,16 @@ sudo systemctl enable --now fail2ban >/dev/null 2>&1 || echo "  Warning: fail2ba
 # /etc/iptables/rules.v4), ahead of any ufw rules; other servers come with ufw only. Jarvis's own services listen on
 # 127.0.0.1 or the VPN address only.
 say "Firewall: WireGuard (UDP $PORT) from the internet, Jarvis only on the VPN"
-if ! dpkg -s iptables-persistent >/dev/null 2>&1 && command -v ufw >/dev/null; then
+# "Installed" means installed: a package removed with its settings left behind (ufw takes iptables-persistent's
+# place that way) doesn't count, and the firewall the server already uses is kept.
+installed() { dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q " installed$"; }
+if ! installed iptables-persistent && installed ufw; then
   sudo ufw allow "$PORT/udp" >/dev/null && sudo ufw allow in on wg0 >/dev/null
+  sudo ufw status | grep -q "^Status: active" || echo "  Note: ufw is installed but off, so only Oracle's security list protects this server."
 else
-  echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | sudo debconf-set-selections
-  echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | sudo debconf-set-selections
+  # Not saving the live rules on install: they may hold Docker's and ufw's (see below).
+  echo "iptables-persistent iptables-persistent/autosave_v4 boolean false" | sudo debconf-set-selections
+  echo "iptables-persistent iptables-persistent/autosave_v6 boolean false" | sudo debconf-set-selections
   sudo apt-get install -y -q iptables-persistent >/dev/null
   sudo iptables -C INPUT -p udp --dport "$PORT" -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p udp --dport "$PORT" -j ACCEPT
   sudo iptables -C INPUT -i wg0 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -i wg0 -j ACCEPT
