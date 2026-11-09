@@ -129,6 +129,8 @@ if [ -n "${CADDY_CA_DIR:-}" ] && [ -f "$CADDY_CA_DIR/root.key" ]; then
   sudo install -m 600 -o caddy -g caddy "$CADDY_CA_DIR/root.crt" "$CADDY_CA_DIR/root.key" "$CADDY_PKI/"
   sudo rm -f "$CADDY_PKI/intermediate.crt" "$CADDY_PKI/intermediate.key"
   sudo rm -rf /var/lib/caddy/.local/share/caddy/certificates/local
+  # The folders above the authority were just made by root; Caddy has to write its certificates next to them.
+  sudo chown -R caddy:caddy /var/lib/caddy/.local
 fi
 sudo tee /etc/caddy/Caddyfile >/dev/null <<EOF
 # Jarvis (deploy/server/prepare.sh): the app over HTTPS on the VPN address only. Replies stream, so they are passed
