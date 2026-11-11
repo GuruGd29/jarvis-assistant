@@ -30,6 +30,8 @@ from .. import config
 PASSWORD_FILE = config.SECRETS_DIR / "web-password"
 KEY_FILE = config.SECRETS_DIR / "web-session.key"  # signs the sign-in cookies; a new one signs everyone out
 GOOGLE_FILE = config.SECRETS_DIR / "google-login.json"
+SIRI_KEY_FILE = config.SECRETS_DIR / "siri-key"  # a hash of the key the Siri Shortcut sends (docs/siri.md)
+KEY_PATHS = {"/api/ask"}  # the only address a Siri key opens
 COOKIE, GOOGLE_COOKIE = "jarvis_session", "jarvis_google"
 SESSION_DAYS = 30  # renewed while the app is in use, so a phone in daily use stays signed in
 GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -165,6 +167,8 @@ class SignInGuard(BaseHTTPMiddleware):
         path = request.url.path
         if path in OPEN or path.startswith("/static/"):
             return await call_next(request)
+        if path in KEY_PATHS and request.headers.get("authorization"):
+            return await _with_key(request, call_next)
         if not enabled():
             if public((request.url.hostname or "").lower()):
                 return _refuse(path, "Jarvis has no sign-in yet, so it doesn't answer on a public address. "
@@ -185,6 +189,48 @@ def _refuse(path: str, message: str) -> Response:
     if path.startswith("/api/"):
         return JSONResponse({"error": message}, 403)
     return _html(f'<p class="msg">{html.escape(message)}</p>', 403)
+
+
+# --- the Siri key ------------------------------------------------------------------------------------
+# A Shortcut can't sign in like a browser, so it sends a key in its Authorization header. The key opens only
+# /api/ask. Only its SHA-256 is kept: the key is 43 random characters, so a hash is enough (no slow hashing needed).
+
+def siri_key_on() -> bool:
+    return SIRI_KEY_FILE.exists()
+
+
+def new_siri_key() -> str:
+    """Makes a new key and returns it, once; the previous key stops working."""
+    key = "jarvis_" + secrets.token_urlsafe(32)
+    _write_secret(SIRI_KEY_FILE, hashlib.sha256(key.encode()).hexdigest() + "\n")
+    return key
+
+
+def remove_siri_key() -> None:
+    SIRI_KEY_FILE.unlink(missing_ok=True)
+
+
+def siri_key_matches(header: str) -> bool:
+    scheme, _, key = (header or "").partition(" ")
+    if scheme.lower() != "bearer" or not key.strip() or not siri_key_on():
+        return False
+    return hmac.compare_digest(hashlib.sha256(key.strip().encode()).hexdigest(), SIRI_KEY_FILE.read_text().strip())
+
+
+async def _with_key(request: Request, call_next) -> Response:
+    """A request with a Siri key: let it through to /api/ask when the key is right. Wrong keys slow down like wrong
+    passwords. The answers are written for the Shortcut, which reads out "reply"."""
+    address = request.client.host if request.client else "unknown"
+    wait = _key_throttle.wait(address)
+    if wait:
+        return JSONResponse({"reply": f"Too many wrong Siri keys. Try again in {_wait_text(wait)}."}, 429)
+    if siri_key_matches(request.headers.get("authorization", "")):
+        _key_throttle.passed(address)
+        return await call_next(request)
+    _key_throttle.failed(address)
+    log.warning("wrong Siri key from %s", address)
+    return JSONResponse({"reply": "That Siri key isn't right. Make a new one in Jarvis: More, then Siri and "
+                                  "Shortcuts."}, 401)
 
 
 # --- slowing down password guesses --------------------------------------------------------------------
@@ -221,6 +267,7 @@ class Throttle:
 
 
 _throttle = Throttle()
+_key_throttle = Throttle()  # wrong Siri keys, kept apart so they never lock the password
 _checking = asyncio.Lock()  # one password check at a time, so parallel guesses can't slip past the throttle
 
 

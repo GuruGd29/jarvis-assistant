@@ -49,6 +49,7 @@ can never be committed by accident. Backups ([backups.md](backups.md)) cover the
 | `JARVIS_HOSTS` | `10.8.0.1,yourname.dynv6.net` | the addresses the app answers to; any other address is refused. Set on servers |
 | `JARVIS_LOGIN_EMAILS` | `you@gmail.com` | the Google accounts allowed to **Sign in with Google** ([sign-in.md](sign-in.md)); empty: Google sign-in is off |
 | `JARVIS_CONTACT_EMAIL` | `you@example.com` | given only to the push services (Apple, Google, Mozilla) in case they need to reach you about notifications |
+| `JARVIS_SIRI_WAIT` | `40` | seconds a question from Siri waits for its answer; a slower one comes as a notification ([siri.md](siri.md)) |
 | `JARVIS_WEB_PORT` | `8791` | the app server's port, on `127.0.0.1` only. Mac only: on a server, Caddy and the scripts expect 8791 |
 
 **Money, voice and files**
@@ -97,6 +98,7 @@ Everything in `~/jarvis-system/secrets/` is private. Never commit it, paste it i
 | `icloud.json` | your Apple ID and an app-specific password, for iCloud calendars | `jarvis-auth icloud` ([google.md](google.md#icloud-calendar-optional)) |
 | `money.json` | your banks' alert email addresses, and your own names and account endings | you write it ([money.md](money.md)) |
 | `web-password` | the app's sign-in password, as a scrypt hash (the password itself isn't kept) | `jarvis-auth password` |
+| `siri-key` | a hash of the Siri key, which only lets a Shortcut ask questions ([siri.md](siri.md)) | **More → Siri & Shortcuts** in the app |
 | `web-session.key` | signs the app's sign-in cookies; a new one signs every device out | made by itself; `jarvis-auth password` makes a new one |
 | `vapid-private.pem` | the key for phone notifications | made by itself |
 | `backup.env` | where backups go, and the storage key | you write it ([backups.md](backups.md)) |

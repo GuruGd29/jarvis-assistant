@@ -30,6 +30,7 @@ KINDS = {
     "problems": ("Important problems", "Google sign-in expiring, a sync or backup failing", False),
     "reports": ("Daily, weekly & monthly reports", "Morning brief, Sunday summary, money report, memory clean-up", False),
     "replies": ("Chat replies", "When Jarvis finishes a reply while the app is closed", False),
+    "siri": ("Siri answers", "Answers that took longer than Siri waits", True),
 }
 DEFAULTS = {
     "push": {kind: on for kind, (_, _, on) in KINDS.items()},

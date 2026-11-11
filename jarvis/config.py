@@ -92,6 +92,8 @@ CHAT_MODEL = os.environ.get("JARVIS_CHAT_MODEL") or "qwen3.5-4b-64k"
 # Keep the chat model's prompt cached with a throwaway chat every 20 minutes (jarvis-warm-chat). Turn it off when the
 # chat model is a cloud service (docs/customize.md): there it would be a paid request every 20 minutes for nothing.
 WARM_CHAT = (os.environ.get("JARVIS_WARM_CHAT") or "on").lower() != "off"
+# How long a question from Siri waits for its answer (docs/siri.md). A later answer comes as a notification instead.
+SIRI_WAIT = float(os.environ.get("JARVIS_SIRI_WAIT") or 40)
 # Bank emails from banks without a built-in reader: "nightly" reads them once a night (an AI read pushes the chat
 # out of the model's memory, which costs minutes on a CPU server), "always" on every money sync, "off" never.
 MONEY_AI = (os.environ.get("JARVIS_MONEY_AI") or "nightly").lower()

@@ -46,6 +46,7 @@ create with anyone, and updates come with `git pull`.
 
 | | |
 |---|---|
+| 🎙️ **Siri** | Say *"Hey Siri, Ask Jarvis"* and ask; Siri reads the answer out, even from the lock screen or in the car ([docs/siri.md](docs/siri.md)). |
 | 💬 **Chat** | Ask anything, in English or your own language (Tamil and Tanglish are tested weekly). It replies in the language you write in, and can read replies aloud. Tap the mic to speak instead of typing: the speech becomes text on your own computer ([docs/voice.md](docs/voice.md)). The paperclip attaches a file to that chat only ([docs/files.md](docs/files.md)). |
 | 📄 **Your files** | Put documents in `~/Jarvis` (PDF, Word, text, Markdown, CSV, and photos or scans, read with text recognition). Jarvis indexes them and answers from them, naming the file: *"Your car insurance renews on 15 December 2026. Source: car-insurance.md"*. It can also copy one Google Drive folder when you say "sync drive". In the app, **More → Your files** adds a document from your phone or computer and makes it searchable at once; tap a file to see it and the text Jarvis read in it. |
 | 📅 **Calendar and tasks** | Reads Google and iCloud calendars, keeps its own tasks with reminders, and can read your iPhone Reminders. It adds a calendar event only after you say yes. |
@@ -401,7 +402,7 @@ delete `~/jarvis-system`, `~/.hermes` and the `jarvis` database. Your files in `
 | [Any server](docs/install-server.md) | [Public name](docs/public-address.md) | [Settings, secrets, accounts](docs/configuration.md) | [Backups](docs/backups.md) |
 | [Oracle Cloud](docs/oracle-cloud.md) | [VPN and home Wi-Fi](docs/remote-access.md) | [Google and iCloud](docs/google.md) | [Testing](docs/testing.md) |
 | [Mac](docs/install-mac.md) | [Sign-in](docs/sign-in.md) | [Money](docs/money.md) | [Troubleshooting](docs/troubleshooting.md) |
-| [Mac → server](docs/server.md) | | [Files](docs/files.md) · [Telegram](docs/telegram.md) | [Contributing](CONTRIBUTING.md) |
+| [Mac → server](docs/server.md) | | [Files](docs/files.md) · [Telegram](docs/telegram.md) · [Siri](docs/siri.md) | [Contributing](CONTRIBUTING.md) |
 | [With an AI agent](docs/setup-with-ai.md) | | [Voice](docs/voice.md) · [Watches](docs/watches.md) | [Security](SECURITY.md) · [Privacy](PRIVACY.md) |
 | [Customize: models, hosts](docs/customize.md) | | | |
 

@@ -8,6 +8,7 @@ import html
 import json
 import logging
 import os
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -109,9 +110,11 @@ async def delete_chat(request: Request) -> Response:
     return _json({"ok": True})
 
 
-async def _run_turn(session_id: str, text: str, queue: asyncio.Queue, client: dict, shown: str | None = None) -> None:
+async def _run_turn(session_id: str, text: str, queue: asyncio.Queue, client: dict, shown: str | None = None,
+                    late: tuple[str, str] = ("replies", "Jarvis replied")) -> None:
     """Runs the whole reply even if the phone disconnects; the reply is saved by Hermes either way. `shown` is what the
-    chat list shows of the user's message when `text` carries an attached file."""
+    chat list shows of the user's message when `text` carries an attached file. A reply nobody received is sent as a
+    notification of kind `late[0]`, titled `late[1]`."""
     final = {"t": "error", "message": "Jarvis could not finish that reply."}
     try:
         async for event in hermes.stream_turn(session_id, text):
@@ -130,8 +133,76 @@ async def _run_turn(session_id: str, text: str, queue: asyncio.Queue, client: di
         except asyncio.TimeoutError:
             pass
         if not client["delivered"]:
-            await run_in_threadpool(notify.notify, "replies", "Jarvis replied",
+            await run_in_threadpool(notify.notify, late[0], late[1],
                                     final["text"][:300] or "Your answer is ready.", {"url": f"/#chat/{session_id}"})
+
+
+# --- Siri and Shortcuts (docs/siri.md) --------------------------------------------------------------------------
+
+def spoken(text: str) -> str:
+    """The reply as Siri should read it: Markdown marks out, list items as their own lines."""
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)                     # [words](link) -> words
+    text = re.sub(r"(\*\*|__|`)", "", text)                                   # bold and code marks
+    text = re.sub(r"(?<![\w*])\*(?!\s)([^*\n]+?)\*(?!\w)", r"\1", text)      # *italics*
+    text = re.sub(r"(?m)^[ \t]{0,3}(#{1,6}[ \t]+|[-*•][ \t]+|\d+[.)][ \t]+)", "", text)  # headings, list marks
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+async def _new_chat_id() -> str:
+    session_id = await hermes.create_session()
+
+    def insert():
+        with notify.connect() as conn:
+            conn.execute("INSERT INTO web_chats (session_id) VALUES (%s)", (session_id,))
+    await run_in_threadpool(insert)
+    return session_id
+
+
+async def ask(request: Request) -> Response:
+    """POST /api/ask {"text": "..."} -> {"reply": "..."}: one question from Siri or a Shortcut, as a new chat in the app.
+    It waits up to JARVIS_SIRI_WAIT seconds; a slower answer comes as a notification, and Siri says so."""
+    text = str((await _body(request)).get("text", "")).strip()
+    if not text:
+        return _json({"reply": "I didn't catch a question. Try again."})
+    if len(text) > 4000:
+        return _json({"reply": "That's too long for one question."})
+    session_id = await _new_chat_id()
+    queue: asyncio.Queue = asyncio.Queue()
+    client = {"delivered": False, "settled": asyncio.Event()}
+    task = asyncio.create_task(_run_turn(session_id, text, queue, client, late=("siri", "Jarvis answered")))
+    _RUNNING.add(task)
+    task.add_done_callback(_RUNNING.discard)
+
+    async def final() -> dict:
+        while (event := await queue.get())["t"] not in ("done", "error"):
+            pass
+        return event
+
+    try:
+        event = await asyncio.wait_for(final(), timeout=config.SIRI_WAIT)
+        if event["t"] == "done":
+            client["delivered"] = True
+            return _json({"reply": spoken(event["text"]) or "Done.", "chat": session_id})
+        return _json({"reply": event.get("message") or "Jarvis couldn't answer that.", "chat": session_id})
+    except asyncio.TimeoutError:
+        return _json({"reply": "Jarvis is still working on that. The answer will come as a notification.",
+                      "chat": session_id, "pending": True})
+    finally:
+        client["settled"].set()  # nobody waits any more: an answer that comes later goes out as a notification
+
+
+async def siri_status(request: Request) -> Response:
+    return _json({"on": login.siri_key_on(), "url": f"{request.url.scheme}://{request.url.netloc}/api/ask"})
+
+
+async def siri_new_key(request: Request) -> Response:
+    key = await run_in_threadpool(login.new_siri_key)
+    return _json({"on": True, "key": key, "url": f"{request.url.scheme}://{request.url.netloc}/api/ask"})
+
+
+async def siri_off(request: Request) -> Response:
+    await run_in_threadpool(login.remove_siri_key)
+    return _json({"on": False})
 
 
 # --- files: attached to one chat, or added to the user's files ----------------------------------------------------
@@ -584,6 +655,9 @@ routes = [
     Route("/api/push/key", push_key), Route("/api/push/subscribe", push_subscribe, methods=["POST"]),
     Route("/api/push/unsubscribe", push_unsubscribe, methods=["POST"]),
     Route("/api/push/test", push_test, methods=["POST"]),
+    Route("/api/ask", ask, methods=["POST"]),
+    Route("/api/siri", siri_status), Route("/api/siri", siri_new_key, methods=["POST"]),
+    Route("/api/siri", siri_off, methods=["DELETE"]),
     Route("/api/health", health),
     Mount("/static", StaticFiles(directory=str(APP_DIR)), name="static"),
 ]
@@ -606,16 +680,22 @@ async def lifespan(app):
 
 
 async def server_error(request: Request, error: Exception) -> Response:
-    """Every unexpected failure becomes a short, clear message for the app, with the details in the log."""
+    """Every unexpected failure becomes a short, clear message for the app, with the details in the log. Siri reads
+    "reply", so /api/ask gets the message there too."""
+    def message(text: str, status: int) -> Response:
+        if request.url.path == "/api/ask":
+            return _json({"reply": text, "error": text}, status)
+        return _error(text, status)
+
     if isinstance(error, psycopg.OperationalError):
         log.warning("database unavailable on %s: %s", request.url.path, error)
-        return _error("Jarvis's database isn't answering. It usually comes back within a minute.", 503)
+        return message("Jarvis's database isn't answering. It usually comes back within a minute.", 503)
     if isinstance(error, (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout)):
         log.warning("Hermes unavailable on %s: %s", request.url.path, error)
-        return _error("Jarvis is restarting. Try again in a minute.", 503)
+        return message("Jarvis is restarting. Try again in a minute.", 503)
     log.exception("unexpected error on %s %s", request.method, request.url.path)
     where = "the Mac" if sys.platform == "darwin" else "the server"
-    return _error(f"Something went wrong on {where}. The details were logged.", 500)
+    return message(f"Something went wrong on {where}. The details were logged.", 500)
 
 
 app = Starlette(routes=routes, lifespan=lifespan, exception_handlers={Exception: server_error},

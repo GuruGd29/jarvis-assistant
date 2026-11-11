@@ -164,7 +164,7 @@ document.getElementById("app").innerHTML = `
   <div class="offline" id="offline">Offline · can't reach Jarvis</div>`;
 
 const TABS = [["chat", "Chat"], ["today", "Today"], ["money", "Money"], ["watches", "Watches"], ["more", "More"]];
-const mainTab = () => ["settings", "activity", "renewals", "files"].includes(S.route) ? "more" : S.route;
+const mainTab = () => ["settings", "activity", "renewals", "files", "siri"].includes(S.route) ? "more" : S.route;
 function tabBadge(k) {
   if (k === "today") return S.today ? S.today.tasks.filter(t => !t.done && t.due_on && t.due_on <= todayISO()).length
     + S.today.medicines.filter(m => m.past && m.status === "due").length : 0;
@@ -213,8 +213,9 @@ function navigate(hash, replace = false) {
 }
 function route() {
   const [name, arg] = here.replace(/^#/, "").split("/");
-  const known = ["chat", "today", "money", "watches", "more", "settings", "activity", "renewals", "files"];
+  const known = ["chat", "today", "money", "watches", "more", "settings", "activity", "renewals", "files", "siri"];
   S.route = known.includes(name) ? name : "chat";
+  if (S.route !== "siri") S.siriKey = null; // a new Siri key is shown once, only while you're on that screen
   S.warg = name === "watches" ? (arg || "") : "";
   try { S.farg = name === "files" && arg ? decodeURIComponent(arg) : ""; } catch { S.farg = ""; } // #files/<path>: a file opened
   if (S.route === "chat") openChat(arg || null);
@@ -222,7 +223,7 @@ function route() {
 }
 
 function render(animate = true) {
-  const views = { chat: viewChat, today: viewToday, money: viewMoney, watches: viewWatchesRoute, more: viewMore, settings: viewSettings, activity: viewActivity, renewals: viewRenewals, files: () => S.farg ? viewFile() : viewFiles() };
+  const views = { chat: viewChat, today: viewToday, money: viewMoney, watches: viewWatchesRoute, more: viewMore, settings: viewSettings, activity: viewActivity, renewals: viewRenewals, files: () => S.farg ? viewFile() : viewFiles(), siri: viewSiri };
   const keep = S.route === "watches" && !animate ? [...$$("#view .scroll, #view .listcol")].map(e => e.scrollTop) : []; // a refresh keeps your place
   $("#app").dataset.route = S.route;
   $("#view").innerHTML = views[S.route]();
@@ -258,6 +259,7 @@ async function load(name) {
       if (S.farg === path) S.fview = v;
     } else if (name === "files") { S.files = await api("/api/files"); S.filesErr = null; }
     if (name === "settings") { S.settings = await api("/api/settings"); await refreshPushState(); }
+    if (name === "siri") S.siri = await api("/api/siri");
     if (name === "activity") { S.activity = await api("/api/activity", S.savedAt ? {} : { method: "POST" }); S.unread = 0; }
     if (name === "renewals" && !S.today) { S.today = await api("/api/today"); }
   } catch (e) {
@@ -983,6 +985,7 @@ function viewMore() {
     <div class="card">
       ${row("go", "activity", I.inbox, "Activity", S.unread ? `${S.unread} new` : "Everything Jarvis told you", S.unread ? `<span class="dot"></span>` : `<span class="chev">${I.chev}</span>`)}
       ${row("go", "settings", I.bell, "Notifications", "Choose what pops up on your phone")}
+      ${row("go", "siri", I.mic, "Siri & Shortcuts", "“Hey Siri, Ask Jarvis”")}
       ${row("go", "renewals", I.renew, "Bills & renewals", M && M.next_renewal ? `Next: ${esc(M.next_renewal.item)} ${dayLabel(M.next_renewal.date)}` : "From your files")}
     </div>
     <div class="sec">Your data</div>
@@ -1033,6 +1036,31 @@ function viewSettings() {
     <div class="sec">Telegram</div>
     <div class="card"><button class="row" data-act="telegram" role="switch" aria-checked="${st.telegram}"><div class="m"><div class="t">Also send to Telegram</div>
       <div class="s">${st.telegram ? `Until ${dayLabel(st.telegram_until)}, while you try the app` : "Off"}</div></div><span class="tog ${st.telegram ? "" : "off"}"></span></button></div>`);
+}
+function viewSiri() {
+  const s = S.siri;
+  if (!s) return sub("Siri & Shortcuts", `<div class="card big"><div class="skel"></div><div class="skel" style="width:60%"></div></div>`);
+  const key = S.siriKey;
+  const top = key
+    ? `<div class="text">Your Siri key, shown only now. Copy it into the Shortcut (step 3). Anyone with it can ask Jarvis, so keep it there only.</div>
+       <div class="keybox">Bearer ${esc(key)}</div><button class="btn p wide" data-act="siri-copy" data-v="key">Copy the key</button>`
+    : `<div class="text">Say <b>“Hey Siri, Ask Jarvis”</b>, then your question. Siri reads the answer out; one that takes longer comes as a notification. It works from the lock screen and in the car.</div>
+       <button class="btn p wide" data-act="siri-new">${s.on ? "Make a new key" : "Make a Siri key"}</button>
+       ${s.on ? `<div class="note">A key is set up. A new one replaces it, and the Shortcut needs the new one.</div>` : ""}`;
+  return sub("Siri & Shortcuts", `
+    <div class="card big"><div class="k">Ask Jarvis with Siri</div>${top}</div>
+    <div class="sec">Make the Shortcut once, on this iPhone</div>
+    <div class="card big"><ol class="steps">
+      <li>Open the <b>Shortcuts</b> app, tap <b>+</b>, and name it <b>Ask Jarvis</b>.</li>
+      <li>Add the action <b>Dictate Text</b>.</li>
+      <li>Add <b>Get Contents of URL</b> with this address: <span class="keybox">${esc(s.url)}</span>
+        <button class="btn s" data-act="siri-copy" data-v="url">Copy the address</button><br>
+        Tap the arrow to show more: <b>Method</b> POST. <b>Headers</b>: add one, key <b>Authorization</b>, value: paste your Siri key. <b>Request Body</b> JSON: add a text field, key <b>text</b>, value <b>Dictated Text</b>.</li>
+      <li>Add <b>Get Dictionary Value</b>: get <b>Value</b> for <b>reply</b> in <b>Contents of URL</b>.</li>
+      <li>Add <b>Show Result</b> with the <b>Dictionary Value</b>. Siri reads it out.</li>
+    </ol></div>
+    <div class="note">Try it: “Hey Siri, Ask Jarvis”, then “What's on my calendar today?”. Each question is saved as a chat here.</div>
+    ${s.on && !key ? `<div class="card" style="margin-top:14px"><button class="row" data-act="siri-off"><div class="m"><div class="t">Turn off the Siri key</div><div class="s">The Shortcut stops working</div></div></button></div>` : ""}`);
 }
 function viewActivity() {
   const A = S.activity;
@@ -1276,6 +1304,18 @@ document.addEventListener("click", async e => {
     }
     case "push-on": pushOn(); break;
     case "push-off": pushOff(); break;
+    case "siri-new":
+      if (S.siri.on && !confirm("Make a new Siri key? The Shortcut stops working until you paste the new one.")) break;
+      try { const r = await api("/api/siri", { method: "POST" }); S.siri = r; S.siriKey = r.key; render(false); } catch (err) { toast(err.message); }
+      break;
+    case "siri-copy":
+      try { await navigator.clipboard.writeText(v === "key" ? `Bearer ${S.siriKey}` : S.siri.url); toast("Copied"); }
+      catch { toast("Couldn't copy. Press and hold the text to copy it."); }
+      break;
+    case "siri-off":
+      if (!confirm("Turn off the Siri key? The Shortcut stops working.")) break;
+      try { S.siri = await api("/api/siri", { method: "DELETE" }); S.siriKey = null; render(false); } catch (err) { toast(err.message); }
+      break;
     case "push-test":
       try { const r = await api("/api/push/test", { method: "POST" }); toast(r.sent ? "Test sent" : "No device is registered"); } catch (err) { toast(err.message); }
       break;

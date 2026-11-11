@@ -30,6 +30,7 @@ New here? Start with the [main README](../README.md), then pick your path below.
 | [money.md](money.md) | spending and card bills from your bank's alert emails |
 | [files.md](files.md) | your documents, attaching files to a chat, text recognition for photos and scans |
 | [telegram.md](telegram.md) | chatting and getting briefings on Telegram |
+| [siri.md](siri.md) | "Hey Siri, Ask Jarvis", and asking from other apps |
 | [voice.md](voice.md) | speaking instead of typing |
 | [watches.md](watches.md) | watching bus fares, movie bookings and prices |
 
