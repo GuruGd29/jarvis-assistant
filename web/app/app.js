@@ -1057,7 +1057,7 @@ function viewSiri() {
         <button class="btn s" data-act="siri-copy" data-v="url">Copy the address</button><br>
         Tap the arrow to show more: <b>Method</b> POST. <b>Headers</b>: add one, key <b>Authorization</b>, value: paste your Siri key. <b>Request Body</b> JSON: add a text field, key <b>text</b>, value <b>Dictated Text</b>.</li>
       <li>Add <b>Get Dictionary Value</b>: get <b>Value</b> for <b>reply</b> in <b>Contents of URL</b>.</li>
-      <li>Add <b>Show Result</b> with the <b>Dictionary Value</b>. Siri reads it out.</li>
+      <li>Add <b>Show Content</b> (called Show Result before iOS 26) with the <b>Dictionary Value</b>. Siri reads it out. Or use <b>Speak Text</b>, which also speaks when you tap the Shortcut.</li>
     </ol></div>
     <div class="note">Try it: “Hey Siri, Ask Jarvis”, then “What's on my calendar today?”. Each question is saved as a chat here.</div>
     ${s.on && !key ? `<div class="card" style="margin-top:14px"><button class="row" data-act="siri-off"><div class="m"><div class="t">Turn off the Siri key</div><div class="s">The Shortcut stops working</div></div></button></div>` : ""}`);

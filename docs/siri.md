@@ -30,7 +30,8 @@ Then add these actions, in this order:
    - **Request Body:** JSON. Add a **Text** field, with the key `text` and the value **Dictated Text** (pick it from
      the variables above the keyboard).
 3. **Get Dictionary Value**: get **Value** for `reply` in **Contents of URL**.
-4. **Show Result**, with **Dictionary Value**. When you use Siri, it reads this out.
+4. **Show Content** (called **Show Result** before iOS 26), with **Dictionary Value**. When you use Siri, it reads
+   this out. **Speak Text** works too, and also speaks when you tap the Shortcut instead of asking Siri.
 
 ## 3. Try it
 
