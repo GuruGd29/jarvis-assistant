@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis · your own private assistant</title>
+<meta name="description" content="A private personal assistant that runs on your own computer or a free cloud server. Free and open source.">
+<meta name="theme-color" content="#f9f8f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<meta property="og:title" content="Jarvis: your own private assistant">
+<meta property="og:description" content="Documents, calendar, email, money, medicines and bills, in your language. On your own computer or a free server. Free and open source.">
+<meta property="og:image" content="img/today.png">
+<link rel="icon" href="img/icon-192.png">
+<style>
+:root { color-scheme: light dark;
+  --bg: #f9f8f6; --surface: #ffffff; --surface-2: #f2f1ee; --ink: #141413; --ink-2: #5f5e5a; --ink-3: #8f8d88;
+  --line: rgba(0,0,0,.08); --accent: #c96442; --accent-ink: #ffffff; --code: #f2f1ee;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace; --r: 16px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1a1a19; --surface: #232322; --surface-2: #2b2b29; --ink: #ecebe8; --ink-2: #a8a6a0; --ink-3: #7c7a75;
+  --line: rgba(255,255,255,.09); --code: #2b2b29; } }
+:root[data-theme="dark"] { --bg: #1a1a19; --surface: #232322; --surface-2: #2b2b29; --ink: #ecebe8; --ink-2: #a8a6a0;
+  --ink-3: #7c7a75; --line: rgba(255,255,255,.09); --code: #2b2b29; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+[id] { scroll-margin-top: 72px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 17px/1.55 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--ink) 30%, transparent); }
+a:hover { text-decoration-color: var(--accent); }
+code, pre { font-family: var(--mono); font-size: 14px; }
+code { background: var(--code); padding: 1px 6px; border-radius: 6px; }
+pre { background: var(--code); padding: 14px 16px; border-radius: 12px; overflow-x: auto; line-height: 1.6; margin: 12px 0 0; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 85%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px); -webkit-backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; gap: 18px; height: 58px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; text-decoration: none; font-size: 18px; }
+.brand img { width: 30px; height: 30px; border-radius: 8px; }
+nav.links { display: flex; gap: 18px; margin-left: auto; font-size: 15px; color: var(--ink-2); }
+nav.links a { text-decoration: none; }
+nav.links a:hover { color: var(--ink); }
+@media (max-width: 720px) { nav.links .opt { display: none; } }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px; font: 600 16px var(--font);
+  text-decoration: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.btn.p { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn:hover { filter: brightness(1.05); }
+.hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; padding: 64px 0 40px; }
+@media (max-width: 880px) { .hero { grid-template-columns: 1fr; padding-top: 40px; } }
+.eyebrow { color: var(--accent); font-weight: 650; font-size: 14px; letter-spacing: .02em; text-transform: uppercase; margin: 0 0 12px; }
+h1 { font-size: clamp(36px, 6vw, 58px); line-height: 1.05; letter-spacing: -.025em; margin: 0 0 18px; }
+h2 { font-size: clamp(28px, 4vw, 38px); line-height: 1.15; letter-spacing: -.02em; margin: 0 0 12px; }
+h3 { font-size: 19px; margin: 0 0 6px; }
+.lead { font-size: 20px; color: var(--ink-2); margin: 0 0 26px; max-width: 34em; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; color: var(--ink-2); font-size: 14px; }
+.pills span { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; }
+.phone { justify-self: center; width: min(360px, 100%); aspect-ratio: 375 / 760; border-radius: 44px; padding: 12px;
+  background: #0d0d0c; box-shadow: 0 30px 60px -20px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.06) inset; position: relative; }
+.phone iframe { width: 100%; height: 100%; border: 0; border-radius: 34px; background: var(--bg); display: block; }
+.phone .cap { position: absolute; left: 0; right: 0; bottom: -34px; text-align: center; font-size: 13px; color: var(--ink-3); }
+section { padding: 56px 0; }
+.sub { color: var(--ink-2); max-width: 40em; margin: 0 0 28px; font-size: 18px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; }
+.card p { margin: 0; color: var(--ink-2); font-size: 15.5px; }
+.card .ic { font-size: 24px; margin-bottom: 8px; }
+.shots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.shots img { width: 100%; border-radius: 22px; border: 1px solid var(--line); background: var(--surface); }
+.shots figcaption { text-align: center; font-size: 14px; color: var(--ink-2); margin-top: 8px; }
+@media (max-width: 720px) { .shots { grid-template-columns: repeat(2, 1fr); } }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+@media (max-width: 880px) { .two { grid-template-columns: 1fr; } }
+ul.check { list-style: none; padding: 0; margin: 0; }
+ul.check li { padding: 9px 0 9px 30px; position: relative; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+ul.check li b { color: var(--ink); font-weight: 600; }
+ul.check li::before { content: "✓"; position: absolute; left: 4px; top: 9px; color: var(--accent); font-weight: 700; }
+table { width: 100%; border-collapse: collapse; font-size: 15.5px; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--ink-2); font-weight: 600; }
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 15px; }
+.flow span { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+.flow i { color: var(--ink-3); font-style: normal; }
+.paths .card h3 { display: flex; align-items: center; gap: 8px; }
+.paths .card a.go { display: inline-block; margin-top: 12px; font-weight: 600; color: var(--accent); text-decoration: none; }
+details { border-bottom: 1px solid var(--line); padding: 14px 0; }
+summary { cursor: pointer; font-weight: 600; }
+details p { color: var(--ink-2); margin: 10px 0 0; }
+footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--ink-3); font-size: 14.5px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: space-between; }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="#"><img src="img/icon-192.png" alt="">Jarvis</a>
+  <nav class="links">
+    <a href="#demo">Demo</a><a class="opt" href="#features">Features</a><a class="opt" href="#privacy">Privacy</a>
+    <a href="#install">Install</a><a href="https://github.com/GuruGd29/jarvis-assistant/blob/main/docs/README.md">Docs</a>
+    <a href="https://github.com/GuruGd29/jarvis-assistant">GitHub</a>
+  </nav>
+</div></header>
+
+<main>
+<div class="wrap hero" id="demo">
+  <div>
+    <p class="eyebrow">Free · open source · private</p>
+    <h1>Your own personal assistant, on your own computer.</h1>
+    <p class="lead">Jarvis reads your documents, calendar, email and bank alerts, keeps your tasks, medicines and bills,
+      and answers in your language. It runs on your Mac, a PC, or a free cloud server, and nothing goes to an AI company.</p>
+    <div class="actions">
+      <a class="btn p" href="#install">Install it, free</a>
+      <a class="btn" href="demo/" target="_blank" rel="noopener">Open the demo full screen</a>
+    </div>
+    <div class="pills"><span>Phone app</span><span>Telegram</span><span>“Hey Siri, Ask Jarvis”</span><span>English, Tamil and more</span><span>MIT licence</span></div>
+  </div>
+  <div class="phone"><iframe src="demo/" title="Jarvis demo with made-up data" loading="lazy"></iframe>
+    <div class="cap">The real app, with made-up data. Tap around.</div></div>
+</div>
+
+<section id="features"><div class="wrap">
+  <h2>What it does</h2>
+  <p class="sub">Everything you'd ask a personal assistant, with the facts kept exact: totals are counted by the database, never guessed by the AI.</p>
+  <div class="grid">
+    <div class="card"><div class="ic">💬</div><h3>Chat</h3><p>Ask anything, in English or your own language; it replies in the language you write in. Speak instead of typing.</p></div>
+    <div class="card"><div class="ic">📄</div><h3>Your files</h3><p>PDFs, Word files, notes and photos of documents. Answers name the file they came from.</p></div>
+    <div class="card"><div class="ic">📅</div><h3>Calendar and tasks</h3><p>Google and iCloud calendars, its own tasks with reminders. It adds an event only after you say yes.</p></div>
+    <div class="card"><div class="ic">💰</div><h3>Money</h3><p>Your bank's alert emails become exact spending by day, week, month and category, plus each card's bill.</p></div>
+    <div class="card"><div class="ic">💊</div><h3>Health</h3><p>Medicine reminders, and lab results with LOW/HIGH flags. It summarises; it doesn't diagnose.</p></div>
+    <div class="card"><div class="ic">👁️</div><h3>Watches</h3><p>A bus fare, movie bookings opening, or a price on any page: it checks and tells you when it finds it.</p></div>
+    <div class="card"><div class="ic">🔔</div><h3>Briefings and renewals</h3><p>A morning brief, a weekly summary, and reminders before insurance, rent or passports run out.</p></div>
+    <div class="card"><div class="ic">🎙️</div><h3>Siri</h3><p>“Hey Siri, Ask Jarvis”: ask from the lock screen or in the car, and Siri reads the answer.</p></div>
+  </div>
+  <div class="shots" style="margin-top:28px">
+    <figure style="margin:0"><img src="img/chat.png" alt="Chat screen" loading="lazy"><figcaption>Chat</figcaption></figure>
+    <figure style="margin:0"><img src="img/today.png" alt="Today screen" loading="lazy"><figcaption>Today</figcaption></figure>
+    <figure style="margin:0"><img src="img/money.png" alt="Money screen" loading="lazy"><figcaption>Money</figcaption></figure>
+    <figure style="margin:0"><img src="img/cards.png" alt="Card bills screen" loading="lazy"><figcaption>Cards</figcaption></figure>
+  </div>
+</div></section>
+
+<section id="privacy"><div class="wrap two">
+  <div>
+    <h2>Private by design</h2>
+    <p class="sub">Your documents, mail and bank details stay on a machine you control.</p>
+    <ul class="check">
+      <li><b>The AI runs on your machine</b>, in Ollama. Nothing is sent to an AI company, unless you choose a cloud AI yourself.</li>
+      <li><b>Read-only where it can be:</b> Gmail and Drive are only read; Jarvis never sends email or pays anything.</li>
+      <li><b>A sign-in</b> with a password or Google before anyone can open it, with guessing slowed down.</li>
+      <li><b>Encrypted backups</b> before anything leaves the machine.</li>
+      <li><b>Instructions hidden in files and emails</b> (“ignore previous instructions…”) are removed before the AI sees them.</li>
+    </ul>
+  </div>
+  <div>
+    <h2>Free, really</h2>
+    <p class="sub">Every part is free and open source. Run it on hardware you have, or on Oracle Cloud's free server.</p>
+    <table>
+      <tr><th>Item</th><th>Cost</th></tr>
+      <tr><td>Jarvis, Hermes Agent, Ollama, Qwen3.5, Postgres, Caddy, WireGuard</td><td>Free, open source</td></tr>
+      <tr><td>Oracle Cloud Always Free server (2 cores, 12 GB)</td><td>Free</td></tr>
+      <tr><td>Google sign-in for Calendar, Gmail and Drive</td><td>Free</td></tr>
+      <tr><td>A public name for the app (dynv6)</td><td>Free</td></tr>
+      <tr><td>Encrypted backups (20 GB of free storage)</td><td>Free</td></tr>
+      <tr><td>Or your own Mac or PC</td><td>Electricity</td></tr>
+    </table>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>How it works</h2>
+  <p class="sub">Open-source parts, put together and tested every week.</p>
+  <div class="flow"><span>📱 Phone app · Telegram · Siri</span><i>→</i><span>Caddy (HTTPS)</span><i>→</i><span>Jarvis app server</span><i>→</i><span>Hermes Agent</span><i>→</i><span>Ollama: Qwen3.5 4B</span></div>
+  <div class="flow" style="margin-top:10px"><span>Jarvis tools: search, money, tasks, health, memory</span><i>↔</i><span>Postgres + pgvector</span><i>↔</i><span>Google · iCloud · your files</span></div>
+  <p class="sub" style="margin-top:20px">Every week, a free GitHub machine set up like Oracle's free server installs Jarvis from scratch and runs 46 test cases against the real model: answers, money totals, Tamil, made-up facts, and hidden instructions.
+    <a href="https://github.com/GuruGd29/jarvis-assistant/blob/main/docs/testing.md">How it's tested</a></p>
+</div></section>
+
+<section id="install"><div class="wrap">
+  <h2>Install it</h2>
+  <p class="sub">The repository is the installer: copy it onto the machine that will run Jarvis, and run <code>./install.sh</code>. It takes 15–30 minutes, mostly downloads.</p>
+  <div class="grid paths">
+    <div class="card"><h3>☁️ A free cloud server</h3><p>Oracle's Always Free server, or any Ubuntu server: Hetzner, DigitalOcean, AWS… Includes the VPN, HTTPS and a free public name.</p>
+      <a class="go" href="https://github.com/GuruGd29/jarvis-assistant/blob/main/docs/install-server.md">Server guide →</a></div>
+    <div class="card"><h3>💻 A Mac</h3><p>Apple silicon makes replies quick. The same pieces, installed step by step.</p>
+      <a class="go" href="https://github.com/GuruGd29/jarvis-assistant/blob/main/docs/install-mac.md">Mac guide →</a></div>
+    <div class="card"><h3>🤖 With an AI agent</h3><p>Claude Code, Codex, Gemini CLI or Cursor can follow the repository's instructions and do the setup with you; you type your own passwords.</p>
+      <a class="go" href="https://github.com/GuruGd29/jarvis-assistant/blob/main/docs/setup-with-ai.md">Prompts to copy →</a></div>
+  </div>
+<pre>git clone https://github.com/GuruGd29/jarvis-assistant.git ~/jarvis-system
+cd ~/jarvis-system
+deploy/server/prepare.sh SERVER_PUBLIC_IP   # a server: updates, firewall, VPN, HTTPS
+./install.sh                                # Jarvis itself
+.venv/bin/jarvis-auth password              # the app's sign-in</pre>
+</div></section>
+
+<section><div class="wrap two">
+  <div>
+    <h2>Make it yours</h2>
+    <ul class="check">
+      <li><b>Any model:</b> <code>bin/use-model.sh qwen3.5:9b</code>, a machine with a graphics card, or a cloud AI if you want one.</li>
+      <li><b>Any host:</b> Oracle, any VPS, a home PC or a Mac.</li>
+      <li><b>Your country:</b> number style, currency, time zone and languages are settings.</li>
+      <li><b>Its personality and schedule:</b> one file for how it talks, and editable times for every job.</li>
+    </ul>
+    <p style="margin-top:14px"><a href="https://github.com/GuruGd29/jarvis-assistant/blob/main/docs/customize.md">Customize Jarvis →</a></p>
+  </div>
+  <div>
+    <h2>Honest limits</h2>
+    <ul class="check">
+      <li><b>A small model makes mistakes</b>, and the weekly tests show them openly.</li>
+      <li><b>Slower on a free server:</b> 15–40 seconds for a short reply, minutes with tools; seconds on a Mac.</li>
+      <li><b>Money from alert emails only:</b> cash isn't counted.</li>
+      <li><b>One person per install</b>, and the phone app is a web app on your Home Screen.</li>
+    </ul>
+  </div>
+</div></section>
+
+<section id="faq"><div class="wrap">
+  <h2>Questions</h2>
+  <details><summary>Is it really free?</summary><p>Yes. All the software is open source, and Oracle's Always Free server costs nothing within its limits. On your own Mac or PC it costs only electricity.</p></details>
+  <details><summary>Does anything I say go to OpenAI, Google or anyone else?</summary><p>No. The model runs on your machine. Google is contacted only to read your own calendar, mail and Drive with your sign-in, and Telegram only if you turn it on.</p></details>
+  <details><summary>Which languages does it speak?</summary><p>Whatever the model handles well, which includes most major languages. English, Tamil and Tanglish are tested every week.</p></details>
+  <details><summary>Do I need to know servers or coding?</summary><p>The guides go step by step, and an AI agent can do the setup with you. You'll still create the accounts and type your own passwords.</p></details>
+  <details><summary>Is the demo real?</summary><p>It's the real phone app running in your browser, on made-up data recorded from a real Jarvis. Chat answers are pre-written in the demo; nothing you do is saved or sent anywhere.</p></details>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+  <span>Jarvis · <a href="https://github.com/GuruGd29/jarvis-assistant/blob/main/LICENSE">MIT licence</a> · made by <a href="https://github.com/GuruGd29">@GuruGd29</a></span>
+  <span>Built on <a href="https://github.com/NousResearch/hermes-agent">Hermes Agent</a>, <a href="https://ollama.com">Ollama</a>, <a href="https://huggingface.co/Qwen">Qwen</a>, <a href="https://www.postgresql.org">PostgreSQL</a> and <a href="https://github.com/pgvector/pgvector">pgvector</a></span>
+</div></footer>
+</body>
+</html>

@@ -13,3 +13,6 @@ __pycache__/
 *.egg-info/
 
 .DS_Store
+
+# The built project page (site/build.py)
+_site/

@@ -1,0 +1,39 @@
+# The project page and the online demo (site/README.md), published to GitHub Pages:
+# https://gurugd29.github.io/jarvis-assistant/ . The demo is the real phone app on made-up data; it needs no secrets.
+name: Project page
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "web/app/**", "docs/screenshots/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the page and the demo
+        run: python3 site/build.py _site
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

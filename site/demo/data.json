@@ -1,0 +1,1539 @@
+{
+ "made_on": "2026-11-11",
+ "screens": {
+  "/api/today": {
+   "date": "2026-11-11",
+   "greeting": "Good afternoon",
+   "events": [
+    {
+     "day": "2026-11-11",
+     "time": "10:00",
+     "end": "10:30",
+     "title": "Team stand-up",
+     "where": "Google Meet",
+     "source": "google",
+     "calendar": "Work"
+    },
+    {
+     "day": "2026-11-11",
+     "time": "18:30",
+     "end": "19:30",
+     "title": "Yoga class",
+     "where": "Cult, HSR",
+     "source": "google",
+     "calendar": "Personal"
+    },
+    {
+     "day": "2026-11-12",
+     "time": null,
+     "end": null,
+     "title": "Deepa's birthday",
+     "where": null,
+     "source": "icloud",
+     "calendar": "Family"
+    }
+   ],
+   "calendar_errors": [],
+   "calendars_connected": true,
+   "tasks": [
+    {
+     "id": 1,
+     "title": "Pay the water bill",
+     "due_on": "2026-11-11",
+     "remind_at": null,
+     "priority": 1,
+     "notes": null
+    },
+    {
+     "id": 3,
+     "title": "Call Amma about Diwali plans",
+     "due_on": "2026-11-12",
+     "remind_at": null,
+     "priority": 2,
+     "notes": null
+    },
+    {
+     "id": 2,
+     "title": "Book the car service",
+     "due_on": "2026-11-14",
+     "remind_at": null,
+     "priority": 2,
+     "notes": null
+    },
+    {
+     "id": 4,
+     "title": "Renew the gym membership",
+     "due_on": "2026-11-17",
+     "remind_at": null,
+     "priority": 2,
+     "notes": null
+    }
+   ],
+   "due_soon": 4,
+   "medicines": [
+    {
+     "medication_id": 2,
+     "time": "08:30",
+     "name": "Iron",
+     "dose": "1 tablet after breakfast",
+     "status": "due",
+     "past": true
+    },
+    {
+     "medication_id": 1,
+     "time": "21:00",
+     "name": "Vitamin D3",
+     "dose": "1 tablet",
+     "status": "due",
+     "past": false
+    }
+   ],
+   "renewals": [
+    {
+     "item": "Car insurance",
+     "date": "2026-11-20",
+     "repeats": "once",
+     "what": "renews",
+     "amount": "₹12,480",
+     "source": "car-insurance.md",
+     "line": "The policy renews on 20 November 2026. Premium: ₹12,480 a year, paid by card."
+    },
+    {
+     "item": "Rent agreement",
+     "date": "2026-12-02",
+     "repeats": "once",
+     "what": "expires",
+     "amount": null,
+     "source": "rent-agreement.md",
+     "line": "The agreement is valid until 02 December 2026 and renews for 11 months at a 5% higher rent."
+    }
+   ],
+   "spent_today": 426.0,
+   "payments_today": 2,
+   "watch_found": [
+    {
+     "id": 1,
+     "kind": "bus",
+     "title": "Bengaluru → Chennai",
+     "summary": "₹649 · KPN Travels, 9:45 pm",
+     "url": null
+    }
+   ]
+  },
+  "/api/iphone-reminders": {
+   "available": false,
+   "off": true,
+   "reason": "Reading iPhone Reminders is off (JARVIS_APPLE_REMINDERS=on)."
+  },
+  "/api/cards": {
+   "cards": [
+    {
+     "card": "ICICI card 5678",
+     "name": "Amazon Pay ICICI",
+     "bank": "ICICI",
+     "last4": "5678",
+     "statement_on": "2026-11-05",
+     "since": "2026-11-05",
+     "total_due": 14250.0,
+     "min_due": 720.0,
+     "due_on": "2026-11-23",
+     "paid": 8000.0,
+     "left": 6250.0,
+     "extra": 0.0,
+     "payments": [
+      {
+       "date": "2026-11-09",
+       "amount": 8000.0
+      }
+     ],
+     "purchases": [
+      {
+       "date": "2026-11-10",
+       "amount": 449.0,
+       "merchant": "SWIGGY",
+       "refund": false
+      },
+      {
+       "date": "2026-11-09",
+       "amount": 2399.0,
+       "merchant": "AMAZON",
+       "refund": false
+      },
+      {
+       "date": "2026-11-07",
+       "amount": 649.0,
+       "merchant": "NETFLIX",
+       "refund": false
+      }
+     ],
+     "purchases_total": 3497.0
+    }
+   ],
+   "today": "2026-11-11"
+  },
+  "/api/more": {
+   "documents": 6,
+   "facts": 23,
+   "episodes": 9,
+   "memory_review": 0,
+   "next_renewal": {
+    "item": "Car insurance",
+    "date": "2026-11-20",
+    "repeats": "once",
+    "what": "renews",
+    "amount": "₹12,480",
+    "source": "car-insurance.md",
+    "line": "The policy renews on 20 November 2026. Premium: ₹12,480 a year, paid by card."
+   },
+   "open_tasks": 4
+  },
+  "/api/settings": {
+   "kinds": [
+    {
+     "kind": "reminders",
+     "title": "Reminders & medicines",
+     "detail": "Task reminders and medicine times",
+     "push": true
+    },
+    {
+     "kind": "watches",
+     "title": "Watches",
+     "detail": "When a watch finds what you asked for, or needs your help",
+     "push": true
+    },
+    {
+     "kind": "renewals",
+     "title": "Bills & renewals",
+     "detail": "30 and 2 days before one-off dates, 2 days before subscriptions",
+     "push": false
+    },
+    {
+     "kind": "problems",
+     "title": "Important problems",
+     "detail": "Google sign-in expiring, a sync or backup failing",
+     "push": false
+    },
+    {
+     "kind": "reports",
+     "title": "Daily, weekly & monthly reports",
+     "detail": "Morning brief, Sunday summary, money report, memory clean-up",
+     "push": false
+    },
+    {
+     "kind": "replies",
+     "title": "Chat replies",
+     "detail": "When Jarvis finishes a reply while the app is closed",
+     "push": false
+    },
+    {
+     "kind": "siri",
+     "title": "Siri answers",
+     "detail": "Answers that took longer than Siri waits",
+     "push": true
+    }
+   ],
+   "quiet": {
+    "on": false,
+    "from": "23:00",
+    "to": "07:00"
+   },
+   "telegram": false,
+   "telegram_until": "2026-11-07"
+  },
+  "/api/activity": [
+   {
+    "id": 3,
+    "kind": "watches",
+    "title": "Bus under ₹700: ₹649",
+    "body": "KPN Travels, 9:45 pm · Bengaluru to Chennai. Open Jarvis to book.",
+    "data": {},
+    "pushed": false,
+    "created_at": "2026-11-11T10:36:32.207095+00:00",
+    "read_at": null
+   },
+   {
+    "id": 2,
+    "kind": "reminders",
+    "title": "Pay the water bill",
+    "body": "Due today.",
+    "data": {},
+    "pushed": false,
+    "created_at": "2026-11-11T10:36:31.990044+00:00",
+    "read_at": null
+   },
+   {
+    "id": 1,
+    "kind": "reports",
+    "title": "Good morning, Priya",
+    "body": "2 events today · Pay the water bill is due · ₹186 spent so far.",
+    "data": {},
+    "pushed": false,
+    "created_at": "2026-11-11T10:36:31.975835+00:00",
+    "read_at": null
+   }
+  ],
+  "/api/files": {
+   "folders": [
+    {
+     "folder": "documents",
+     "files": [
+      {
+       "path": "documents/passport.md",
+       "name": "passport.md",
+       "size": 161,
+       "added": "2026-11-11T10:36:31.462234+00:00",
+       "searchable": true,
+       "readable": true
+      },
+      {
+       "path": "documents/car-insurance.md",
+       "name": "car-insurance.md",
+       "size": 232,
+       "added": "2026-11-11T10:36:31.462108+00:00",
+       "searchable": true,
+       "readable": true
+      }
+     ]
+    },
+    {
+     "folder": "finance",
+     "files": [
+      {
+       "path": "finance/rent-agreement.md",
+       "name": "rent-agreement.md",
+       "size": 222,
+       "added": "2026-11-11T10:36:31.462337+00:00",
+       "searchable": true,
+       "readable": true
+      }
+     ]
+    },
+    {
+     "folder": "health",
+     "files": [
+      {
+       "path": "health/blood-test.md",
+       "name": "blood-test.md",
+       "size": 206,
+       "added": "2026-11-11T10:36:31.462443+00:00",
+       "searchable": true,
+       "readable": true
+      }
+     ]
+    },
+    {
+     "folder": "notes",
+     "files": [
+      {
+       "path": "notes/trip-ideas.md",
+       "name": "trip-ideas.md",
+       "size": 86,
+       "added": "2026-11-11T10:36:31.462614+00:00",
+       "searchable": true,
+       "readable": true
+      },
+      {
+       "path": "notes/wifi.md",
+       "name": "wifi.md",
+       "size": 72,
+       "added": "2026-11-11T10:36:31.462535+00:00",
+       "searchable": true,
+       "readable": true
+      }
+     ]
+    },
+    {
+     "folder": "email-export",
+     "files": []
+    }
+   ],
+   "upload_to": [
+    "documents",
+    "finance",
+    "health",
+    "notes"
+   ],
+   "readable": [
+    ".csv",
+    ".docx",
+    ".heic",
+    ".htm",
+    ".html",
+    ".jpeg",
+    ".jpg",
+    ".json",
+    ".markdown",
+    ".md",
+    ".pdf",
+    ".png",
+    ".txt",
+    ".webp"
+   ]
+  },
+  "/api/watches": {
+   "found": [
+    {
+     "id": 1,
+     "kind": "bus",
+     "title": "Bengaluru → Chennai",
+     "params": {
+      "to": "Chennai",
+      "from": "Bengaluru",
+      "leave_to": "23:59",
+      "max_price": 700,
+      "leave_from": "20:00"
+     },
+     "every_minutes": 10,
+     "state": "watching",
+     "watch_on": "2026-11-13",
+     "until_at": "2026-11-13T18:29:00+00:00",
+     "next_at": "2026-11-11T10:46:31.932534+00:00",
+     "checked_at": "2026-11-11T10:36:31.940946+00:00",
+     "result": {
+      "ok": true,
+      "met": true,
+      "items": [
+       {
+        "fare": 649,
+        "name": "KPN Travels",
+        "type": "A/C Sleeper (2+1)",
+        "seats": 6,
+        "leaves": "2026-11-13T21:45"
+       },
+       {
+        "fare": 720,
+        "name": "SRS Travels",
+        "type": "A/C Sleeper (2+1)",
+        "seats": 11,
+        "leaves": "2026-11-13T22:30"
+       },
+       {
+        "fare": 780,
+        "name": "Orange Tours",
+        "type": "Volvo Multi-Axle A/C Seater",
+        "seats": 3,
+        "leaves": "2026-11-13T23:15"
+       }
+      ],
+      "value": 649,
+      "summary": "₹649 · KPN Travels, 9:45 pm"
+     },
+     "failures": 0,
+     "found_at": "2026-11-11T10:36:31.941887+00:00",
+     "found": {
+      "text": "₹649 · KPN Travels, 9:45 pm",
+      "value": 649
+     },
+     "seen": false,
+     "created_at": "2026-11-11T10:36:31.921973+00:00",
+     "last_on": null,
+     "last_best": null
+    }
+   ],
+   "watching": [
+    {
+     "id": 2,
+     "kind": "movie",
+     "title": "The Long Monsoon · PVR Forum Mall",
+     "params": {
+      "city": "Bengaluru",
+      "after": "18:00",
+      "movie": "The Long Monsoon",
+      "theatres": [
+       "PVR Forum Mall"
+      ]
+     },
+     "every_minutes": 30,
+     "state": "watching",
+     "watch_on": "2026-11-15",
+     "until_at": "2026-11-15T18:29:00+00:00",
+     "next_at": "2026-11-11T11:06:31.956808+00:00",
+     "checked_at": "2026-11-11T10:36:31.961049+00:00",
+     "result": {
+      "ok": true,
+      "met": false,
+      "open": false,
+      "items": [],
+      "summary": "Bookings not open yet"
+     },
+     "failures": 0,
+     "found_at": null,
+     "found": null,
+     "seen": true,
+     "created_at": "2026-11-11T10:36:31.950249+00:00",
+     "last_on": null,
+     "last_best": null
+    }
+   ],
+   "saved": []
+  },
+  "/api/watches/places": {
+   "routes": [
+    {
+     "to": "Chennai",
+     "from": "Bengaluru",
+     "leave_to": "23:59",
+     "max_price": 700,
+     "leave_from": "20:00"
+    }
+   ],
+   "cities": [
+    "Bengaluru",
+    "Chennai"
+   ],
+   "boarding": [],
+   "dropping": []
+  },
+  "/api/money?period=today": {
+   "period": "today",
+   "label": "Wed 11 Nov",
+   "spent": 426.0,
+   "payments": 2,
+   "previous": 1689.0,
+   "refunds": 0.0,
+   "received": 0.0,
+   "own_transfers": 0.0,
+   "card_bills": 0.0,
+   "categories": [
+    {
+     "category": "Food & dining",
+     "total": 240.0,
+     "previous": 449.0,
+     "payments": 1
+    },
+    {
+     "category": "Travel & fuel",
+     "total": 186.0,
+     "previous": 0.0,
+     "payments": 1
+    }
+   ],
+   "unusual": [],
+   "new_merchants": [
+    "BLUE TOKAI COFFEE",
+    "NAMMA METRO"
+   ],
+   "points": [
+    426.0
+   ],
+   "note": "Totals come from bank alert emails only; cash and payments without an alert email are not included. Credit card purchases count on the day they are made; paying the card bill is not counted again.",
+   "card_purchases": 0.0,
+   "small": 12695.0,
+   "on": "2026-11-11",
+   "today": "2026-11-11",
+   "earlier": "2026-11-10",
+   "later": null,
+   "list": [
+    {
+     "on": "2026-11-11",
+     "time": "",
+     "to": "BLUE TOKAI COFFEE",
+     "category": "Food & dining",
+     "amount": 240.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-11",
+     "time": "",
+     "to": "NAMMA METRO",
+     "category": "Travel & fuel",
+     "amount": 186.0,
+     "via": "HDFC a/c 1234 · UPI"
+    }
+   ]
+  },
+  "/api/money?period=week": {
+   "period": "week",
+   "label": "05 Nov – 11 Nov",
+   "spent": 26708.0,
+   "payments": 12,
+   "previous": 6898.0,
+   "refunds": 0.0,
+   "received": 0.0,
+   "own_transfers": 0.0,
+   "card_bills": 8000.0,
+   "categories": [
+    {
+     "category": "Sent to people",
+     "total": 18000.0,
+     "previous": 0.0,
+     "payments": 1
+    },
+    {
+     "category": "Groceries",
+     "total": 3225.0,
+     "previous": 0.0,
+     "payments": 3
+    },
+    {
+     "category": "Shopping",
+     "total": 2399.0,
+     "previous": 3499.0,
+     "payments": 1
+    },
+    {
+     "category": "Food & dining",
+     "total": 689.0,
+     "previous": 450.0,
+     "payments": 2
+    },
+    {
+     "category": "Health",
+     "total": 680.0,
+     "previous": 0.0,
+     "payments": 1
+    },
+    {
+     "category": "Bills & subscriptions",
+     "total": 649.0,
+     "previous": 2949.0,
+     "payments": 1
+    },
+    {
+     "category": "Entertainment",
+     "total": 560.0,
+     "previous": 0.0,
+     "payments": 1
+    },
+    {
+     "category": "Travel & fuel",
+     "total": 506.0,
+     "previous": 0.0,
+     "payments": 2
+    }
+   ],
+   "unusual": [
+    {
+     "on": "2026-11-06",
+     "amount": 18000.0,
+     "counterparty": "SURESH BABU",
+     "category": "Sent to people"
+    }
+   ],
+   "new_merchants": [
+    "AMAZON",
+    "APOLLO PHARMACY",
+    "BIGBASKET",
+    "BLUE TOKAI COFFEE",
+    "NAMMA METRO",
+    "NANDINI MILK PARLOUR",
+    "NETFLIX",
+    "PVR CINEMAS",
+    "SWIGGY",
+    "UBER INDIA"
+   ],
+   "points": [
+    1890.0,
+    18560.0,
+    649.0,
+    775.0,
+    2719.0,
+    1689.0,
+    426.0
+   ],
+   "note": "Totals come from bank alert emails only; cash and payments without an alert email are not included. Credit card purchases count on the day they are made; paying the card bill is not counted again.",
+   "card_purchases": 3497.0,
+   "small": 12695.0,
+   "on": "2026-11-11",
+   "today": "2026-11-11",
+   "earlier": "2026-11-04",
+   "later": null,
+   "list": [
+    {
+     "on": "2026-11-11",
+     "time": "",
+     "to": "BLUE TOKAI COFFEE",
+     "category": "Food & dining",
+     "amount": 240.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-11",
+     "time": "",
+     "to": "NAMMA METRO",
+     "category": "Travel & fuel",
+     "amount": 186.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-10",
+     "time": "",
+     "to": "MORE SUPERMARKET",
+     "category": "Groceries",
+     "amount": 1240.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-10",
+     "time": "",
+     "to": "SWIGGY",
+     "category": "Food & dining",
+     "amount": 449.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-11-09",
+     "time": "",
+     "to": "UBER INDIA",
+     "category": "Travel & fuel",
+     "amount": 320.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-09",
+     "time": "",
+     "to": "AMAZON",
+     "category": "Shopping",
+     "amount": 2399.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-11-08",
+     "time": "",
+     "to": "APOLLO PHARMACY",
+     "category": "Health",
+     "amount": 680.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-08",
+     "time": "",
+     "to": "NANDINI MILK PARLOUR",
+     "category": "Groceries",
+     "amount": 95.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-07",
+     "time": "",
+     "to": "NETFLIX",
+     "category": "Bills & subscriptions",
+     "amount": 649.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-11-06",
+     "time": "",
+     "to": "SURESH BABU",
+     "category": "Sent to people",
+     "amount": 18000.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-06",
+     "time": "",
+     "to": "PVR CINEMAS",
+     "category": "Entertainment",
+     "amount": 560.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-05",
+     "time": "",
+     "to": "BIGBASKET",
+     "category": "Groceries",
+     "amount": 1890.0,
+     "via": "HDFC a/c 1234 · UPI"
+    }
+   ]
+  },
+  "/api/money?period=month": {
+   "period": "month",
+   "label": "November",
+   "spent": 33156.0,
+   "payments": 15,
+   "previous": 20300.0,
+   "refunds": 0.0,
+   "received": 0.0,
+   "own_transfers": 0.0,
+   "card_bills": 8000.0,
+   "categories": [
+    {
+     "category": "Sent to people",
+     "total": 18000.0,
+     "previous": 18000.0,
+     "payments": 1
+    },
+    {
+     "category": "Shopping",
+     "total": 5898.0,
+     "previous": 0.0,
+     "payments": 2
+    },
+    {
+     "category": "Bills & subscriptions",
+     "total": 3598.0,
+     "previous": 2300.0,
+     "payments": 3
+    },
+    {
+     "category": "Groceries",
+     "total": 3225.0,
+     "previous": 0.0,
+     "payments": 3
+    },
+    {
+     "category": "Food & dining",
+     "total": 689.0,
+     "previous": 0.0,
+     "payments": 2
+    },
+    {
+     "category": "Health",
+     "total": 680.0,
+     "previous": 0.0,
+     "payments": 1
+    },
+    {
+     "category": "Entertainment",
+     "total": 560.0,
+     "previous": 0.0,
+     "payments": 1
+    },
+    {
+     "category": "Travel & fuel",
+     "total": 506.0,
+     "previous": 0.0,
+     "payments": 2
+    }
+   ],
+   "unusual": [
+    {
+     "on": "2026-11-06",
+     "amount": 18000.0,
+     "counterparty": "SURESH BABU",
+     "category": "Sent to people"
+    }
+   ],
+   "new_merchants": [
+    "AIRTEL BROADBAND",
+    "AMAZON",
+    "APOLLO PHARMACY",
+    "BIGBASKET",
+    "BLUE TOKAI COFFEE",
+    "MYNTRA",
+    "NAMMA METRO",
+    "NANDINI MILK PARLOUR",
+    "NETFLIX",
+    "PVR CINEMAS"
+   ],
+   "points": [
+    799.0,
+    3499.0,
+    2150.0,
+    0.0,
+    1890.0,
+    18560.0,
+    649.0,
+    775.0,
+    2719.0,
+    1689.0,
+    426.0
+   ],
+   "note": "Totals come from bank alert emails only; cash and payments without an alert email are not included. Credit card purchases count on the day they are made; paying the card bill is not counted again.",
+   "card_purchases": 6996.0,
+   "small": 12695.0,
+   "on": "2026-11-11",
+   "today": "2026-11-11",
+   "earlier": "2026-10-31",
+   "later": null,
+   "list": [
+    {
+     "on": "2026-11-11",
+     "time": "",
+     "to": "BLUE TOKAI COFFEE",
+     "category": "Food & dining",
+     "amount": 240.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-11",
+     "time": "",
+     "to": "NAMMA METRO",
+     "category": "Travel & fuel",
+     "amount": 186.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-10",
+     "time": "",
+     "to": "MORE SUPERMARKET",
+     "category": "Groceries",
+     "amount": 1240.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-10",
+     "time": "",
+     "to": "SWIGGY",
+     "category": "Food & dining",
+     "amount": 449.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-11-09",
+     "time": "",
+     "to": "UBER INDIA",
+     "category": "Travel & fuel",
+     "amount": 320.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-09",
+     "time": "",
+     "to": "AMAZON",
+     "category": "Shopping",
+     "amount": 2399.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-11-08",
+     "time": "",
+     "to": "APOLLO PHARMACY",
+     "category": "Health",
+     "amount": 680.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-08",
+     "time": "",
+     "to": "NANDINI MILK PARLOUR",
+     "category": "Groceries",
+     "amount": 95.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-07",
+     "time": "",
+     "to": "NETFLIX",
+     "category": "Bills & subscriptions",
+     "amount": 649.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-11-06",
+     "time": "",
+     "to": "SURESH BABU",
+     "category": "Sent to people",
+     "amount": 18000.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-06",
+     "time": "",
+     "to": "PVR CINEMAS",
+     "category": "Entertainment",
+     "amount": 560.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-05",
+     "time": "",
+     "to": "BIGBASKET",
+     "category": "Groceries",
+     "amount": 1890.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-03",
+     "time": "",
+     "to": "BESCOM ELECTRICITY",
+     "category": "Bills & subscriptions",
+     "amount": 2150.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-02",
+     "time": "",
+     "to": "MYNTRA",
+     "category": "Shopping",
+     "amount": 3499.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-11-01",
+     "time": "",
+     "to": "AIRTEL BROADBAND",
+     "category": "Bills & subscriptions",
+     "amount": 799.0,
+     "via": "HDFC a/c 1234 · UPI"
+    }
+   ]
+  },
+  "/api/money?period=year": {
+   "period": "year",
+   "label": "2026 so far",
+   "spent": 82435.0,
+   "payments": 25,
+   "previous": 0.0,
+   "refunds": 0.0,
+   "received": 170000.0,
+   "own_transfers": 0.0,
+   "card_bills": 14000.0,
+   "categories": [
+    {
+     "category": "Sent to people",
+     "total": 41100.0,
+     "previous": 0.0,
+     "payments": 4
+    },
+    {
+     "category": "Bills & subscriptions",
+     "total": 18378.0,
+     "previous": 0.0,
+     "payments": 5
+    },
+    {
+     "category": "Travel & fuel",
+     "total": 8706.0,
+     "previous": 0.0,
+     "payments": 4
+    },
+    {
+     "category": "Shopping",
+     "total": 7197.0,
+     "previous": 0.0,
+     "payments": 3
+    },
+    {
+     "category": "Groceries",
+     "total": 4675.0,
+     "previous": 0.0,
+     "payments": 4
+    },
+    {
+     "category": "Food & dining",
+     "total": 1139.0,
+     "previous": 0.0,
+     "payments": 3
+    },
+    {
+     "category": "Health",
+     "total": 680.0,
+     "previous": 0.0,
+     "payments": 1
+    },
+    {
+     "category": "Entertainment",
+     "total": 560.0,
+     "previous": 0.0,
+     "payments": 1
+    }
+   ],
+   "unusual": [
+    {
+     "on": "2026-10-07",
+     "amount": 18000.0,
+     "counterparty": "SURESH BABU",
+     "category": "Sent to people"
+    },
+    {
+     "on": "2026-11-06",
+     "amount": 18000.0,
+     "counterparty": "SURESH BABU",
+     "category": "Sent to people"
+    }
+   ],
+   "new_merchants": [
+    "AIRTEL BROADBAND",
+    "AMAZON",
+    "APOLLO PHARMACY",
+    "BESCOM ELECTRICITY",
+    "BIGBASKET",
+    "BLUE TOKAI COFFEE",
+    "CROMA",
+    "CULT FIT",
+    "DECATHLON",
+    "INDIAN OIL PETROL"
+   ],
+   "points": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    4200.0,
+    0.0,
+    0.0,
+    0.0,
+    12480.0,
+    0.0,
+    0.0,
+    20300.0,
+    0.0,
+    7950.0,
+    3899.0,
+    6898.0,
+    26708.0
+   ],
+   "note": "Totals come from bank alert emails only; cash and payments without an alert email are not included. Credit card purchases count on the day they are made; paying the card bill is not counted again.",
+   "card_purchases": 13895.0,
+   "small": 12695.0,
+   "on": "2026-11-11",
+   "today": "2026-11-11",
+   "earlier": null,
+   "later": null,
+   "list": [
+    {
+     "on": "2026-11-11",
+     "time": "",
+     "to": "BLUE TOKAI COFFEE",
+     "category": "Food & dining",
+     "amount": 240.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-11",
+     "time": "",
+     "to": "NAMMA METRO",
+     "category": "Travel & fuel",
+     "amount": 186.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-10",
+     "time": "",
+     "to": "MORE SUPERMARKET",
+     "category": "Groceries",
+     "amount": 1240.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-10",
+     "time": "",
+     "to": "SWIGGY",
+     "category": "Food & dining",
+     "amount": 449.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-11-09",
+     "time": "",
+     "to": "UBER INDIA",
+     "category": "Travel & fuel",
+     "amount": 320.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-09",
+     "time": "",
+     "to": "AMAZON",
+     "category": "Shopping",
+     "amount": 2399.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-11-08",
+     "time": "",
+     "to": "APOLLO PHARMACY",
+     "category": "Health",
+     "amount": 680.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-08",
+     "time": "",
+     "to": "NANDINI MILK PARLOUR",
+     "category": "Groceries",
+     "amount": 95.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-07",
+     "time": "",
+     "to": "NETFLIX",
+     "category": "Bills & subscriptions",
+     "amount": 649.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-11-06",
+     "time": "",
+     "to": "SURESH BABU",
+     "category": "Sent to people",
+     "amount": 18000.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-06",
+     "time": "",
+     "to": "PVR CINEMAS",
+     "category": "Entertainment",
+     "amount": 560.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-05",
+     "time": "",
+     "to": "BIGBASKET",
+     "category": "Groceries",
+     "amount": 1890.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-03",
+     "time": "",
+     "to": "BESCOM ELECTRICITY",
+     "category": "Bills & subscriptions",
+     "amount": 2150.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-11-02",
+     "time": "",
+     "to": "MYNTRA",
+     "category": "Shopping",
+     "amount": 3499.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-11-01",
+     "time": "",
+     "to": "AIRTEL BROADBAND",
+     "category": "Bills & subscriptions",
+     "amount": 799.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-10-30",
+     "time": "",
+     "to": "ZOMATO",
+     "category": "Food & dining",
+     "amount": 450.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-10-27",
+     "time": "",
+     "to": "DECATHLON",
+     "category": "Shopping",
+     "amount": 1299.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-10-24",
+     "time": "",
+     "to": "INDIAN OIL PETROL",
+     "category": "Travel & fuel",
+     "amount": 2600.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-10-21",
+     "time": "",
+     "to": "MORE SUPERMARKET",
+     "category": "Groceries",
+     "amount": 1450.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-10-18",
+     "time": "",
+     "to": "CULT FIT",
+     "category": "Sent to people",
+     "amount": 900.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-10-15",
+     "time": "",
+     "to": "MAKEMYTRIP",
+     "category": "Travel & fuel",
+     "amount": 5600.0,
+     "via": "ICICI card 5678"
+    },
+    {
+     "on": "2026-10-07",
+     "time": "",
+     "to": "SURESH BABU",
+     "category": "Sent to people",
+     "amount": 18000.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-10-02",
+     "time": "",
+     "to": "BESCOM ELECTRICITY",
+     "category": "Bills & subscriptions",
+     "amount": 2300.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-09-12",
+     "time": "",
+     "to": "SUNDARAM INSURANCE",
+     "category": "Bills & subscriptions",
+     "amount": 12480.0,
+     "via": "HDFC a/c 1234 · UPI"
+    },
+    {
+     "on": "2026-08-13",
+     "time": "",
+     "to": "CROMA",
+     "category": "Sent to people",
+     "amount": 4200.0,
+     "via": "HDFC a/c 1234 · UPI"
+    }
+   ]
+  },
+  "/api/watches/2": {
+   "id": 2,
+   "kind": "movie",
+   "title": "The Long Monsoon · PVR Forum Mall",
+   "params": {
+    "city": "Bengaluru",
+    "after": "18:00",
+    "movie": "The Long Monsoon",
+    "theatres": [
+     "PVR Forum Mall"
+    ]
+   },
+   "every_minutes": 30,
+   "state": "watching",
+   "watch_on": "2026-11-15",
+   "until_at": "2026-11-15T18:29:00+00:00",
+   "next_at": "2026-11-11T11:06:31.956808+00:00",
+   "checked_at": "2026-11-11T10:36:31.961049+00:00",
+   "result": {
+    "ok": true,
+    "met": false,
+    "open": false,
+    "items": [],
+    "summary": "Bookings not open yet"
+   },
+   "failures": 0,
+   "found_at": null,
+   "found": null,
+   "seen": true,
+   "created_at": "2026-11-11T10:36:31.950249+00:00",
+   "points": [],
+   "uses": [],
+   "lowest": null,
+   "every_choices": [
+    5,
+    10,
+    15,
+    30
+   ]
+  },
+  "/api/watches/1": {
+   "id": 1,
+   "kind": "bus",
+   "title": "Bengaluru → Chennai",
+   "params": {
+    "to": "Chennai",
+    "from": "Bengaluru",
+    "leave_to": "23:59",
+    "max_price": 700,
+    "leave_from": "20:00"
+   },
+   "every_minutes": 10,
+   "state": "watching",
+   "watch_on": "2026-11-13",
+   "until_at": "2026-11-13T18:29:00+00:00",
+   "next_at": "2026-11-11T10:46:31.932534+00:00",
+   "checked_at": "2026-11-11T10:36:31.940946+00:00",
+   "result": {
+    "ok": true,
+    "met": true,
+    "items": [
+     {
+      "fare": 649,
+      "name": "KPN Travels",
+      "type": "A/C Sleeper (2+1)",
+      "seats": 6,
+      "leaves": "2026-11-13T21:45"
+     },
+     {
+      "fare": 720,
+      "name": "SRS Travels",
+      "type": "A/C Sleeper (2+1)",
+      "seats": 11,
+      "leaves": "2026-11-13T22:30"
+     },
+     {
+      "fare": 780,
+      "name": "Orange Tours",
+      "type": "Volvo Multi-Axle A/C Seater",
+      "seats": 3,
+      "leaves": "2026-11-13T23:15"
+     }
+    ],
+    "value": 649,
+    "summary": "₹649 · KPN Travels, 9:45 pm"
+   },
+   "failures": 0,
+   "found_at": "2026-11-11T10:36:31.941887+00:00",
+   "found": {
+    "text": "₹649 · KPN Travels, 9:45 pm",
+    "value": 649
+   },
+   "seen": false,
+   "created_at": "2026-11-11T10:36:31.921973+00:00",
+   "points": [
+    649.0
+   ],
+   "uses": [],
+   "lowest": 649.0,
+   "every_choices": [
+    5,
+    10,
+    15,
+    30
+   ]
+  },
+  "/api/files/view?path=documents/passport.md": {
+   "path": "documents/passport.md",
+   "name": "passport.md",
+   "folder": "documents",
+   "kind": "text",
+   "size": 161,
+   "added": "2026-11-11T10:36:31.462234+00:00",
+   "pages": null,
+   "sections": [
+    {
+     "heading": "Passport",
+     "page": null,
+     "text": "Passport for Priya Raman. The passport is valid until 16 December 2027.\nRenewal can be applied for a year before expiry at the Passport Seva Kendra."
+    }
+   ],
+   "cut": false,
+   "error": null,
+   "searchable": true,
+   "readable": true,
+   "picture": false
+  },
+  "/api/files/view?path=documents/car-insurance.md": {
+   "path": "documents/car-insurance.md",
+   "name": "car-insurance.md",
+   "folder": "documents",
+   "kind": "text",
+   "size": 232,
+   "added": "2026-11-11T10:36:31.462108+00:00",
+   "pages": null,
+   "sections": [
+    {
+     "heading": "Car insurance",
+     "page": null,
+     "text": "Insurer: Sundaram Star Motor Insurance. Policy number SSM-4471-2026 for the Hyundai i20 (KA-01-AB-1234).\nThe policy renews on 20 November 2026. Premium: ₹12,480 a year, paid by card.\nRoadside help: 1800-000-1234."
+    }
+   ],
+   "cut": false,
+   "error": null,
+   "searchable": true,
+   "readable": true,
+   "picture": false
+  },
+  "/api/files/view?path=finance/rent-agreement.md": {
+   "path": "finance/rent-agreement.md",
+   "name": "rent-agreement.md",
+   "folder": "finance",
+   "kind": "text",
+   "size": 222,
+   "added": "2026-11-11T10:36:31.462337+00:00",
+   "pages": null,
+   "sections": [
+    {
+     "heading": "Rent agreement",
+     "page": null,
+     "text": "Flat 3B, Lakeview Apartments. Monthly rent ₹18,000, paid on the 5th to Mr. Suresh Babu.\nThe agreement is valid until 02 December 2026 and renews for 11 months at a 5% higher rent.\nDeposit: ₹1,00,000."
+    }
+   ],
+   "cut": false,
+   "error": null,
+   "searchable": true,
+   "readable": true,
+   "picture": false
+  },
+  "/api/files/view?path=health/blood-test.md": {
+   "path": "health/blood-test.md",
+   "name": "blood-test.md",
+   "folder": "health",
+   "kind": "text",
+   "size": 206,
+   "added": "2026-11-11T10:36:31.462443+00:00",
+   "pages": null,
+   "sections": [
+    {
+     "heading": "Blood test, 12 October 2026",
+     "page": null,
+     "text": "Haemoglobin 12.1 g/dL (normal 12.0-15.5). Vitamin D 18 ng/mL: LOW (normal 30-100).\nHbA1c 5.4%. Cholesterol 182 mg/dL. The doctor suggested Vitamin D3 every night for 8 weeks."
+    }
+   ],
+   "cut": false,
+   "error": null,
+   "searchable": true,
+   "readable": true,
+   "picture": false
+  },
+  "/api/files/view?path=notes/trip-ideas.md": {
+   "path": "notes/trip-ideas.md",
+   "name": "trip-ideas.md",
+   "folder": "notes",
+   "kind": "text",
+   "size": 86,
+   "added": "2026-11-11T10:36:31.462614+00:00",
+   "pages": null,
+   "sections": [
+    {
+     "heading": "Trip ideas",
+     "page": null,
+     "text": "Coorg in December; Pondicherry for a long weekend; Munnar in the rains."
+    }
+   ],
+   "cut": false,
+   "error": null,
+   "searchable": true,
+   "readable": true,
+   "picture": false
+  },
+  "/api/files/view?path=notes/wifi.md": {
+   "path": "notes/wifi.md",
+   "name": "wifi.md",
+   "folder": "notes",
+   "kind": "text",
+   "size": 72,
+   "added": "2026-11-11T10:36:31.462535+00:00",
+   "pages": null,
+   "sections": [
+    {
+     "heading": "Home Wi-Fi",
+     "page": null,
+     "text": "Network: Lakeview-3B. The router is in the hall cupboard."
+    }
+   ],
+   "cut": false,
+   "error": null,
+   "searchable": true,
+   "readable": true,
+   "picture": false
+  }
+ }
+}

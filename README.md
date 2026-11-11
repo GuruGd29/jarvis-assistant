@@ -8,6 +8,9 @@ to run.
 [![Weekly tests](https://github.com/GuruGd29/jarvis-assistant/actions/workflows/weekly-tests.yml/badge.svg)](https://github.com/GuruGd29/jarvis-assistant/actions/workflows/weekly-tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+**[Try the demo in your browser](https://gurugd29.github.io/jarvis-assistant/demo/)**, the real app with made-up data,
+or see the [project page](https://gurugd29.github.io/jarvis-assistant/).
+
 <p align="center">
   <img src="docs/screenshots/chat.png" width="200" alt="Chat screen">
   <img src="docs/screenshots/today.png" width="200" alt="Today screen">
@@ -23,6 +26,7 @@ Also: <a href="docs/screenshots/more.png">More screen</a> · <a href="docs/scree
 
 | I want to… | Read |
 |---|---|
+| See it before installing | the [demo](https://gurugd29.github.io/jarvis-assistant/demo/): the real phone app with made-up data, in your browser |
 | Run it on a free cloud server (Oracle) or any Linux server | [docs/install-server.md](docs/install-server.md), and [docs/oracle-cloud.md](docs/oracle-cloud.md) to create Oracle's free server |
 | Run it on my Mac | [docs/install-mac.md](docs/install-mac.md) |
 | Let an AI agent (Claude Code, Codex, Gemini CLI…) set it up with me | [docs/setup-with-ai.md](docs/setup-with-ai.md) |
