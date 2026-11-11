@@ -27,6 +27,15 @@ unset PYTHONPATH PYTHONHOME VIRTUAL_ENV
     code=$(curl -s -m 10 --cacert "$1" -o /dev/null -w '%{http_code}' "$2")
     [ "$code" = 200 ] || echo "⚠️ The Jarvis app's HTTPS address is not answering (Caddy, code ${code:-none})."
   done
+  # A public name (docs/public-address.md), checked with its real certificate. Asked on the server's own network
+  # address, because Oracle doesn't send a server's requests to its own public IP back to it.
+  public_name=$(grep -m1 -oE '^https://[a-z0-9.-]+\.[a-z]{2,} \{' /etc/caddy/Caddyfile 2>/dev/null | sed -E 's#^https://##; s# \{$##')
+  if [ -n "$public_name" ]; then
+    local_ip=$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')
+    code=$(curl -s -m 10 --resolve "$public_name:443:${local_ip:-127.0.0.1}" -o /dev/null -w '%{http_code}' \
+      "https://$public_name/manifest.webmanifest")
+    [ "$code" = 200 ] || echo "⚠️ The Jarvis app's public address https://$public_name is not answering (Caddy, code ${code:-none})."
+  fi
 } | "$HOME/jarvis-system/.venv/bin/jarvis-notify" problems --one
 # Keep Jarvis's long prompt cached as well, with one throwaway chat in the background (see jarvis-warm-chat), so the
 # user never waits minutes for it to be read after a restart, the nightly AI jobs or midnight.

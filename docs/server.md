@@ -60,6 +60,9 @@ from other websites (`JARVIS_HOSTS`).
 9. **Backups:** the Mac's backups went to a folder on the Mac. For the server, make an Object Storage bucket and a
    Customer Secret Key in Oracle and follow [backups.md](backups.md).
 
+**Without the VPN on the phone:** give the server a free public name and set a sign-in,
+[public-address.md](public-address.md).
+
 `bin/server.sh status` shows what runs on the server; `bin/server.sh back` undoes the switch (Jarvis starts on the
 Mac again; anything new on the server stays there).
 

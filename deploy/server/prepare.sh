@@ -1,7 +1,8 @@
 #!/bin/bash
 # Get a fresh Ubuntu 24.04 server ready for Jarvis, before install.sh (docs/server.md): security updates, a swap
 # file, SSH with keys only, the WireGuard VPN with one profile for your phone and one for your computer, and HTTPS
-# for the app on the VPN address only. Nothing of Jarvis is reachable from the internet; only WireGuard answers.
+# for the app on the VPN address. Nothing of Jarvis is reachable from the internet; only WireGuard answers, unless
+# you give it a public name (JARVIS_DOMAIN below).
 #
 #   deploy/server/prepare.sh PUBLIC_IP
 #
@@ -11,6 +12,9 @@
 # that already trusts it needs no new certificate.
 # JARVIS_HTTPS_PORT=<port>: the app's HTTPS port on the VPN address. Normally 443; 8443 when another program already
 # uses 443 (Coolify's proxy, for one), so the app is then https://10.8.0.1:8443.
+# JARVIS_DOMAIN=<name>: also serve the app on this public name, e.g. yourname.dynv6.net, with a free Let's Encrypt
+# certificate, so the phone needs no VPN (docs/public-address.md). Set a sign-in first; the app refuses public
+# names until then. Kept when this runs again without it.
 set -euo pipefail
 
 PUBLIC_IP="${1:-}"
@@ -18,6 +22,10 @@ VPN_DIR="$HOME/jarvis-vpn"        # the phone's and the computer's VPN profiles 
 SERVER_VPN_IP="10.8.0.1"
 PORT=51820
 CADDY_PKI="/var/lib/caddy/.local/share/caddy/pki/authorities/local"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+# The public name: given now, or the one this script set up before (a name in the Caddyfile, not an IP address).
+DOMAIN="${JARVIS_DOMAIN:-$(grep -m1 -oE '^https://[a-z0-9.-]+\.[a-z]{2,} \{' /etc/caddy/Caddyfile 2>/dev/null \
+  | sed -E 's#^https://##; s# \{$##' || true)}"
 
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 fail() { printf '\n\033[31mStopped: %s\033[0m\n' "$*" >&2; exit 1; }
@@ -56,12 +64,15 @@ sudo systemctl enable --now fail2ban >/dev/null 2>&1 || echo "  Warning: fail2ba
 # Oracle's Ubuntu images refuse everything not allowed in iptables (iptables-persistent, rules in
 # /etc/iptables/rules.v4), ahead of any ufw rules; other servers come with ufw only. Jarvis's own services listen on
 # 127.0.0.1 or the VPN address only.
-say "Firewall: WireGuard (UDP $PORT) from the internet, Jarvis only on the VPN"
+say "Firewall: WireGuard (UDP $PORT) from the internet$([ -n "$DOMAIN" ] && echo ", the web (TCP 80, 443) for $DOMAIN"), the rest only on the VPN"
+WEB_PORTS=""
+[ -z "$DOMAIN" ] || WEB_PORTS="80 443"  # 80 only answers Let's Encrypt and sends browsers to https
 # "Installed" means installed: a package removed with its settings left behind (ufw takes iptables-persistent's
 # place that way) doesn't count, and the firewall the server already uses is kept.
 installed() { dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q " installed$"; }
 if ! installed iptables-persistent && installed ufw; then
   sudo ufw allow "$PORT/udp" >/dev/null && sudo ufw allow in on wg0 >/dev/null
+  for web in $WEB_PORTS; do sudo ufw allow "$web/tcp" comment "Jarvis web" >/dev/null; done
   sudo ufw status | grep -q "^Status: active" || echo "  Note: ufw is installed but off, so only Oracle's security list protects this server."
 else
   # Not saving the live rules on install: they may hold Docker's and ufw's (see below).
@@ -70,12 +81,17 @@ else
   sudo apt-get install -y -q iptables-persistent >/dev/null
   sudo iptables -C INPUT -p udp --dport "$PORT" -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p udp --dport "$PORT" -j ACCEPT
   sudo iptables -C INPUT -i wg0 -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -i wg0 -j ACCEPT
-  # Kept for the next boot: only these two rules go into the saved set, ahead of its "refuse everything else" rule.
+  for web in $WEB_PORTS; do
+    sudo iptables -C INPUT -p tcp --dport "$web" -j ACCEPT 2>/dev/null || sudo iptables -I INPUT -p tcp --dport "$web" -j ACCEPT
+  done
+  # Kept for the next boot: only these rules go into the saved set, ahead of its "refuse everything else" rule.
   # Saving all the live rules would also store Docker's and ufw's (Coolify runs in Docker), which they make again
   # themselves at boot.
   rules=/etc/iptables/rules.v4
   if sudo grep -q '^-A INPUT -j REJECT' "$rules" 2>/dev/null; then
-    for rule in "-A INPUT -p udp -m udp --dport $PORT -j ACCEPT" "-A INPUT -i wg0 -j ACCEPT"; do
+    saved=("-A INPUT -p udp -m udp --dport $PORT -j ACCEPT" "-A INPUT -i wg0 -j ACCEPT")
+    for web in $WEB_PORTS; do saved+=("-A INPUT -p tcp -m tcp --dport $web -j ACCEPT"); done
+    for rule in "${saved[@]}"; do
       sudo grep -qxF -- "$rule" "$rules" || sudo sed -i "/^-A INPUT -j REJECT/i $rule" "$rules"
     done
   else
@@ -109,7 +125,7 @@ sudo install -m 600 -o root -g root "$VPN_DIR/wg0.conf" /etc/wireguard/wg0.conf 
 sudo systemctl enable wg-quick@wg0 >/dev/null 2>&1
 sudo systemctl restart wg-quick@wg0
 
-# ---------- 6. HTTPS for the app, on the VPN address only ----------
+# ---------- 6. HTTPS for the app, on the VPN address (and the public name, if any) ----------
 # 443 unless another program already listens on it (Caddy itself doesn't count, when this runs again).
 HTTPS_PORT="${JARVIS_HTTPS_PORT:-}"
 if [ -z "$HTTPS_PORT" ]; then
@@ -120,6 +136,29 @@ if [ -z "$HTTPS_PORT" ]; then
   fi
 fi
 APP_URL="https://$SERVER_VPN_IP$([ "$HTTPS_PORT" = 443 ] || echo ":$HTTPS_PORT")"
+PUBLIC_SITES=""
+if [ -n "$DOMAIN" ]; then
+  [ "$HTTPS_PORT" = 443 ] && ! sudo ss -Hltnp 'sport = :80' | grep -qv '"caddy"' \
+    || fail "the public name needs ports 80 and 443, and another program uses one of them."
+  # The server's own address on its network (Oracle passes its public IP on to it), so these don't clash with the
+  # VPN address's port 443.
+  LOCAL_IP="$(ip -4 route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
+  PUBLIC_SITES="
+# The public name (docs/public-address.md), with a free Let's Encrypt certificate. Port 80 only answers Let's Encrypt
+# and sends browsers to https. The app asks for a sign-in (docs/sign-in.md).
+http://$DOMAIN {
+	bind $LOCAL_IP
+	redir https://$DOMAIN{uri} permanent
+}
+
+https://$DOMAIN {
+	bind $LOCAL_IP
+	header Strict-Transport-Security \"max-age=31536000\"
+	reverse_proxy 127.0.0.1:8791 {
+		flush_interval -1
+	}
+}"
+fi
 say "HTTPS for the app at $APP_URL (Caddy)"
 if [ -n "${CADDY_CA_DIR:-}" ] && [ -f "$CADDY_CA_DIR/root.key" ]; then
   # Your Mac's certificate authority: a phone that trusts it already trusts this server too. Certificates Caddy
@@ -133,11 +172,10 @@ if [ -n "${CADDY_CA_DIR:-}" ] && [ -f "$CADDY_CA_DIR/root.key" ]; then
   sudo chown -R caddy:caddy /var/lib/caddy/.local
 fi
 sudo tee /etc/caddy/Caddyfile >/dev/null <<EOF
-# Jarvis (deploy/server/prepare.sh): the app over HTTPS on the VPN address only. Replies stream, so they are passed
-# on straight away. No port 80 redirect: the app is only ever opened by its https:// address, and port 80 may belong
-# to another program.
+# Jarvis (deploy/server/prepare.sh): the app over HTTPS on the VPN address, with Caddy's own certificate. Replies
+# stream, so they are passed on straight away. No port 80 redirect there: the app is only ever opened by its https://
+# address, and port 80 may belong to another program.
 {
-	local_certs
 	skip_install_trust
 	auto_https disable_redirects
 }
@@ -149,18 +187,29 @@ $APP_URL {
 		flush_interval -1
 	}
 }
+$PUBLIC_SITES
 EOF
 # Caddy listens on the VPN address, so it starts after WireGuard.
 sudo mkdir -p /etc/systemd/system/caddy.service.d
 printf '[Unit]\nAfter=wg-quick@wg0.service\nRequires=wg-quick@wg0.service\n' \
   | sudo tee /etc/systemd/system/caddy.service.d/wireguard.conf >/dev/null
 sudo systemctl daemon-reload && sudo systemctl enable caddy >/dev/null 2>&1 && sudo systemctl restart caddy
+# Jarvis answers only to its own names (JARVIS_HOSTS), so the public one is added once Jarvis is installed.
+if [ -n "$DOMAIN" ] && [ -f "$REPO/.env" ]; then
+  hosts="$(sed -n 's/^JARVIS_HOSTS=//p' "$REPO/.env" | tail -1)"
+  case ",$hosts," in
+    *",$DOMAIN,"*) ;;
+    *) if [ -n "$hosts" ]; then sed -i "s|^JARVIS_HOSTS=.*|JARVIS_HOSTS=$hosts,$DOMAIN|" "$REPO/.env"
+       else echo "JARVIS_HOSTS=$SERVER_VPN_IP,$DOMAIN" >> "$REPO/.env"; fi
+       ! systemctl is-active -q jarvis-web || sudo systemctl restart jarvis-web ;;
+  esac
+fi
 
 say "The server is ready for install.sh"
 [ ! -f /var/run/reboot-required ] || echo "  The updates need a restart: sudo reboot (the VPN and HTTPS come back by themselves)."
 cat <<EOF
   VPN profiles:  $VPN_DIR/phone.conf and $VPN_DIR/computer.conf (private keys: keep them private)
   Phone:         qrencode -t ansiutf8 < $VPN_DIR/phone.conf    then scan it in the WireGuard app
-  The app:       $APP_URL with the VPN on, once Jarvis is installed
+  The app:       $APP_URL with the VPN on, once Jarvis is installed$([ -z "$DOMAIN" ] || printf '\n  Public:        https://%s from anywhere, after you set a sign-in (docs/sign-in.md);\n                 Oracle: allow TCP 80 and 443 too' "$DOMAIN")
   Oracle:        allow UDP $PORT in the network's security list (docs/server.md); once the VPN works, remove TCP 22
 EOF

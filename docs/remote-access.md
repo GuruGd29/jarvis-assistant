@@ -1,7 +1,7 @@
 # Use Jarvis from your phone
 
-The app server listens only on the machine itself (`127.0.0.1:8791`) and **has no login of its own**, so it must
-never be opened to the internet. Your phone reaches it in one of two private ways:
+The app server listens only on the machine itself (`127.0.0.1:8791`). Your phone reaches it in one of two private
+ways:
 
 - **Server (Oracle or any VPS):** a **WireGuard** VPN. Your phone joins a private network with the server, and the
   app is served over HTTPS on that network only. Below.
@@ -9,6 +9,9 @@ never be opened to the internet. Your phone reaches it in one of two private way
 
 HTTPS is needed either way: phones allow Home Screen apps, notifications and the microphone only on secure pages.
 Caddy makes its own small certificate authority for this, and your phone trusts it once.
+
+To use the app without the VPN instead, give the server a free public name and set a sign-in:
+[public-address.md](public-address.md).
 
 Everything here is free and open source (WireGuard, Caddy).
 
@@ -138,5 +141,5 @@ On a Mac, install Caddy (`brew install caddy`) and adapt
 address. The file explains how the phone gets Caddy's certificate (step 4 above, from `http://your-mac.local:3080`).
 Then open `https://your-mac.local:3444` on the phone and add it to the Home Screen.
 
-Anyone on the same Wi-Fi can reach that address, and the app has no login, so use this only on a network you trust.
-On shared networks use WireGuard instead (it runs on a Mac too).
+Anyone on the same Wi-Fi can reach that address, so use this only on a network you trust, or set a sign-in
+([sign-in.md](sign-in.md)). On shared networks use WireGuard instead (it runs on a Mac too).

@@ -170,7 +170,8 @@ app, a login item for the app server).
 In this order:
 
 1. **Reach it from your phone**: [docs/remote-access.md](docs/remote-access.md) sets up a private WireGuard VPN and
-   HTTPS. Then *Add to Home Screen*, and turn on notifications in **More → Notifications**.
+   HTTPS. Then *Add to Home Screen*, and turn on notifications in **More → Notifications**. On a server you can
+   also give it a free public name and skip the VPN on the phone: [docs/public-address.md](docs/public-address.md).
 2. **Add your files**: copy documents into `~/Jarvis/documents`, `finance`, `health` or `notes`. They're searchable
    within 15 minutes.
 3. **Connect Google** for calendar, Gmail and Drive: [docs/google.md](docs/google.md) (about 15 minutes, once).
@@ -208,9 +209,11 @@ currency, and each email is read once, at night by default so it doesn't slow yo
 
 - **Your data stays on your machine.** The models run locally in Ollama, with Ollama's cloud features switched off,
   and Hermes's telemetry is off. Nothing is sent to an AI company.
-- **Nothing listens on the internet.** Ollama, Postgres, Hermes and the app server listen on `127.0.0.1` only. On a
-  server set up with [docs/remote-access.md](docs/remote-access.md), the only port open to the internet is
-  WireGuard, and your phone joins that private network to use the app.
+- **Nothing listens on the internet unless you choose it.** Ollama, Postgres, Hermes and the app server listen on
+  `127.0.0.1` only. On a server set up with [docs/remote-access.md](docs/remote-access.md), the only port open to the
+  internet is WireGuard, and your phone joins that private network to use the app. With a public name
+  ([docs/public-address.md](docs/public-address.md)), Caddy also answers on ports 80 and 443 for that name, and the
+  app asks for a sign-in.
 - **Sign-in.** The app can ask for a password, "Sign in with Google", or both ([docs/sign-in.md](docs/sign-in.md)).
   Without one it relies on being reachable only from your own devices, through WireGuard or your home Wi-Fi, and it
   refuses to answer on a public address until a sign-in is set.

@@ -1,7 +1,7 @@
 # Sign in to the app
 
 The Jarvis app can ask for a sign-in: a **password**, **Sign in with Google**, or both. You need it as soon as the app
-can be reached from the internet, for example on your own domain. Without it, anyone who finds the address could read
+can be reached from the internet, for example on a public name ([public-address.md](public-address.md)). Without it, anyone who finds the address could read
 your money, calendar and files.
 
 Sign-in is off until you set one of them up, so the app on a Mac at home works as before. While it's off, Jarvis
