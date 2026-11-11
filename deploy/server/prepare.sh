@@ -1,5 +1,5 @@
 #!/bin/bash
-# Get a fresh Ubuntu 24.04 server ready for Jarvis, before install.sh (docs/server.md): security updates, a swap
+# Get a fresh Ubuntu 24.04 server ready for Jarvis, before install.sh (docs/install-server.md): security updates, a swap
 # file, SSH with keys only, the WireGuard VPN with one profile for your phone and one for your computer, and HTTPS
 # for the app on the VPN address. Nothing of Jarvis is reachable from the internet; only WireGuard answers, unless
 # you give it a public name (JARVIS_DOMAIN below).
@@ -211,5 +211,5 @@ cat <<EOF
   VPN profiles:  $VPN_DIR/phone.conf and $VPN_DIR/computer.conf (private keys: keep them private)
   Phone:         qrencode -t ansiutf8 < $VPN_DIR/phone.conf    then scan it in the WireGuard app
   The app:       $APP_URL with the VPN on, once Jarvis is installed$([ -z "$DOMAIN" ] || printf '\n  Public:        https://%s from anywhere, after you set a sign-in (docs/sign-in.md);\n                 Oracle: allow TCP 80 and 443 too' "$DOMAIN")
-  Oracle:        allow UDP $PORT in the network's security list (docs/server.md); once the VPN works, remove TCP 22
+  Oracle:        allow UDP $PORT in the network's security list (docs/install-server.md); once the VPN works, remove TCP 22
 EOF

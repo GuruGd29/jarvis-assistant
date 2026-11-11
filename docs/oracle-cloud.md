@@ -10,8 +10,10 @@ is a tested path.
 | Disk | one boot volume, 50–100 GB | 200 GB of block storage in total |
 | Backups | Object Storage bucket | 20 GB |
 
-Stay at or under these numbers and nothing is charged. Oracle's own pages have the current limits; check them
-before you create the server.
+Stay at or under these numbers and nothing is charged. These are from Oracle's
+[Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm)
+page, checked in November 2026; older pages and blog posts mention 4 cores and 24 GB, which was the earlier allowance.
+Check the page before you create the server.
 
 ## 1. Create the account
 
@@ -35,31 +37,38 @@ area. Try another availability domain, or try again later; it usually works with
 
 ## 3. Install Jarvis
 
+Continue with [install-server.md](install-server.md) from step 2. In short:
+
 ```bash
 ssh ubuntu@YOUR_SERVER_IP
 git clone https://github.com/GuruGd29/jarvis-assistant.git ~/jarvis-system
-cd ~/jarvis-system && ./install.sh
+cd ~/jarvis-system
+deploy/server/prepare.sh YOUR_SERVER_IP    # security, firewall, VPN, HTTPS
+./install.sh                               # Jarvis; answer a few questions
+.venv/bin/jarvis-auth password             # the app's sign-in
 ```
 
-Answer the questions (your name, country style, time zone, languages, optional Telegram). The installer sets the
-server's clock to your time zone so the morning brief comes at your 7:30.
+The installer sets the server's clock to your time zone, so the morning brief comes at your 7:30.
 
 ## 4. Reach it from your phone
 
-The app isn't opened to the internet. Follow [remote-access.md](remote-access.md) to set up WireGuard (a private
-VPN for your phone) and HTTPS. That guide also opens the one port WireGuard needs, both in Oracle's network settings
-and in the server's own firewall.
+Oracle's network lets nothing in until you add a rule: **Networking → Virtual cloud networks →** your network →
+**Security Lists → Default → Add Ingress Rules**, with source `0.0.0.0/0`:
+
+- **Free public name, no VPN app on the phone:** TCP **80** and TCP **443**, then
+  [public-address.md](public-address.md).
+- **VPN only:** **UDP** 51820, not TCP, then step 6B of [install-server.md](install-server.md#6-reach-it-from-your-phone).
 
 ## 5. Then
 
 [Connect Google](google.md), set up [money](money.md) and [backups](backups.md) (Oracle Object Storage is free up
-to 20 GB).
+to 20 GB). Every setting and account is in [configuration.md](configuration.md).
 
 ## Good to know
 
 - **Idle servers.** Oracle may reclaim an Always Free server that stays almost idle for a week. Jarvis's regular jobs
   usually keep it busy enough. If Oracle warns you, upgrading the account to *Pay As You Go* stops this and still
-  charges nothing within the free limits. Nightly backups mean nothing is lost either way.
+  charges nothing within the free limits. With backups set up ([backups.md](backups.md)) nothing is lost; without them, a reclaimed server takes everything with it.
 - **Memory.** Jarvis uses about 9–10 GB of the 12 GB with every model loaded (measured in the weekly test run), which leaves room, but not for a second large model.
 - **Speed.** Replies are slower than on a Mac, because there's no GPU. Scheduled reminders and briefings don't
   depend on the model's speed.

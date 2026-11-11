@@ -1,7 +1,9 @@
 # Jarvis on your own server
 
 Jarvis can run on a small Ubuntu 24.04 server instead of your Mac, so it works around the clock without the Mac.
-These steps are for Oracle Cloud's free ARM server; any Ubuntu 24.04 server (ARM64 or x86-64) works the same way.
+This guide **moves an existing Mac install** to a server, with your data. For a fresh install with no Mac involved,
+use [install-server.md](install-server.md). These steps are for Oracle Cloud's free ARM server; any Ubuntu 24.04
+server (ARM64 or x86-64) works the same way.
 Everything is free and open source; on Oracle it costs nothing within the Always Free limits.
 
 | | Oracle's free server | Any other server |
@@ -10,7 +12,7 @@ Everything is free and open source; on Oracle it costs nothing within the Always
 | Memory | 12 GB | 12 GB or more |
 | Disk | 100 GB (200 GB is free in total) | 40 GB or more |
 | Graphics card | none | none |
-| Replies | about 50 s typical, up to 4 min (measured weekly) | |
+| Replies | 15–40 s once warm; 1–3 min with a tool (measured) | faster with more cores |
 
 Oracle's free ARM allowance is 2 cores and 12 GB in total (1,500 core-hours and 9,000 GB-hours a month): a bigger
 server is charged for the rest. On a Pay As You Go account, set a **budget alert of ₹1** (Billing → Budgets) to hear

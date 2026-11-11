@@ -17,6 +17,9 @@ Everything here is free and open source (WireGuard, Caddy).
 
 ## Server: WireGuard and HTTPS
 
+> **Ran `deploy/server/prepare.sh`?** Then steps 1–3 below are already done. Doing them by hand again would replace
+> its VPN keys and its Caddy settings, including a public name. Go straight to step 4.
+
 `deploy/server/prepare.sh` does all of this for you (see [server.md](server.md)); these are the same steps by
 hand. The commands run on the server. Replace `YOUR_SERVER_IP` with its public IP.
 

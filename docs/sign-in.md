@@ -41,8 +41,11 @@ needs the app on a domain. The password works anywhere.
 4. **Create**, then **Download JSON**. Save it on the machine running Jarvis as
    `~/jarvis-system/secrets/google-login.json`:
 
+   Google names every download `client_secret_….json`, so rename this one to `google-login.json` first and copy
+   that exact file:
+
    ```bash
-   scp ~/Downloads/client_secret_*.json ubuntu@SERVER:~/jarvis-system/secrets/google-login.json
+   scp ~/Downloads/google-login.json ubuntu@SERVER:~/jarvis-system/secrets/google-login.json
    ssh ubuntu@SERVER chmod 600 jarvis-system/secrets/google-login.json
    ```
 

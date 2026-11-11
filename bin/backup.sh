@@ -11,8 +11,14 @@
 # user keeps a copy in a password manager. Prints nothing on success (Hermes cron delivers stdout).
 set -euo pipefail
 
-SYSTEM="$HOME/jarvis-system"
-SECRETS="$SYSTEM/secrets"
+# The real folders: ~/jarvis-system may be a link to where the code was cloned, and your files and secrets can be moved
+# with JARVIS_DATA_ROOT and JARVIS_SECRETS_DIR (docs/configuration.md). restic would save a link, not what it points to.
+SYSTEM="$(cd "$HOME/jarvis-system" && pwd -P)"
+setting() { "$SYSTEM/.venv/bin/python" -c "from jarvis import config; print(config.$1.resolve())" 2>/dev/null || true; }
+DATA="$(setting DATA_ROOT)"; DATA="${DATA:-$HOME/Jarvis}"
+SECRETS="$(setting SECRETS_DIR)"; SECRETS="${SECRETS:-$SYSTEM/secrets}"
+EXTRA=()   # secrets kept outside the code folder are backed up too
+case "$SECRETS/" in "$SYSTEM"/*) ;; *) EXTRA+=("$SECRETS") ;; esac
 DOCKER="${DOCKER:-$(command -v docker || echo /opt/homebrew/bin/docker)}"
 RESTIC="${RESTIC:-$(command -v restic || echo /opt/homebrew/bin/restic)}"
 export RESTIC_PASSWORD_FILE="$SECRETS/restic-password"
@@ -56,7 +62,7 @@ d = sqlite3.connect('/tmp/webui-backup.db'); s.backup(d); d.close()" || fail "Op
 fi
 
 "$RESTIC" backup --quiet --tag jarvis \
-  "$staging" "$HOME/Jarvis" "$SYSTEM" "$HOME/.hermes" \
+  "$staging" "$DATA" "$SYSTEM" "$HOME/.hermes" ${EXTRA[@]+"${EXTRA[@]}"} \
   --exclude "$SYSTEM/.venv" --exclude "$SYSTEM/models" --exclude "$SYSTEM/logs" \
   --exclude "__pycache__" --exclude "*.egg-info" \
   --exclude "$HOME/.hermes/hermes-agent" --exclude "$HOME/.hermes/installs" --exclude "$HOME/.hermes/tools" \

@@ -34,8 +34,8 @@ calendar, an email) needs the user's explicit yes.
 
 ### Tests
 
-- Add a unit test in `tests/test_parsing.py` for every rule you add or fix. Use **made-up data only**: no real
-  emails, names or amounts.
+- Add a unit test next to the others in `tests/` for every rule you add or fix. Use **made-up data only**: no
+  real emails, names, amounts or addresses. [docs/testing.md](docs/testing.md) explains every kind of test.
 - The end-to-end cases are in `tests/ci/run_tests.py`, with fake data in `tests/ci/seed.py`. They run every week on
   GitHub; you can start a run from the Actions tab of your fork.
 

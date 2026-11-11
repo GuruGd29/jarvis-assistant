@@ -19,11 +19,28 @@ Also: <a href="docs/screenshots/more.png">More screen</a> · <a href="docs/scree
 
 ---
 
+## Start here
+
+| I want to… | Read |
+|---|---|
+| Run it on a free cloud server (Oracle) or any Linux server | [docs/install-server.md](docs/install-server.md), and [docs/oracle-cloud.md](docs/oracle-cloud.md) to create Oracle's free server |
+| Run it on my Mac | [docs/install-mac.md](docs/install-mac.md) |
+| Let an AI agent (Claude Code, Codex, Gemini CLI…) set it up with me | [docs/setup-with-ai.md](docs/setup-with-ai.md) |
+| Move my Mac's Jarvis to a server | [docs/server.md](docs/server.md) |
+| Set up my email addresses, sign-ins, banks and other settings | [docs/configuration.md](docs/configuration.md) |
+| Use my own AI model, a graphics card or a cloud AI service, or another host | [docs/customize.md](docs/customize.md) |
+| Fix something that doesn't work | [docs/troubleshooting.md](docs/troubleshooting.md) |
+| See every guide | [docs/README.md](docs/README.md) |
+
+**Is there an installer?** The repository is the installer. You clone it onto the machine that will run Jarvis and
+run `./install.sh`, which installs and sets up everything else. There's nothing else to download and no account to
+create with anyone, and updates come with `git pull`.
+
 **Contents:** [What it does](#what-it-does) · [How it works](#how-it-works) · [Why Jarvis](#why-jarvis) ·
 [What it costs](#what-it-costs) · [What you need](#what-you-need) · [Install](#install) ·
 [After installing](#after-installing) · [Settings for your country](#settings-for-your-country) ·
 [Security and privacy](#security-and-privacy) · [Updates](#updates) · [Testing](#testing) · [Speed](#speed) ·
-[Honest limits](#honest-limits) · [FAQ](#faq) · [Who made this](#who-made-this)
+[Honest limits](#honest-limits) · [FAQ](#faq) · [Documentation](#documentation) · [Who made this](#who-made-this)
 
 ## What it does
 
@@ -57,7 +74,9 @@ Also: <a href="docs/screenshots/more.png">More screen</a> · <a href="docs/scree
   medicines, file passages, remembered facts), and **tools** the model can call (search, add a task, propose an
   event).
 - **[Ollama](https://ollama.com)** runs the AI models on your own machine: **Qwen3.5 4B** (Apache 2.0) for
-  chat, **bge-m3** (MIT) for search and the **bge-reranker-v2-m3** reranker, all multilingual.
+  chat, **bge-m3** (MIT) for search and the **bge-reranker-v2-m3** reranker, all multilingual. The chat model is
+  your choice: any Ollama model with one command, a bigger machine with a graphics card, or a cloud AI service if
+  you want one ([docs/customize.md](docs/customize.md)).
 - **Postgres with pgvector** stores the search index, tasks, money, health records and memory.
 - **The app server** (`jarvis/web`) serves the phone app, streams chat replies and sends push notifications.
 - **Scheduled jobs** send reminders and briefings, read new bank emails, index new files every 15 minutes, and learn
@@ -69,6 +88,7 @@ Also: <a href="docs/screenshots/more.png">More screen</a> · <a href="docs/scree
 ```
 install.sh              One-command install on Linux (Ubuntu 24.04+, ARM64 or x86-64)
 .env.example            Every setting, explained
+AGENTS.md, CLAUDE.md    Instructions for AI agents that set Jarvis up or change it
 jarvis/                 The assistant (Python package)
   config.py               settings from .env: country, currency, languages, models, folders
   search.py ingest.py     file search (vector + keyword + reranker) and indexing of ~/Jarvis
@@ -83,10 +103,11 @@ jarvis/                 The assistant (Python package)
 web/app/                The phone app (HTML, CSS, JavaScript, service worker)
 hermes/                 Jarvis's parts for Hermes: plugin, SOUL.md (persona), scheduled-job scripts
 deploy/                 Hermes config, Ollama Modelfile, systemd services, Caddy and launchd examples
+  server/prepare.sh       a fresh server: updates, SSH, firewall, WireGuard VPN, HTTPS, a public name
 sql/                    Database schema (jarvis-migrate applies it)
-bin/                    apply-settings.sh, backup.sh, startup.sh (Mac)
+bin/                    apply-settings.sh, add-jobs.sh, backup.sh, use-model.sh, update.sh (server), server.sh (Mac → server)
 tests/                  Unit tests, and tests/ci: the weekly end-to-end test run
-docs/                   Guides: Mac install, Oracle Cloud, phone access, Google, money, backups
+docs/                   Guides: installing, phone access, accounts, settings, testing, troubleshooting
 ```
 
 </details>
@@ -127,7 +148,7 @@ stay within the free limits the guide uses.
 
 | | Minimum | Comfortable |
 |---|---|---|
-| **Linux server or PC** | Ubuntu 24.04+, ARM64 or x86-64, 8 GB memory, 25 GB free disk | 12 GB memory, 4 cores |
+| **Linux server or PC** | Ubuntu 24.04+, ARM64 or x86-64, 12 GB memory (8 GB works but swaps), 40 GB disk | 16 GB memory, 4 cores |
 | **Mac** | Apple silicon, 16 GB memory | 32 GB |
 | **Phone** | A recent iPhone or Android phone with its normal browser | |
 | **Accounts** | None to start. Google for calendar, mail and money; Telegram if you want it | |
@@ -136,10 +157,18 @@ stay within the free limits the guide uses.
 
 ### Linux server or PC (recommended)
 
+On the server, as a normal user with `sudo`:
+
 ```bash
 git clone https://github.com/GuruGd29/jarvis-assistant.git ~/jarvis-system
-cd ~/jarvis-system && ./install.sh
+cd ~/jarvis-system
+deploy/server/prepare.sh SERVER_PUBLIC_IP     # security updates, SSH, firewall, VPN, HTTPS (servers only)
+./install.sh                                  # Jarvis itself
+.venv/bin/jarvis-auth password                # the app's sign-in
 ```
+
+[docs/install-server.md](docs/install-server.md) explains each step, including how to reach it from your phone,
+choosing a server, and closing SSH to the internet. A Linux PC at home has its own short section there.
 
 The installer asks a few short questions: your name, your country's number and date style, currency, time zone,
 languages, and an optional Telegram bot. Then it sets everything up in order:
@@ -160,25 +189,37 @@ machine set up like Oracle's free server.
 **Already running Jarvis on a Mac?** [docs/server.md](docs/server.md) moves it to a server, one command per step
 (`bin/server.sh`): VPN, HTTPS, your data, then updates from the Mac with automatic roll-back.
 
+### With an AI agent
+
+Open Claude Code, Codex, Gemini CLI or another coding agent in a copy of this repository and say, for example:
+*"Read AGENTS.md and install Jarvis on my server at SERVER_IP."* The repository includes instructions written for
+agents ([AGENTS.md](AGENTS.md)). The agent runs the steps and checks each one, and it hands you the parts only you
+can do: creating accounts, typing passwords into your own terminal, and the phone steps. Ready-made prompts are in
+[docs/setup-with-ai.md](docs/setup-with-ai.md).
+
 ### Mac
 
-See [docs/install-mac.md](docs/install-mac.md): the same pieces, installed by hand (Docker for Postgres, the Ollama
+See [docs/install-mac.md](docs/install-mac.md): the same pieces, installed by hand (Homebrew Postgres, the Ollama
 app, a login item for the app server).
 
 ## After installing
 
 In this order:
 
-1. **Reach it from your phone**: [docs/remote-access.md](docs/remote-access.md) sets up a private WireGuard VPN and
-   HTTPS. Then *Add to Home Screen*, and turn on notifications in **More → Notifications**. On a server you can
-   also give it a free public name and skip the VPN on the phone: [docs/public-address.md](docs/public-address.md).
+1. **Reach it from your phone**: on a server, a free public name with a sign-in (nothing to install on the phone)
+   or the private VPN that `prepare.sh` set up: step 6 of [docs/install-server.md](docs/install-server.md#6-reach-it-from-your-phone).
+   On a Mac at home: [docs/remote-access.md](docs/remote-access.md#mac-or-pc-on-home-wi-fi). Then *Add to Home
+   Screen*, and turn on notifications in **More → Notifications**.
 2. **Add your files**: copy documents into `~/Jarvis/documents`, `finance`, `health` or `notes`. They're searchable
    within 15 minutes.
 3. **Connect Google** for calendar, Gmail and Drive: [docs/google.md](docs/google.md) (about 15 minutes, once).
 4. **Money from bank emails**: [docs/money.md](docs/money.md). List your bank's alert addresses and Jarvis builds
    your spending and card bills.
 5. **Backups**: [docs/backups.md](docs/backups.md). Encrypted, daily, to free cloud storage.
-6. **Telegram** (optional): run `./install.sh` again and give it a bot token.
+6. **Telegram** (optional): [docs/telegram.md](docs/telegram.md).
+
+Every setting, secret file, email address and account is explained in one place:
+[docs/configuration.md](docs/configuration.md).
 
 Then try: *"Plan my day"*, *"How much did I spend this week?"*, *"When does my car insurance renew?"*,
 *"Remind me to call the plumber tomorrow at 10"*, *"What did the bank email me about?"*
@@ -197,7 +238,8 @@ Everything that depends on where you live is a setting in `.env`; nothing is tie
 | `JARVIS_MONEY_AI` | `nightly` | When the AI reads emails from banks without a built-in reader |
 
 For example, `en_IN` with `INR` shows `₹1,50,000.50`, `en_US` with `USD` shows `$150,000.50`, and `de_DE` with
-`EUR` shows `150.000,50 €`. Every setting is explained in [.env.example](.env.example). After changing one, run
+`EUR` shows `150.000,50 €`. Every setting is explained in [.env.example](.env.example) and
+[docs/configuration.md](docs/configuration.md). After changing one, run
 `bin/apply-settings.sh` and restart Jarvis (`sudo systemctl restart jarvis-hermes jarvis-web`).
 
 **Banks.** HDFC, ICICI and IDFC (India) have exact built-in readers. Alert emails from **any other bank** are read
@@ -208,7 +250,8 @@ currency, and each email is read once, at night by default so it doesn't slow yo
 ## Security and privacy
 
 - **Your data stays on your machine.** The models run locally in Ollama, with Ollama's cloud features switched off,
-  and Hermes's telemetry is off. Nothing is sent to an AI company.
+  and Hermes's telemetry is off. Nothing is sent to an AI company, unless you choose a cloud AI service as the chat
+  model yourself ([docs/customize.md](docs/customize.md#a-cloud-ai-service)).
 - **Nothing listens on the internet unless you choose it.** Ollama, Postgres, Hermes and the app server listen on
   `127.0.0.1` only. On a server set up with [docs/remote-access.md](docs/remote-access.md), the only port open to the
   internet is WireGuard, and your phone joins that private network to use the app. With a public name
@@ -235,16 +278,21 @@ Found a security problem? See [SECURITY.md](SECURITY.md). Jarvis's use of Google
 cd ~/jarvis-system && git pull && ./install.sh
 ```
 
+On a server, `bin/update.sh` does the same but updates only what changed, and goes back to the previous version by
+itself if Jarvis isn't healthy afterwards.
+
 The installer updates the Python packages, applies new database changes (`jarvis-migrate`), refreshes Jarvis's
 files in Hermes and restarts the services. Your `.env`, data and scheduled jobs are kept. Hermes Agent stays pinned
 to the version the weekly tests use, and changes only when Jarvis moves it.
 
 ## Testing
 
-Two layers run automatically every Sunday at 2:00 am India time on a free GitHub machine, with made-up data only:
+Two layers run automatically every Sunday at 2:00 am India time on a free GitHub machine, with made-up data only.
+[docs/testing.md](docs/testing.md) explains them, how to run them yourself, and how to check your own install.
 
-- **30 unit tests** for rules that are easy to break quietly: money parsing, number and date styles, card bills,
-  renewals, the prompt-injection filter, and the AI bank reader's safety checks.
+- **About 100 unit tests** for rules that are easy to break quietly: money parsing, number and date styles, card
+  bills, renewals, the prompt-injection filter, the AI bank reader's safety checks, the sign-in and the server's
+  address checks. Run them with `.venv/bin/python -m unittest discover tests`.
 - **46 end-to-end test cases**: Jarvis is installed with `install.sh` on an ARM64 machine set up like Oracle's free
   server (the model limited to 2 cores), and then the real thing is tested:
 
@@ -272,10 +320,10 @@ Jarvis runs a small model on ordinary hardware, so expect a short pause rather t
 | Machine | Typical reply |
 |---|---|
 | MacBook Pro (M1 Pro, 32 GB) | 3–8 seconds once warm |
-| ARM server, model limited to 2 cores (set up like Oracle Always Free) | about 50 seconds (median); first words after about 30 seconds; 9 in 10 replies within about 2.5 minutes |
+| Oracle Always Free server (2 Ampere cores, 12 GB), measured | short replies 15–40 seconds once warm; questions that use a tool (calendar, money, search) 1–3 minutes |
+| GitHub's ARM test machine, model limited to 2 cores | about 50 seconds (median); 9 in 10 replies within about 2.5 minutes (measured every week) |
 
-The ARM numbers come from the weekly test run, which measures them again every week (see the latest report). A real
-Oracle server may be a little faster or slower.
+On 2 cores the model writes about 4 words a second, so long answers take longer than short ones.
 
 After a restart the model has to read Jarvis's instructions once, which takes several minutes on a 2-core server.
 The keep-warm job does that in the background within 20 minutes; a message sent before then waits for it.
@@ -304,8 +352,10 @@ limits. On your own Mac or PC it costs only electricity.
 **Does anything I say go to OpenAI, Google or anyone else?** No. The model runs on your machine. Google is contacted
 only to read your own calendar, mail and Drive with your sign-in, and Telegram only if you turn it on.
 
-**Can I use a bigger or different model?** Yes, if your machine has the memory: change the `FROM` line in
-`deploy/ollama/Modelfile` and `JARVIS_CHAT_MODEL`. Hermes needs a model with at least a 64k context.
+**Can I use a bigger or different model?** Yes. `bin/use-model.sh qwen3.5:9b` (or any Ollama model that supports
+tools) switches to it, if your machine has the memory. You can also run the model on another machine with a graphics
+card, or use a cloud AI service such as OpenAI, Anthropic, Gemini or OpenRouter, which sends your chats to that
+company. All three are in [docs/customize.md](docs/customize.md).
 
 **My bank isn't HDFC, ICICI or IDFC.** Add its alert email addresses to `secrets/money.json` and the AI reader
 handles them ([docs/money.md](docs/money.md)). A built-in reader is faster and exact, so contributions are welcome
@@ -322,9 +372,38 @@ and Tanglish are tested weekly. Set `JARVIS_LANGUAGES`.
 **Does it work without the internet?** Chat, files, tasks, medicines and money it has already read all work
 offline. Calendar, Gmail, Drive, Telegram and push notifications need the internet.
 
-**How do I uninstall?** `sudo systemctl disable --now jarvis-hermes jarvis-web ollama`, remove
-`/etc/systemd/system/jarvis-*.service`, then delete `~/jarvis-system`, `~/.hermes` and the `jarvis` database. Your
-files in `~/Jarvis` are yours to keep.
+**Is there an installer, or do I clone the code?** You clone the code: the repository is the installer.
+`git clone` it onto the machine that will run Jarvis and run `./install.sh`
+([docs/install-server.md](docs/install-server.md)).
+
+**Can I use a server other than Oracle?** Yes: any Ubuntu 24.04+ server with about 12 GB of memory, from any
+provider, or a Linux PC at home. Oracle's is just the free one.
+
+**Can an AI set it up for me?** Yes. Claude Code, Codex, Gemini CLI and similar agents can follow
+[AGENTS.md](AGENTS.md); see [docs/setup-with-ai.md](docs/setup-with-ai.md). You still create the accounts and type
+your own passwords.
+
+**Where do my email address, Google account and bank details go?**
+[docs/configuration.md](docs/configuration.md) lists every address, account and secret, what it's for, and the
+command or file that sets it.
+
+**Something doesn't work.** See [docs/troubleshooting.md](docs/troubleshooting.md), then open an issue.
+
+**How do I uninstall?** First copy anything you may need later: `secrets/restic-password` (without it your backups
+can never be read), and `.env` and `secrets/` if you might install again. Then
+`sudo systemctl disable --now jarvis-hermes jarvis-web ollama`, remove `/etc/systemd/system/jarvis-*.service`, and
+delete `~/jarvis-system`, `~/.hermes` and the `jarvis` database. Your files in `~/Jarvis` are yours to keep.
+
+## Documentation
+
+| Install | Reach it | Connect | Run it |
+|---|---|---|---|
+| [Any server](docs/install-server.md) | [Public name](docs/public-address.md) | [Settings, secrets, accounts](docs/configuration.md) | [Backups](docs/backups.md) |
+| [Oracle Cloud](docs/oracle-cloud.md) | [VPN and home Wi-Fi](docs/remote-access.md) | [Google and iCloud](docs/google.md) | [Testing](docs/testing.md) |
+| [Mac](docs/install-mac.md) | [Sign-in](docs/sign-in.md) | [Money](docs/money.md) | [Troubleshooting](docs/troubleshooting.md) |
+| [Mac → server](docs/server.md) | | [Files](docs/files.md) · [Telegram](docs/telegram.md) | [Contributing](CONTRIBUTING.md) |
+| [With an AI agent](docs/setup-with-ai.md) | | [Voice](docs/voice.md) · [Watches](docs/watches.md) | [Security](SECURITY.md) · [Privacy](PRIVACY.md) |
+| [Customize: models, hosts](docs/customize.md) | | | |
 
 ## Who made this
 

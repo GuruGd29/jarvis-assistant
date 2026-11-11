@@ -1,6 +1,6 @@
 # Open Jarvis without the VPN
 
-On a server set up with [server.md](server.md), Jarvis is reachable only through WireGuard. With a public name such
+On a server set up with [install-server.md](install-server.md) or [server.md](server.md), Jarvis is reachable only through WireGuard. With a public name such
 as `yourname.dynv6.net`, you open the app from any phone or computer instead and sign in. The VPN stays for SSH.
 
 What the internet can reach then: Caddy on ports 80 and 443, for that name only. It serves only the app, which asks

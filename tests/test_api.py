@@ -23,14 +23,23 @@ def call(path, method="GET", body=None):
         return error.code, dict(error.headers), error.read()
 
 
-def running() -> bool:
+def why_not() -> str:
+    """Why these tests can't run against the app here, or "" when they can. They need the app server running without
+    a sign-in, as in the weekly test run; on your own install with a password they are skipped, not failed."""
     try:
-        return call("/api/health")[0] in (200, 503)
+        if call("/api/health")[0] not in (200, 503):
+            return f"app server not running at {BASE}"
+        if call("/api/more")[0] == 401:
+            return "the app asks for a sign-in; these tests need one without, as in the weekly test run"
+        return ""
     except OSError:
-        return False
+        return f"app server not running at {BASE}"
 
 
-@unittest.skipUnless(running(), f"app server not running at {BASE}")
+SKIP = why_not()
+
+
+@unittest.skipIf(SKIP, SKIP)
 class Pages(unittest.TestCase):
     def test_shell_and_static_files(self):
         for path, kind in (("/", "text/html"), ("/sw.js", "javascript"), ("/manifest.webmanifest", "manifest+json"),
@@ -48,7 +57,7 @@ class Pages(unittest.TestCase):
         self.assertEqual(call("/api/settings")[1].get("cache-control"), "no-store")
 
 
-@unittest.skipUnless(running(), f"app server not running at {BASE}")
+@unittest.skipIf(SKIP, SKIP)
 class Data(unittest.TestCase):
     def get(self, path):
         status, _, body = call(path)
@@ -80,7 +89,7 @@ class Data(unittest.TestCase):
         self.assertEqual(len(self.get("/api/push/key")["key"]), 87)
 
 
-@unittest.skipUnless(running(), f"app server not running at {BASE}")
+@unittest.skipIf(SKIP, SKIP)
 class BadInput(unittest.TestCase):
     """Wrong requests get a clear 4xx with a JSON error, never a crash."""
 

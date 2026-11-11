@@ -20,8 +20,8 @@ HERMES_COMMIT="bf0203a794a07aac3ff764972ab9087baa4e4f4e"   # the Hermes Agent ve
 WHISPER_VERSION="v1.9.5"   # whisper.cpp for voice messages, the same version as on a Mac (brew)
 HERMES_HOME="$HOME/.hermes"
 HERMES_BIN="$HERMES_HOME/hermes-agent/.hermes/bin/hermes"
-CHAT_BASE="qwen3.5:4b-q4_K_M"
-CHAT_MODEL="qwen3.5-4b-64k"
+DEFAULT_CHAT_BASE="qwen3.5:4b-q4_K_M"   # the tested chat model; JARVIS_CHAT_BASE picks another (docs/customize.md)
+DEFAULT_CHAT_MODEL="qwen3.5-4b-64k"     # Jarvis's version of it, with a 64k context
 ME="$(id -un)"
 YES="${JARVIS_INSTALL_YES:-}"
 
@@ -93,6 +93,31 @@ for key in JARVIS_OWNER_NAME JARVIS_LOCALE JARVIS_CURRENCY JARVIS_TIMEZONE JARVI
            JARVIS_MONEY_AI; do
   [ -z "${!key}" ] || env_set "$ENV_FILE" "$key" "${!key}"
 done
+# The chat model: given now (JARVIS_CHAT_BASE=qwen3.5:9b ./install.sh), chosen before (bin/use-model.sh), or the
+# tested one. Another model gets its own name, e.g. qwen3.5:9b -> qwen3.5-9b-64k.
+CHAT_BASE="${JARVIS_CHAT_BASE:-$(env_get "$ENV_FILE" JARVIS_CHAT_BASE)}"; CHAT_BASE="${CHAT_BASE:-$DEFAULT_CHAT_BASE}"
+CHAT_MODEL="${JARVIS_CHAT_MODEL:-$(env_get "$ENV_FILE" JARVIS_CHAT_MODEL)}"
+if [ -z "$CHAT_MODEL" ]; then
+  CHAT_MODEL="$DEFAULT_CHAT_MODEL"
+  [ "$CHAT_BASE" = "$DEFAULT_CHAT_BASE" ] || CHAT_MODEL="$(printf '%s' "$CHAT_BASE" | tr ':/' '--' | tr -cd 'A-Za-z0-9._-')-64k"
+fi
+if [ "$CHAT_BASE" != "$DEFAULT_CHAT_BASE" ]; then
+  env_set "$ENV_FILE" JARVIS_CHAT_BASE "$CHAT_BASE" && env_set "$ENV_FILE" JARVIS_CHAT_MODEL "$CHAT_MODEL"
+fi
+# A limit on the model's processor cores, kept for the next run (update.sh runs this again without it).
+JARVIS_MODEL_THREADS="${JARVIS_MODEL_THREADS:-$(env_get "$ENV_FILE" JARVIS_MODEL_THREADS)}"
+[ -z "$JARVIS_MODEL_THREADS" ] || env_set "$ENV_FILE" JARVIS_MODEL_THREADS "$JARVIS_MODEL_THREADS"
+# The models run in Ollama on this machine, unless JARVIS_OLLAMA_URL points at another one (docs/customize.md): then
+# nothing is downloaded here, and bin/use-model.sh manages the models there.
+OLLAMA_URL="${JARVIS_OLLAMA_URL:-$(env_get "$ENV_FILE" JARVIS_OLLAMA_URL)}"
+LOCAL_MODELS=1
+[ -z "$OLLAMA_URL" ] || [[ $OLLAMA_URL =~ ^https?://(127\.0\.0\.1|localhost)(:|/|$) ]] || LOCAL_MODELS=""
+# On a server prepared by deploy/server/prepare.sh, the app answers only to its own addresses: the VPN address and
+# the public name, if any (JARVIS_HOSTS; docs/configuration.md).
+if [ -z "$(env_get "$ENV_FILE" JARVIS_HOSTS)" ] && grep -q '^https://10\.8\.0\.1' /etc/caddy/Caddyfile 2>/dev/null; then
+  public_name="$(grep -m1 -oE '^https://[a-z0-9.-]+\.[a-z]{2,} \{' /etc/caddy/Caddyfile | sed -E 's#^https://##; s# \{$##' || true)"
+  env_set "$ENV_FILE" JARVIS_HOSTS "10.8.0.1${public_name:+,$public_name}"
+fi
 DB_NAME="${JARVIS_DB_NAME:-jarvis}"; DB_USER="${JARVIS_DB_USER:-jarvis}"
 DB_PASSWORD="$(env_get "$ENV_FILE" JARVIS_DB_PASSWORD)"
 
@@ -170,10 +195,14 @@ sudo mkdir -p /etc/systemd/system/ollama.service.d
 sudo cp deploy/systemd/ollama-jarvis.conf /etc/systemd/system/ollama.service.d/jarvis.conf
 sudo systemctl daemon-reload && sudo systemctl enable ollama >/dev/null 2>&1 && sudo systemctl restart ollama
 wait_for http://127.0.0.1:11434/api/version 60 || fail "Ollama did not start (journalctl -u ollama)."
-ollama pull "$CHAT_BASE" && ollama pull bge-m3
-modelfile="$(mktemp)"; cp deploy/ollama/Modelfile "$modelfile"
-[ -z "${JARVIS_MODEL_THREADS:-}" ] || echo "PARAMETER num_thread $JARVIS_MODEL_THREADS" >> "$modelfile"
-ollama create "$CHAT_MODEL" -f "$modelfile" >/dev/null && rm -f "$modelfile"
+if [ -n "$LOCAL_MODELS" ]; then
+  ollama pull "$CHAT_BASE" && ollama pull bge-m3
+  modelfile="$(mktemp)"; sed "s#^FROM .*#FROM $CHAT_BASE#" deploy/ollama/Modelfile > "$modelfile"
+  [ -z "${JARVIS_MODEL_THREADS:-}" ] || echo "PARAMETER num_thread $JARVIS_MODEL_THREADS" >> "$modelfile"
+  ollama create "$CHAT_MODEL" -f "$modelfile" >/dev/null && rm -f "$modelfile"
+else
+  echo "  The models run in Ollama at $OLLAMA_URL; nothing downloaded here (bin/use-model.sh manages them there)."
+fi
 
 # ---------- 6. Hermes Agent ----------
 say "Hermes Agent (the pinned version; its own installer brings its Python)"
@@ -188,7 +217,7 @@ ln -sfn "$HERMES_BIN" "$HOME/.local/bin/hermes"
 # Jarvis's Hermes settings; your own edited config is kept (Jarvis's is recognised by its memory provider).
 if ! grep -q "provider: jarvis" "$HERMES_HOME/config.yaml" 2>/dev/null; then
   [ ! -f "$HERMES_HOME/config.yaml" ] || cp "$HERMES_HOME/config.yaml" "$HERMES_HOME/config.yaml.before-jarvis"
-  sed "s#__VENV__#$REPO/.venv#" deploy/hermes/config.yaml > "$HERMES_HOME/config.yaml"
+  sed "s#__VENV__#$REPO/.venv#; s#$DEFAULT_CHAT_MODEL#$CHAT_MODEL#g" deploy/hermes/config.yaml > "$HERMES_HOME/config.yaml"
 fi
 # Settings from before the switch to Qwen3.5 4B get the new model's name and the temperature Hermes sends (see
 # deploy/hermes/config.yaml); nothing else changes, and the old file is kept as config.yaml.before-qwen3.5.
@@ -230,7 +259,7 @@ HERMES_BIN="$HERMES_BIN" bin/add-jobs.sh
 say "Jarvis is installed and running"
 cat <<EOF
   Check:     systemctl status jarvis-hermes jarvis-web ollama      (logs: journalctl -u jarvis-web)
-  App:       http://127.0.0.1:8791 on this computer; for your phone, see docs/remote-access.md
+  App:       http://127.0.0.1:8791 on this computer; for your phone: docs/install-server.md, step 6
   Settings:  $ENV_FILE, then:  bin/apply-settings.sh && sudo systemctl restart jarvis-hermes jarvis-web
   Telegram:  $([ -n "$TELEGRAM_BOT_TOKEN" ] && echo "on; message your bot" || echo "off; add it any time by running ./install.sh again")
 

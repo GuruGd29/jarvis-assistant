@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Setting up or something not working?
+    url: https://github.com/GuruGd29/jarvis-assistant/blob/main/docs/troubleshooting.md
+    about: Most problems and their fixes are in the troubleshooting guide. Every guide is listed in docs/README.md.
+  - name: A security problem
+    url: https://github.com/GuruGd29/jarvis-assistant/blob/main/SECURITY.md
+    about: Please report it privately, as SECURITY.md describes, not in a public issue.

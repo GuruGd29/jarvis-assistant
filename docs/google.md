@@ -37,8 +37,11 @@ Jarvis cannot send, reply to or delete email, and cannot change or delete anythi
 2. **Download JSON** and save it as `~/jarvis-system/secrets/google-client.json` on the machine running Jarvis.
    From your own computer to a server:
 
+   Google names every download `client_secret_….json`, so rename this one to `google-client.json` first and copy
+   that exact file:
+
    ```bash
-   scp ~/Downloads/client_secret_*.json ubuntu@SERVER:~/jarvis-system/secrets/google-client.json
+   scp ~/Downloads/google-client.json ubuntu@SERVER:~/jarvis-system/secrets/google-client.json
    ```
 
 ## 4. Sign in

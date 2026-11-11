@@ -89,6 +89,9 @@ LOGIN_EMAILS = {e.strip().lower() for e in os.environ.get("JARVIS_LOGIN_EMAILS",
 APPLE_REMINDERS = (os.environ.get("JARVIS_APPLE_REMINDERS") or "off").lower() == "on"
 # The local chat model: answers chats and reads bank emails the built-in readers don't know.
 CHAT_MODEL = os.environ.get("JARVIS_CHAT_MODEL") or "qwen3.5-4b-64k"
+# Keep the chat model's prompt cached with a throwaway chat every 20 minutes (jarvis-warm-chat). Turn it off when the
+# chat model is a cloud service (docs/customize.md): there it would be a paid request every 20 minutes for nothing.
+WARM_CHAT = (os.environ.get("JARVIS_WARM_CHAT") or "on").lower() != "off"
 # Bank emails from banks without a built-in reader: "nightly" reads them once a night (an AI read pushes the chat
 # out of the model's memory, which costs minutes on a CPU server), "always" on every money sync, "off" never.
 MONEY_AI = (os.environ.get("JARVIS_MONEY_AI") or "nightly").lower()

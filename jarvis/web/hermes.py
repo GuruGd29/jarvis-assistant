@@ -127,7 +127,9 @@ def warm_chat() -> None:
     """jarvis-warm-chat: one throwaway chat through Hermes, deleted afterwards, so the model has Jarvis's long prompt
     cached before the user's next message. Reading that prompt from scratch takes minutes on a 2-core server: after
     a restart, after the nightly AI jobs and after midnight (the prompt holds the date). Once cached, this takes
-    seconds. The keep-warm job runs it in the background; two never run at once."""
+    seconds. The keep-warm job runs it in the background; two never run at once. JARVIS_WARM_CHAT=off skips it."""
+    if not config.WARM_CHAT:
+        return
     lock_file = config.SYSTEM_DIR / "state" / "warm-chat.lock"
     lock_file.parent.mkdir(parents=True, exist_ok=True)
     with lock_file.open("w") as lock:

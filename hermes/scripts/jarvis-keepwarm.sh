@@ -5,11 +5,14 @@
 # An embedding model loads through /api/embed, not /api/generate.
 unset PYTHONPATH PYTHONHOME VIRTUAL_ENV
 # Failure messages go through jarvis-notify as "Important problems" (see the other jarvis scripts).
+# The models and Ollama's address come from Jarvis's settings (another model: docs/customize.md).
+read -r chat_model embed_model ollama_url < <("$HOME/jarvis-system/.venv/bin/python" -c \
+  'from jarvis import config; print(config.CHAT_MODEL, config.EMBED_MODEL, config.OLLAMA_URL)' 2>/dev/null) || true
 {
-  for target in "generate qwen3.5-4b-64k" "embed bge-m3"; do
+  for target in "generate ${chat_model:-qwen3.5-4b-64k}" "embed ${embed_model:-bge-m3}"; do
     set -- $target
     extra=""; [ "$1" = embed ] && extra=',"input":[]'
-    out=$(curl -s -m 120 "http://127.0.0.1:11434/api/$1" -d "{\"model\":\"$2\",\"keep_alive\":\"2h\"$extra}")
+    out=$(curl -s -m 120 "${ollama_url:-http://127.0.0.1:11434}/api/$1" -d "{\"model\":\"$2\",\"keep_alive\":\"2h\"$extra}")
     echo "$out" | grep -q '"done":true\|"embeddings"' || echo "Jarvis keep-warm failed for $2: ${out:-Ollama not reachable}"
   done
   # Health of the app: its server (database, Hermes, Ollama) and the HTTPS front door the phone uses.

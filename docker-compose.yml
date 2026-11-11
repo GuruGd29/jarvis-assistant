@@ -1,4 +1,4 @@
-# Jarvis data services. Bound to localhost only; on a server keep it behind WireGuard (docs/oracle-plan.md).
+# Jarvis data services. Bound to localhost only; on a server keep it behind WireGuard (docs/server.md).
 services:
   jarvis-db:
     image: pgvector/pgvector:pg17
