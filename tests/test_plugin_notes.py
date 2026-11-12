@@ -3,6 +3,7 @@ import importlib.util
 import json
 import sys
 import tempfile
+import threading
 import types
 import unittest
 from pathlib import Path
@@ -71,9 +72,13 @@ class ChatPrompt(unittest.TestCase):
                 "date": {"type": "string"}}}}}}}}]
 
     def send(self, history, platform="api_server", api_call_count=1):
-        api_kwargs = {"model": "qwen3.5-4b-64k", "messages": [self.system, *history], "tools": self.tools}  # noqa: F841
-        plugin.keep_chat_prompt(platform=platform, api_call_count=api_call_count, conversation_history=history,
-                                request={"body": {"messages": "cut"}})
+        """Like Hermes: the hook runs on a helper thread while the thread that built the request waits for it."""
+        api_kwargs = {"model": "qwen3.5-4b-64k", "messages": [self.system, *history], "tools": self.tools}
+        hook = threading.Thread(target=plugin.keep_chat_prompt, kwargs=dict(
+            platform=platform, api_call_count=api_call_count, conversation_history=history,
+            request_messages=list(api_kwargs["messages"]), request={"body": {"messages": "cut"}}))
+        hook.start()
+        hook.join(timeout=10)
 
     def test_first_request_of_a_new_app_chat_is_kept_in_full(self):
         self.send([{"role": "user", "content": "Hi"}])
@@ -86,6 +91,11 @@ class ChatPrompt(unittest.TestCase):
         self.send([{"role": "user", "content": "Hi"}], api_call_count=2)  # after a tool call
         self.send([{"role": "user", "content": "Hi"}, {"role": "assistant", "content": "Hello"},
                    {"role": "user", "content": "and tomorrow?"}])
+        self.assertFalse(self.file.exists())
+
+    def test_a_request_it_cannot_find_is_not_guessed(self):
+        plugin.keep_chat_prompt(platform="api_server", api_call_count=1, conversation_history=[{"role": "user"}],
+                                request_messages=[dict(self.system), {"role": "user", "content": "Hi"}])
         self.assertFalse(self.file.exists())
 
     def test_instant_answers_passed_along_are_not_the_users_words(self):

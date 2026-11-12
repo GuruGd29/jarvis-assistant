@@ -218,17 +218,20 @@ def own_words(text: str) -> str:
     return _INSTANT_NOTE.sub("", _CHAT_FILE.sub("", text or "")).strip()
 
 
-def _api_kwargs() -> Optional[dict[str, Any]]:
-    """The request exactly as Hermes sends it. The hook's own copy cuts strings over 8,000 characters (the system
-    message is longer) and deep tool schemas, so the caller's frame is read instead (Hermes is pinned by install.sh)."""
-    frame = sys._getframe(1)
-    for _ in range(20):
-        if frame is None:
-            return None
-        found = frame.f_locals.get("api_kwargs")
-        if isinstance(found, dict) and isinstance(found.get("messages"), list):
-            return found
-        frame = frame.f_back
+def _api_kwargs(system_message: Any) -> Optional[dict[str, Any]]:
+    """The request exactly as Hermes sends it. The hook's own copy (`request`) cuts strings over 8,000 characters
+    and deep tool schemas, so the request is read where Hermes built it: Hermes runs this hook on a helper thread
+    while the request's own thread waits for it, and the request is the `api_kwargs` there whose first message is the
+    very system message the hook was given (Hermes is pinned by install.sh)."""
+    for frame in sys._current_frames().values():
+        for _ in range(40):
+            if frame is None:
+                break
+            found = frame.f_locals.get("api_kwargs")
+            if isinstance(found, dict) and isinstance(found.get("messages"), list) and found["messages"] \
+                    and found["messages"][0] is system_message:
+                return found
+            frame = frame.f_back
     return None
 
 
@@ -243,10 +246,14 @@ def keep_chat_prompt(**kwargs) -> None:
         if kwargs.get("platform") != "api_server" or kwargs.get("api_call_count") != 1 \
                 or roles.count("user") != 1 or "assistant" in roles:
             return
-        request = _api_kwargs()
-        messages = (request or {}).get("messages") or []
-        if not messages or not isinstance(messages[0], dict) or messages[0].get("role") != "system":
+        sent = kwargs.get("request_messages") or []
+        if not sent or not isinstance(sent[0], dict) or sent[0].get("role") != "system":
             return
+        request = _api_kwargs(sent[0])
+        if request is None:
+            logger.warning("Jarvis could not find Hermes's request to keep the chat prompt")
+            return
+        messages = request["messages"]
         prompt = json.dumps({"model": request.get("model"), "system": messages[0], "tools": request.get("tools") or []},
                             ensure_ascii=False, default=str)
         if CHAT_PROMPT.exists() and CHAT_PROMPT.read_text() == prompt:
