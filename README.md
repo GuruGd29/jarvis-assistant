@@ -325,14 +325,21 @@ Jarvis runs a small model on ordinary hardware, so expect a short pause rather t
 | Machine | Typical reply |
 |---|---|
 | MacBook Pro (M1 Pro, 32 GB) | 3–8 seconds once warm |
-| Oracle Always Free server (2 Ampere cores, 12 GB), measured | short replies 15–40 seconds once warm; questions that use a tool (calendar, money, search) 1–3 minutes |
+| Oracle server, 4 Ampere cores, 24 GB (more than the free allowance), measured November 2026 | calendar, today's medicines and spending: under a second; "Hi": 3 seconds; general questions: first words in about 2 seconds, done in 3–9; questions that bring in what Jarvis remembers or your files: first words in 15–30 seconds |
+| Oracle Always Free server (2 Ampere cores, 12 GB), measured before the November 2026 speed-ups | short replies 15–40 seconds once warm; questions that use a tool (calendar, money, search) 1–3 minutes. Expect about twice the 4-core times above now |
 | GitHub's ARM test machine, model limited to 2 cores | about 50 seconds (median); 9 in 10 replies within about 2.5 minutes (measured every week) |
 
-On 2 cores the model writes about 4 words a second, so long answers take longer than short ones.
+On 4 cores the model reads about 15 tokens a second and writes about 7 words a second (half that on 2 cores), so
+what Jarvis adds to a question and the length of the answer decide the wait.
 
 Everyday questions in the app and through Siri (what's on the calendar, today's medicines, how much was spent) are
 answered straight from your data in about a second, without the model. A question that needs thinking, names a shop
 or is written in Tamil goes to the model as before ([jarvis/web/instant.py](jarvis/web/instant.py)).
+
+Each new chat starts where Jarvis's long instructions end, so the model reads only your question: the keep-warm job
+sends the instructions on their own every 20 minutes, which leaves the model's saved place there
+(`mark_question_start` in [jarvis/web/hermes.py](jarvis/web/hermes.py)). Your files are searched before a question
+only when it is about your own things ("my insurance", "the electricity bill").
 
 After a restart the model has to read Jarvis's instructions once, which takes several minutes on a 2-core server.
 The keep-warm job does that in the background within 20 minutes; a message sent before then waits for it.
