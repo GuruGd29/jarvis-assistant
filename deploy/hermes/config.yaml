@@ -11,6 +11,11 @@ agent:
   max_turns: 500
   reasoning_effort: none
   verbose: false
+auxiliary:
+  # The app and Telegram keep their own chat titles; Hermes's title job only cost ~8 s of the model after every
+  # new chat, and a question asked right then waited behind it.
+  title_generation:
+    enabled: false
 compression:
   enabled: true
   threshold: 0.5

@@ -27,7 +27,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from .. import config, money, watches
-from . import data, files, hermes, login, notify, voice
+from . import data, files, hermes, instant, login, notify, voice
 
 APP_DIR = config.SYSTEM_DIR / "web" / "app"
 PORT = int(os.environ.get("JARVIS_WEB_PORT", "8791"))
@@ -94,7 +94,11 @@ async def get_chat(request: Request) -> Response:
     session_id = request.path_params["sid"]
     if not await run_in_threadpool(_known_chat, session_id):
         return _error("no such chat", 404)
-    return _json({"id": session_id, "messages": await hermes.messages(session_id)})
+    messages = await hermes.messages(session_id)
+    answered = await run_in_threadpool(instant.messages, session_id)
+    if answered:  # answers given without the model sit between Hermes's messages, in time order
+        messages = sorted(messages + answered, key=lambda m: m.get("at") or 0)
+    return _json({"id": session_id, "messages": messages})
 
 
 async def delete_chat(request: Request) -> Response:
@@ -110,6 +114,20 @@ async def delete_chat(request: Request) -> Response:
     return _json({"ok": True})
 
 
+async def _instant(session_id: str, text: str) -> str | None:
+    """An everyday question answered from Jarvis's data without the model (jarvis/web/instant.py), saved with the
+    chat; None when the model should answer, or if anything goes wrong here."""
+    try:
+        reply = await run_in_threadpool(instant.answer, text)
+        if reply:
+            await run_in_threadpool(instant.save, session_id, text, reply)
+            await run_in_threadpool(_touch_chat, session_id, text, reply)
+        return reply
+    except Exception:
+        log.exception("instant answer failed; the model answers instead")
+        return None
+
+
 async def _run_turn(session_id: str, text: str, queue: asyncio.Queue, client: dict, shown: str | None = None,
                     late: tuple[str, str] = ("replies", "Jarvis replied")) -> None:
     """Runs the whole reply even if the phone disconnects; the reply is saved by Hermes either way. `shown` is what the
@@ -117,7 +135,13 @@ async def _run_turn(session_id: str, text: str, queue: asyncio.Queue, client: di
     notification of kind `late[0]`, titled `late[1]`."""
     final = {"t": "error", "message": "Jarvis could not finish that reply."}
     try:
-        async for event in hermes.stream_turn(session_id, text):
+        # Instant answers given earlier in this chat ride along, so the model knows what was already said.
+        to_model = text + await run_in_threadpool(instant.note_for_model, session_id)
+    except Exception:
+        log.exception("could not add the earlier instant answers")
+        to_model = text
+    try:
+        async for event in hermes.stream_turn(session_id, to_model):
             await queue.put(event)
             if event["t"] in ("done", "error"):
                 final = event
@@ -167,6 +191,8 @@ async def ask(request: Request) -> Response:
     if len(text) > 4000:
         return _json({"reply": "That's too long for one question."})
     session_id = await _new_chat_id()
+    if reply := await _instant(session_id, text):
+        return _json({"reply": spoken(reply), "chat": session_id})
     queue: asyncio.Queue = asyncio.Queue()
     client = {"delivered": False, "settled": asyncio.Event()}
     task = asyncio.create_task(_run_turn(session_id, text, queue, client, late=("siri", "Jarvis answered")))
@@ -308,6 +334,10 @@ async def send_message(request: Request) -> Response:
         except ValueError as error:
             return _error(str(error))
         text, shown = message, f"{name}: {text}"
+    elif reply := await _instant(session_id, text):
+        events = [{"t": "tool", "label": instant.LABEL}, {"t": "done", "text": reply}]
+        return StreamingResponse(iter([json.dumps(e, ensure_ascii=False) + "\n" for e in events]),
+                                 media_type="application/x-ndjson", headers={"Cache-Control": "no-store"})
     queue: asyncio.Queue = asyncio.Queue()
     # delivered: the final event reached the phone; settled: the stream finished one way or the other.
     client = {"delivered": False, "settled": asyncio.Event()}

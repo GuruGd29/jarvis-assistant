@@ -1,6 +1,8 @@
 """The notes Jarvis's Hermes plugin (hermes/plugins/jarvis) puts next to a question, loaded without Hermes."""
 import importlib.util
+import json
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -53,6 +55,43 @@ class TanglishNote(unittest.TestCase):
                 mock.patch.object(provider, "_save_attachments", return_value=None):
             self.assertTrue(provider.prefetch("inniki enna plan?").startswith("[The user wrote Tamil"))
             self.assertEqual(provider.prefetch("What's the plan today?"), "")
+
+
+class ChatPrompt(unittest.TestCase):
+    """The pre_api_request hook keeps a new app chat's system message and tools for the keep-warm job."""
+
+    def setUp(self):
+        self.file = Path(tempfile.mkdtemp()) / "state" / "chat-prompt.json"
+        patch = mock.patch.object(plugin, "CHAT_PROMPT", self.file)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.system = {"role": "system", "content": "You are Jarvis. " * 2000}  # longer than the hook's own copy keeps
+        self.tools = [{"type": "function", "function": {"name": "calendar_agenda", "parameters": {
+            "type": "object", "properties": {"days": {"type": "array", "items": {"type": "object", "properties": {
+                "date": {"type": "string"}}}}}}}}]
+
+    def send(self, history, platform="api_server", api_call_count=1):
+        api_kwargs = {"model": "qwen3.5-4b-64k", "messages": [self.system, *history], "tools": self.tools}  # noqa: F841
+        plugin.keep_chat_prompt(platform=platform, api_call_count=api_call_count, conversation_history=history,
+                                request={"body": {"messages": "cut"}})
+
+    def test_first_request_of_a_new_app_chat_is_kept_in_full(self):
+        self.send([{"role": "user", "content": "Hi"}])
+        kept = json.loads(self.file.read_text())
+        self.assertEqual(kept, {"model": "qwen3.5-4b-64k", "system": self.system, "tools": self.tools})
+        self.assertEqual(self.file.stat().st_mode & 0o777, 0o600)
+
+    def test_other_requests_are_not_kept(self):
+        self.send([{"role": "user", "content": "Hi"}], platform="telegram")
+        self.send([{"role": "user", "content": "Hi"}], api_call_count=2)  # after a tool call
+        self.send([{"role": "user", "content": "Hi"}, {"role": "assistant", "content": "Hello"},
+                   {"role": "user", "content": "and tomorrow?"}])
+        self.assertFalse(self.file.exists())
+
+    def test_instant_answers_passed_along_are_not_the_users_words(self):
+        message = ("and tomorrow?\n\n[Jarvis answered these earlier in this chat straight from the user's data "
+                   "(not the model):\nQ: calendar today?\nA: Standup\n[end of earlier answers]")
+        self.assertEqual(plugin.own_words(message), "and tomorrow?")
 
 
 if __name__ == "__main__":

@@ -229,6 +229,17 @@ if grep -q "qwen3-4b-instruct-64k" "$cfg" || ! grep -q "^    extra_body:" "$cfg"
     /^    default_model: / && !done { print "    extra_body:\n      temperature: 0.7\n      top_p: 0.8"; done = 1 }' \
     "$cfg" > "$cfg.new" && cat "$cfg.new" > "$cfg" && rm "$cfg.new"
 fi
+# Hermes's chat-title job is off (see deploy/hermes/config.yaml); settings from before get the switch, and the old
+# file is kept as config.yaml.before-titles-off.
+if ! grep -q "^  title_generation:" "$cfg"; then
+  cp "$cfg" "$cfg.before-titles-off"
+  if grep -q "^auxiliary:" "$cfg"; then
+    awk '{ print } /^auxiliary:/ && !done { print "  title_generation:\n    enabled: false"; done = 1 }' \
+      "$cfg" > "$cfg.new" && cat "$cfg.new" > "$cfg" && rm "$cfg.new"
+  else
+    printf 'auxiliary:\n  title_generation:\n    enabled: false\n' >> "$cfg"
+  fi
+fi
 touch "$HERMES_HOME/.env" && chmod 600 "$HERMES_HOME/.env"
 env_set "$HERMES_HOME/.env" API_SERVER_ENABLED true
 env_set "$HERMES_HOME/.env" API_SERVER_KEY "$(openssl rand -hex 24)"

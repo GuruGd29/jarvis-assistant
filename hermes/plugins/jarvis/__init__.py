@@ -15,6 +15,7 @@ import os
 import re
 import selectors
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -43,6 +44,12 @@ LEARN_QUEUE = Path.home() / "jarvis-system" / "state" / "learn-queue.jsonl"
 _NOT_WORTH_LEARNING = re.compile(r"^\s*(yes|no|ok(ay)?|thanks?( you)?|hi|hello|(taken|took|skip|skipped|done|snooze)\b.*)\s*[.!]*\s*$", re.I)
 _QUEUE_LOCK = threading.Lock()
 _MEMORY_COMMAND = re.compile(r"^\s*(please\s+)?(remember|note|forget)\b|\bwhat (do|did) you (know|remember) about me\b", re.I)
+# Hermes's fixed instructions for a new app chat (system message and tool list), for the keep-warm job: see
+# keep_chat_prompt() and jarvis/web/hermes.py mark_question_start().
+CHAT_PROMPT = Path.home() / "jarvis-system" / "state" / "chat-prompt.json"
+# Answers the app gave from Jarvis's data without the model ride along after the user's next message
+# (jarvis/web/instant.py); they are context, not the user's words.
+_INSTANT_NOTE = re.compile(r"\n*\[Jarvis answered these earlier in this chat[\s\S]*?\n\[end of earlier answers\]")
 
 
 class _SearchProcess:
@@ -208,7 +215,49 @@ _CHAT_FILE = re.compile(r"\[Attached to this chat only \(not saved to the user's
 
 
 def own_words(text: str) -> str:
-    return _CHAT_FILE.sub("", text or "").strip()
+    return _INSTANT_NOTE.sub("", _CHAT_FILE.sub("", text or "")).strip()
+
+
+def _api_kwargs() -> Optional[dict[str, Any]]:
+    """The request exactly as Hermes sends it. The hook's own copy cuts strings over 8,000 characters (the system
+    message is longer) and deep tool schemas, so the caller's frame is read instead (Hermes is pinned by install.sh)."""
+    frame = sys._getframe(1)
+    for _ in range(20):
+        if frame is None:
+            return None
+        found = frame.f_locals.get("api_kwargs")
+        if isinstance(found, dict) and isinstance(found.get("messages"), list):
+            return found
+        frame = frame.f_back
+    return None
+
+
+def keep_chat_prompt(**kwargs) -> None:
+    """pre_api_request hook. Ollama's llama-server can only resume Qwen3.5 (a hybrid model) from places it saved, and
+    it saves them 4 and 2,048 tokens before the end of a request, never where a question starts. So each new chat
+    re-read the last ~1,100 tokens of Hermes's fixed instructions: about 70 s on 4 cores, 140 s on 2. Keeping the
+    system message and tools of a new app chat's first request lets the keep-warm job send them alone, which saves
+    a place right where every new chat's question begins."""
+    try:
+        roles = [m.get("role") for m in kwargs.get("conversation_history") or [] if isinstance(m, dict)]
+        if kwargs.get("platform") != "api_server" or kwargs.get("api_call_count") != 1 \
+                or roles.count("user") != 1 or "assistant" in roles:
+            return
+        request = _api_kwargs()
+        messages = (request or {}).get("messages") or []
+        if not messages or not isinstance(messages[0], dict) or messages[0].get("role") != "system":
+            return
+        prompt = json.dumps({"model": request.get("model"), "system": messages[0], "tools": request.get("tools") or []},
+                            ensure_ascii=False, default=str)
+        if CHAT_PROMPT.exists() and CHAT_PROMPT.read_text() == prompt:
+            return
+        CHAT_PROMPT.parent.mkdir(parents=True, exist_ok=True)
+        part = CHAT_PROMPT.with_suffix(".part")
+        part.write_text(prompt)
+        part.chmod(0o600)  # Jarvis's instructions include what it remembers about the user
+        part.replace(CHAT_PROMPT)
+    except Exception as error:
+        logger.warning("Jarvis could not keep the chat prompt: %s", error)
 
 
 def tanglish_note(message: str) -> str:
@@ -485,3 +534,4 @@ class JarvisMemoryProvider(MemoryProvider):
 
 def register(ctx) -> None:
     ctx.register_memory_provider(JarvisMemoryProvider())
+    ctx.register_hook("pre_api_request", keep_chat_prompt)

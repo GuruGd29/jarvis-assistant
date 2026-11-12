@@ -130,6 +130,32 @@ def adherence(days: int = 7) -> dict:
             "not_answered": [f"{r['due']} {r['name']} {r['dose'] or ''}".strip() for r in rows if r["status"] == "due"]}
 
 
+# A medicine question in English, Tamil or Tanglish ("mathirai", "marunthu"); no \b inside Tamil script.
+MEDICINE_WORDS = re.compile(r"\b(medicines?|medications?|tablets?|pills?|doses?|supplements?|vitamins?|meds)\b"
+                            r"|\b(maa?th?irai|marun[dt]h?u)|மாத்திரை|மருந்து|டேப்லெட்|வைட்டமின்", re.I)
+
+
+def today_doses(now: datetime | None = None) -> list[dict]:
+    """Today's doses in time order, each with the user's answer: taken, skipped, due (time passed, no answer yet)
+    or later (not due yet)."""
+    now = now or datetime.now(TZ)
+    today = now.date()
+    with _connect() as conn:
+        answers = {(r["medication_id"], r["hhmm"]): r["status"] for r in conn.execute(
+            "SELECT medication_id, to_char(due_at AT TIME ZONE %s, 'HH24:MI') AS hhmm, status FROM medication_doses "
+            "WHERE (due_at AT TIME ZONE %s)::date = %s", (config.TIMEZONE, config.TIMEZONE, today)).fetchall()}
+    out = []
+    for med in list_medications():
+        if med["start_on"] > str(today) or (med["end_on"] and med["end_on"] < str(today)):
+            continue
+        if med["weekdays"] is not None and today.weekday() not in med["weekdays"]:
+            continue
+        for hhmm in med["times"]:
+            status = answers.get((med["id"], hhmm)) or ("due" if hhmm <= now.strftime("%H:%M") else "later")
+            out.append({"time": hhmm, "name": med["name"], "dose": med["dose"], "status": status})
+    return sorted(out, key=lambda d: d["time"])
+
+
 def doses_today() -> list[str]:
     today = datetime.now(TZ).date()
     out = []

@@ -176,10 +176,7 @@ def serve() -> None:
             if request.get("op") == "medicines":  # medicine list for a medicine question, for the plugin's prefetch
                 from . import health
 
-                asks = re.search(r"\b(medicines?|medications?|tablets?|pills?|doses?|supplements?|vitamins?|meds)\b"
-                                 # Tamil and Tanglish ("mathirai", "marunthu"); no \b inside Tamil script
-                                 r"|\b(maa?th?irai|marun[dt]h?u)|மாத்திரை|மருந்து|டேப்லெட்|வைட்டமின்",
-                                 request.get("message", ""), re.I)
+                asks = health.MEDICINE_WORDS.search(request.get("message", ""))
                 reply = {"id": request.get("id"), "results": {
                     "medicines": [f"#{m['id']} {m['name']} {m['dose'] or ''} at {', '.join(m['times'])} "
                                   f"({'daily' if m['weekdays'] is None else 'days ' + ','.join('MTWTFSS'[d] for d in m['weekdays'])})"

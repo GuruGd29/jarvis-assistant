@@ -10,7 +10,7 @@ from pathlib import Path
 import httpx
 
 from .. import config
-from . import files
+from . import files, instant
 
 HERMES = os.environ.get("JARVIS_HERMES_URL", "http://127.0.0.1:8642")
 
@@ -73,14 +73,16 @@ async def messages(session_id: str) -> list[dict]:
     for m in raw:
         if m.get("role") == "user" and m.get("content"):
             attached, own = files.split_message(m["content"])  # a file attached to the chat shows as a chip
-            out.append({"role": "user", "text": own, **({"file": attached} if attached else {})})
+            own = instant.NOTE.sub("", own)  # earlier instant answers passed along for the model
+            out.append({"role": "user", "text": own, "at": m.get("timestamp"),
+                        **({"file": attached} if attached else {})})
             tools = []
         elif m.get("role") == "tool" and m.get("tool_name"):
             label = tool_label(m["tool_name"])
             if label not in tools:
                 tools.append(label)
         elif m.get("role") == "assistant" and m.get("content"):
-            out.append({"role": "assistant", "text": m["content"], "tools": tools})
+            out.append({"role": "assistant", "text": m["content"], "tools": tools, "at": m.get("timestamp")})
             tools = []
     return out
 
@@ -153,3 +155,27 @@ def warm_chat() -> None:
         # A chat that ends without a reply (Hermes still starting, say) warmed nothing.
         result = "ok" if event["t"] == "done" and event.get("text") else f"failed: {event.get('message') or 'no reply'}"
         print(f"{time.strftime('%Y-%m-%d %H:%M')} warm chat {result} in {time.monotonic() - started:.0f} s", flush=True)
+        if result == "ok":
+            started = time.monotonic()
+            try:
+                result = mark_question_start()
+            except (OSError, ValueError, KeyError, httpx.HTTPError) as error:
+                result = f"failed: {type(error).__name__}: {error}"
+            print(f"{time.strftime('%Y-%m-%d %H:%M')} question start {result} in {time.monotonic() - started:.0f} s",
+                  flush=True)
+
+
+def mark_question_start() -> str:
+    """Send Hermes's fixed instructions alone, so the model saves its place where every new chat's question begins.
+
+    Qwen3.5 can only be resumed from places llama-server saved, 4 tokens before the end of each request among them.
+    The Hermes plugin keeps the system message and tools of a new chat's first request (state/chat-prompt.json);
+    sent alone with thinking on, the request ends "<|im_start|>assistant\\n<think>\\n", so the place 4 tokens before
+    its end is right after the "<|im_start|>" that every new chat's "user" turn also starts with. A new chat then
+    reads only its own question instead of the last ~1,100 tokens of the instructions as well."""
+    prompt = json.loads((config.SYSTEM_DIR / "state" / "chat-prompt.json").read_text())
+    response = httpx.post(f"{config.OLLAMA_URL}/api/chat", timeout=3600, json={
+        "model": prompt["model"], "messages": [prompt["system"]], "tools": prompt["tools"], "think": True,
+        "stream": False, "options": {"num_predict": 1}})
+    response.raise_for_status()
+    return f"ok ({len(prompt['tools'])} tools)"

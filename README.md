@@ -330,6 +330,10 @@ Jarvis runs a small model on ordinary hardware, so expect a short pause rather t
 
 On 2 cores the model writes about 4 words a second, so long answers take longer than short ones.
 
+Everyday questions in the app and through Siri (what's on the calendar, today's medicines, how much was spent) are
+answered straight from your data in about a second, without the model. A question that needs thinking, names a shop
+or is written in Tamil goes to the model as before ([jarvis/web/instant.py](jarvis/web/instant.py)).
+
 After a restart the model has to read Jarvis's instructions once, which takes several minutes on a 2-core server.
 The keep-warm job does that in the background within 20 minutes; a message sent before then waits for it.
 Scheduled briefings are put together without the model, so they arrive on time even on a slow server.
