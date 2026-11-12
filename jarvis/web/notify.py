@@ -186,9 +186,27 @@ def notify(kind: str, title: str, body: str, data: dict | None = None) -> dict:
 def activity(limit: int = 50) -> list[dict]:
     with connect() as conn:
         rows = conn.execute("""SELECT id, kind, title, body, data, pushed, created_at, read_at FROM activity
-                               ORDER BY created_at DESC LIMIT %s""", (limit,)).fetchall()
+                               WHERE cleared_at IS NULL ORDER BY created_at DESC LIMIT %s""", (limit,)).fetchall()
     return [{**r, "created_at": r["created_at"].isoformat(), "read_at": r["read_at"] and r["read_at"].isoformat()}
             for r in rows]
+
+
+def clear_activity() -> dict:
+    """Hide everything in Activity. The entries stay until the 90-day clean-up, so undo_clear can bring them back:
+    "undo" is the moment they were cleared, the same for every entry cleared together."""
+    with connect() as conn:
+        rows = conn.execute("UPDATE activity SET cleared_at = now() WHERE cleared_at IS NULL RETURNING cleared_at"
+                            ).fetchall()
+    return {"cleared": len(rows), "undo": rows[0]["cleared_at"].isoformat() if rows else None}
+
+
+def undo_clear(undo: str) -> int:
+    """Bring back the entries one Clear hid; returns how many came back. ValueError when undo isn't a time."""
+    when = datetime.fromisoformat(undo)
+    if when.tzinfo is None:
+        raise ValueError("undo needs its time zone")
+    with connect() as conn:
+        return conn.execute("UPDATE activity SET cleared_at = NULL WHERE cleared_at = %s", (when,)).rowcount
 
 
 def mark_read() -> None:

@@ -505,9 +505,19 @@ async def settings(request: Request) -> Response:
 
 
 async def activity(request: Request) -> Response:
+    if request.method == "DELETE":  # Clear: hide everything; the answer's "undo" brings it back
+        return _json(await run_in_threadpool(notify.clear_activity))
     if request.method == "POST":
         await run_in_threadpool(notify.mark_read)
     return _json(await run_in_threadpool(notify.activity, 60))
+
+
+async def activity_undo(request: Request) -> Response:
+    try:
+        restored = await run_in_threadpool(notify.undo_clear, str((await _body(request)).get("undo") or ""))
+    except ValueError:
+        return _error("nothing to undo")
+    return _json({"restored": restored})
 
 
 async def push_key(request: Request) -> Response:
@@ -651,7 +661,8 @@ routes = [
     Route("/api/watches/{wid:int}/start", watch_start, methods=["POST"]),
     Route("/api/watches/{wid:int}/seen", watch_seen, methods=["POST"]),
     Route("/api/settings", settings, methods=["GET", "PUT"]),
-    Route("/api/activity", activity, methods=["GET", "POST"]),
+    Route("/api/activity", activity, methods=["GET", "POST", "DELETE"]),
+    Route("/api/activity/undo", activity_undo, methods=["POST"]),
     Route("/api/push/key", push_key), Route("/api/push/subscribe", push_subscribe, methods=["POST"]),
     Route("/api/push/unsubscribe", push_unsubscribe, methods=["POST"]),
     Route("/api/push/test", push_test, methods=["POST"]),

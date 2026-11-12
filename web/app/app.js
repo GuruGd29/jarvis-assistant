@@ -216,6 +216,7 @@ function route() {
   const known = ["chat", "today", "money", "watches", "more", "settings", "activity", "renewals", "files", "siri"];
   S.route = known.includes(name) ? name : "chat";
   if (S.route !== "siri") S.siriKey = null; // a new Siri key is shown once, only while you're on that screen
+  if (S.route !== "activity") S.activityUndo = null; // Undo after Clear lasts while you stay on Activity
   S.warg = name === "watches" ? (arg || "") : "";
   try { S.farg = name === "files" && arg ? decodeURIComponent(arg) : ""; } catch { S.farg = ""; } // #files/<path>: a file opened
   if (S.route === "chat") openChat(arg || null);
@@ -970,8 +971,8 @@ function viewCards(pick) {
 }
 
 // ---------- more, settings, activity, renewals ----------
-function sub(title, body) {
-  return `<section class="view sub"><div class="navbar"><button class="back" data-act="go" data-v="more">${I.back} More</button><div class="title">${esc(title)}</div></div>
+function sub(title, body, action = "") { // action: a button on the right of the header
+  return `<section class="view sub"><div class="navbar"><button class="back" data-act="go" data-v="more">${I.back} More</button><div class="title${action ? " with-act" : ""}">${esc(title)}</div>${action}</div>
     <div class="scroll">${body}</div></section>`;
 }
 function viewMore() {
@@ -1063,12 +1064,15 @@ function viewSiri() {
     ${s.on && !key ? `<div class="card" style="margin-top:14px"><button class="row" data-act="siri-off"><div class="m"><div class="t">Turn off the Siri key</div><div class="s">The Shortcut stops working</div></div></button></div>` : ""}`);
 }
 function viewActivity() {
-  const A = S.activity;
+  const A = S.activity, U = S.activityUndo;
+  // Just cleared: Undo stays until you leave Activity.
+  const undo = U ? `<div class="card" style="margin-bottom:14px"><div class="row"><div class="m"><div class="t">Activity cleared</div>
+      <div class="s">${U.count === 1 ? "1 entry" : `${U.count} entries`} hidden</div></div><button class="btn s" data-act="activity-undo">Undo</button></div></div>` : "";
   const body = !A ? `<div class="card big"><div class="skel"></div><div class="skel" style="width:70%"></div></div>`
     : A.length ? `<div class="card">${A.map(a => `<div class="row" style="align-items:flex-start"><div class="m"><div class="s">${esc(KIND_LABEL[a.kind] || a.kind)} · ${ago(a.created_at)}${a.pushed ? " · notified" : ""}</div>
         <div class="t wrap" style="margin-top:2px">${esc(a.title)}</div>${a.body && a.body !== a.title ? `<div class="s" style="white-space:pre-wrap">${esc(a.body)}</div>` : ""}</div></div>`).join("")}</div>`
-    : `<div class="card empty">Nothing yet. Reminders, renewals and reports will appear here.</div>`;
-  return sub("Activity", body);
+    : U ? "" : `<div class="card empty">Nothing yet. Reminders, renewals and reports will appear here.</div>`;
+  return sub("Activity", undo + body, A && A.length ? `<button class="act" data-act="activity-clear">Clear</button>` : "");
 }
 function viewRenewals() {
   const R = S.today ? S.today.renewals : null;
@@ -1311,6 +1315,20 @@ document.addEventListener("click", async e => {
     case "siri-copy":
       try { await navigator.clipboard.writeText(v === "key" ? `Bearer ${S.siriKey}` : S.siri.url); toast("Copied"); }
       catch { toast("Couldn't copy. Press and hold the text to copy it."); }
+      break;
+    case "activity-clear": // hides everything; Undo brings it back (the GET after refreshes the phone's saved copy)
+      try {
+        const r = await api("/api/activity", { method: "DELETE" });
+        if (r.undo) S.activityUndo = { at: r.undo, count: r.cleared };
+        S.activity = await api("/api/activity"); S.unread = 0; render(false);
+      } catch (err) { toast(err.message); }
+      break;
+    case "activity-undo":
+      try {
+        const r = await api("/api/activity/undo", { method: "POST", body: { undo: S.activityUndo.at } });
+        S.activityUndo = null; S.activity = await api("/api/activity"); render(false);
+        toast(r.restored ? "Brought back" : "Nothing to bring back");
+      } catch (err) { toast(err.message); }
       break;
     case "siri-off":
       if (!confirm("Turn off the Siri key? The Shortcut stops working.")) break;

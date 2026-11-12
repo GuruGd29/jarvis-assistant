@@ -35,7 +35,7 @@
       { role: "assistant", tools: [], text: "Hi! This is **Jarvis with made-up data**, running right in your browser. Look around: **Today**, **Money**, **Cards** and **Watches** show what Jarvis keeps for you.\n\nA few chat answers are ready to try:\n- Plan my day\n- How much did I spend this week?\n- When does my car insurance renew?\n- Remind me to call the plumber tomorrow at 10\n- What did my blood test say?\n\nYour own Jarvis answers anything, on your own computer." }] },
     { id: "insurance", title: "When does my car insurance renew?", preview: "Your car insurance renews on…", updated_at: at(2, 19, 12), messages: [] },
   ];
-  let counter = 0;
+  let counter = 0, hidden = []; // hidden: Activity entries the last Clear took away, for Undo
 
   // ---- written replies: [pattern, tools, reply(screens)] ----
   const money = n => "₹" + Math.round(n).toLocaleString("en-IN");
@@ -124,6 +124,14 @@
       return json(med || {});
     }
     if (path === "/api/settings" && method === "PUT") { Object.assign(s["/api/settings"], body); return json(s["/api/settings"]); }
+    if (path === "/api/activity" && method === "DELETE") {
+      hidden = s["/api/activity"]; s["/api/activity"] = [];
+      return json({ cleared: hidden.length, undo: hidden.length ? new Date().toISOString() : null });
+    }
+    if (path === "/api/activity/undo") {
+      const n = hidden.length; s["/api/activity"] = hidden.concat(s["/api/activity"]); hidden = [];
+      return json({ restored: n });
+    }
     if (path === "/api/activity") return json(s["/api/activity"]);
     if (path === "/api/siri") return method === "GET" ? json({ on: false, url: `${location.origin}/api/ask` })
       : NOT_HERE("Siri keys need your own Jarvis: in this demo nothing can be asked from outside.");

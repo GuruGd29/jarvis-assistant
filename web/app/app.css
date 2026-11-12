@@ -106,6 +106,8 @@ button.row:active, .tap:active { background: var(--surface-2); }
 .navbar .back { display: flex; align-items: center; gap: 2px; font: 500 16px var(--font); padding: 6px 8px; border-radius: 10px; }
 .navbar .back svg { width: 20px; height: 20px; }
 .navbar .title { flex: 1; text-align: center; font: 650 17px var(--font); margin-right: 64px; }
+.navbar .title.with-act { margin-right: 0; }
+.navbar .act { font: 500 16px var(--font); padding: 6px 10px; border-radius: 10px; min-width: 64px; text-align: right; }
 
 /* chat */
 .cbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; min-height: 52px; }
