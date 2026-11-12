@@ -84,6 +84,38 @@ class FileLookup(unittest.TestCase):
             self.assertIsNone(self.lookup(question), question)
 
 
+class ShorterContext(unittest.TestCase):
+    """Fewer, shorter things ride along with a question: the model reads each of them before it answers."""
+
+    def recall_request(self, question):
+        provider = plugin.JarvisMemoryProvider()
+        search = mock.MagicMock()
+        search.request.return_value = {"results": None}
+        search.search.return_value = []
+        provider._search = search
+        provider._context(question)
+        return next(c.args[0] for c in search.request.call_args_list if c.args[0].get("op") == "recall")
+
+    def test_earlier_chats_only_when_the_question_refers_back(self):
+        for question in ["Good morning Jarvis", "When does my car insurance end?", "Plan my weekend"]:
+            self.assertEqual(self.recall_request(question)["episodes"], 0, question)
+        for question in ["What did we talk about last time?", "What did you suggest earlier?",
+                         "Tell me again what I said about the trip", "naan munnadi enna sonnen?",
+                         "நான் முன்னாடி என்ன சொன்னேன்?"]:
+            self.assertEqual(self.recall_request(question)["episodes"], 2, question)
+
+    def test_a_weak_second_passage_is_left_out_and_passages_are_short(self):
+        strong = {"source": "/f/policy.pdf", "score": 0.5, "text": "x" * 2000}
+        far = {"source": "/f/other.pdf", "score": -5.7, "text": "far"}
+        near = {"source": "/f/near.pdf", "score": -1.5, "text": "near"}
+        block, count = plugin.format_passages([strong, far])
+        self.assertEqual(count, 1)
+        self.assertIn("x" * 600 + "\n", block + "\n")
+        self.assertNotIn("x" * 601, block)
+        self.assertEqual(plugin.format_passages([strong, near])[1], 2)
+        self.assertEqual(plugin.format_passages([{**near, "score": -9.0}])[1], 0)
+
+
 class ChatPrompt(unittest.TestCase):
     """The pre_api_request hook keeps a new app chat's system message and tools for the keep-warm job."""
 

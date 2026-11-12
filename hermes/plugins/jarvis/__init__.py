@@ -33,12 +33,20 @@ CALENDAR_TIMEOUT_S = 15.0
 # bge-reranker-v2-m3 scores: relevant passages (English, Tamil, Tanglish) measured -7.2 and up,
 # unrelated ones -10 to -11.
 MIN_SCORE = -8.0
-# Everything added to a message is read afresh for every message (only the system prompt stays cached), which on a
-# 2-core server costs about a second per 15 tokens. So the blocks below are short, and the standing instructions
-# about how to use them live in SOUL.md.
+# Everything added to a message is read afresh for every message (only the system prompt stays cached), which costs
+# about 7 s per 100 tokens on a 4-core server (twice that on 2). So the blocks below are short, and the standing
+# instructions about how to use them live in SOUL.md. A second passage comes only when it scores nearly as well as
+# the first: a weak second match was often the longest part of the question.
 MAX_PASSAGES = 2
-MAX_PASSAGE_CHARS = 1000
+MAX_PASSAGE_CHARS = 600
+SECOND_PASSAGE_GAP = 3.0
 MAX_MONEY_LINES = 10
+# Summaries of earlier chats are recalled only when the question refers back to one (they were ~50 tokens each and
+# came with "Good morning" too). Tamil and Tanglish: munnadi / pona thadava (before, last time).
+_REFERS_BACK = re.compile(
+    r"\b(last time|earlier|before|previous(ly)?|again|we (talked|discussed|spoke|said|decided|planned)|"
+    r"you (said|told|suggested|mentioned|recommended)|(did|have) i (tell|told|say|said|ask|asked|mention)|"
+    r"remember (when|what|that)|munn?aa?di|pona thadava)\b|முன்னாடி|முன்பு|போன தடவை|போன முறை", re.I)
 # The automatic file search before a question costs the processor seconds the model then lacks (20 whole passages
 # reranked took 11-15 s on 4 cores and timed out), so it reranks 10 passages cut to 800 characters (under 3 s, the
 # same top passages in 4 of 5 tests), and runs only for questions about the user's own things. A general question
@@ -353,6 +361,7 @@ def format_money(s: dict[str, Any]) -> str:
 def format_passages(results: list[dict[str, Any]]) -> tuple[str, int]:
     """Prompt block for the turn and the number of passages in it."""
     relevant = [r for r in results if r.get("score", -99) >= MIN_SCORE][:MAX_PASSAGES]
+    relevant = relevant[:1] + [r for r in relevant[1:] if r["score"] >= relevant[0]["score"] - SECOND_PASSAGE_GAP]
     if not relevant:
         # No "say it is not in their files" here: the small model refused stories and advice when this note said
         # that. SOUL.md says when it applies.
@@ -475,7 +484,9 @@ class JarvisMemoryProvider(MemoryProvider):
             return self._memory_note
         facts = ""
         try:
-            remembered = self._search.request({"op": "recall", "message": query}, timeout=3.0).get("results")
+            episodes = 2 if _REFERS_BACK.search(query or "") else 0
+            remembered = self._search.request({"op": "recall", "message": query, "episodes": episodes},
+                                              timeout=3.0).get("results")
             if remembered:
                 facts = ("[Jarvis memory (dated; the newer one wins)]\n"
                          + "\n".join(f"- {f}" for f in remembered) + "\n\n")

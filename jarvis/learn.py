@@ -27,10 +27,12 @@ QUEUE = config.SYSTEM_DIR / "state" / "learn-queue.jsonl"
 EXTRACT_MODEL = config.CHAT_MODEL
 # Cosine distances between bge-m3 vectors of short facts.
 SAME_FACT = 0.17      # a restatement: refresh the existing fact instead of adding a copy
-RELEVANT = 0.45       # recalled before a reply
+# Recalled before a reply. The model reads every recalled line before it answers (about 7 s per 100 tokens on a
+# 4-core server), and facts at 0.42-0.45 were mostly loosely related ("Good morning" got one), so only close ones.
+RELEVANT = 0.42
 FORGET_MATCH = 0.40   # removed by "forget ..."
-MAX_RECALL = 5
-MAX_EPISODES = 2      # past-chat summaries recalled per reply
+MAX_RECALL = 3
+MAX_EPISODES = 2      # past-chat summaries recalled when a question refers back to an earlier chat
 
 # Never store secrets or identifiers, even if the user typed them.
 _SENSITIVE = re.compile(r"\b(passwords?|passcode|otp|pin|cvv|api[ -]?key|token)\b|\d{9,}", re.I)
@@ -94,12 +96,14 @@ def forget(text: str) -> list[str]:
     return [r[0] for r in rows]
 
 
-def recall(query: str, limit: int = MAX_RECALL) -> list[str]:
-    """Facts and past-chat summaries related to query, closest first."""
+def recall(query: str, limit: int = MAX_RECALL, episodes: int = MAX_EPISODES) -> list[str]:
+    """Facts and (up to `episodes`) past-chat summaries related to query, closest first."""
     vector = np.array(embed([query])[0])
     found = []
     with _connect() as conn:
-        for kind, label, most in (("fact", "", limit), ("episode", "earlier chat: ", MAX_EPISODES)):
+        for kind, label, most in (("fact", "", limit), ("episode", "earlier chat: ", episodes)):
+            if most <= 0:
+                continue
             rows = conn.execute("SELECT fact, updated_at FROM facts WHERE kind = %s AND embedding <=> %s < %s "
                                 "ORDER BY embedding <=> %s LIMIT %s", (kind, vector, RELEVANT, vector, most)).fetchall()
             found += [f"({r[1]:%d %b %Y}) {label}{r[0]}" for r in rows]

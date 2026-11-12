@@ -222,7 +222,8 @@ def serve() -> None:
                 from . import learn
 
                 message = request.get("message", "")
-                results = learn.memory_command(message) if request["op"] == "memory" else learn.recall(message)
+                results = learn.memory_command(message) if request["op"] == "memory" else \
+                    learn.recall(message, episodes=int(request.get("episodes", learn.MAX_EPISODES)))
                 sys.stdout.write(json.dumps({"id": request.get("id"), "results": results}) + "\n")
                 sys.stdout.flush()
                 continue
