@@ -325,7 +325,7 @@ Jarvis runs a small model on ordinary hardware, so expect a short pause rather t
 | Machine | Typical reply |
 |---|---|
 | MacBook Pro (M1 Pro, 32 GB) | 3–8 seconds once warm |
-| Oracle server, 4 Ampere cores, 24 GB (more than the free allowance), measured November 2026 | calendar, today's medicines and spending: under a second; "Hi": 3 seconds; general questions: first words in about 2 seconds, done in 3–9; a greeting with something Jarvis remembers: about 7; a follow-up in the same chat: about 10; questions about your files: first words in 19–30 seconds |
+| Oracle server, 4 Ampere cores, 24 GB (more than the free allowance), measured November 2026 | calendar, today's medicines and spending: under a second; "Hi": 3 seconds; general questions: first words in about 2 seconds, done in 3–9; a greeting with something Jarvis remembers: about 7; a follow-up in the same chat: about 10; questions about your files: first words in about 20 seconds when a file matches, about 8 when none does |
 | Oracle Always Free server (2 Ampere cores, 12 GB), measured before the November 2026 speed-ups | short replies 15–40 seconds once warm; questions that use a tool (calendar, money, search) 1–3 minutes. Expect about twice the 4-core times above now |
 | GitHub's ARM test machine, model limited to 2 cores | about 50 seconds (median); 9 in 10 replies within about 2.5 minutes (measured every week) |
 
