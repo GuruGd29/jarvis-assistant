@@ -30,9 +30,11 @@ STDERR_LOG = Path.home() / "jarvis-system" / "logs" / "search-server.log"
 # Hermes abandons a prefetch after 8 s; stay under it so the turn still gets our answer.
 REQUEST_TIMEOUT_S = 7.0
 CALENDAR_TIMEOUT_S = 15.0
-# bge-reranker-v2-m3 scores: relevant passages (English, Tamil, Tanglish) measured -7.2 and up,
-# unrelated ones -10 to -11.
-MIN_SCORE = -8.0
+# bge-reranker-v2-m3 scores: relevant passages (English, Tamil, Tanglish) measured -7.2 and up (the weekly tests'
+# files) and the right top passage -4.0 or better on real files (Nov 2026, with the lighter lookup below); unrelated
+# ones -7.6 to -11. A weak unrelated passage cost ~200 tokens to read and made the model search again (SOUL.md), so
+# the cut-off sits between the two.
+MIN_SCORE = -7.3
 # Everything added to a message is read afresh for every message (only the system prompt stays cached), which costs
 # about 7 s per 100 tokens on a 4-core server (twice that on 2). So the blocks below are short, and the standing
 # instructions about how to use them live in SOUL.md. A second passage comes only when it scores nearly as well as

@@ -104,6 +104,12 @@ class ShorterContext(unittest.TestCase):
                          "நான் முன்னாடி என்ன சொன்னேன்?"]:
             self.assertEqual(self.recall_request(question)["episodes"], 2, question)
 
+    def test_weak_matches_are_left_out(self):
+        weak = [{"source": "/f/a.pdf", "score": -7.7, "text": "a"}, {"source": "/f/b.pdf", "score": -7.8, "text": "b"}]
+        self.assertEqual(plugin.format_passages(weak), ("[Jarvis file search: no related passages.]", 0))
+        tamil = {"source": "/f/veedu-vaadagai.md", "score": -7.2, "text": "வீட்டு வாடகை"}
+        self.assertEqual(plugin.format_passages([tamil])[1], 1)
+
     def test_a_weak_second_passage_is_left_out_and_passages_are_short(self):
         strong = {"source": "/f/policy.pdf", "score": 0.5, "text": "x" * 2000}
         far = {"source": "/f/other.pdf", "score": -5.7, "text": "far"}
