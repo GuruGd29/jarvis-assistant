@@ -308,6 +308,29 @@ _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
 
 def agenda_for_text(text: str, today: date | None = None) -> dict | None:
     """The agenda a calendar question asks about (default today), or None if it is not about the calendar."""
+    period = agenda_period(text, today)
+    if period is None:
+        return None
+    first, days, label = period
+    return {"period": label, **list_events(*day_range(first, days))}
+
+
+def events_within(listing: dict, first: date, days: int) -> dict:
+    """The part of a list_events() result that falls on first .. first + days - 1 (all-day ends are exclusive)."""
+    last = first + timedelta(days=days - 1)
+
+    def on(e: dict) -> bool:
+        start = date.fromisoformat(e["start"][:10])
+        end = date.fromisoformat(e["end"][:10]) if e.get("end") else start
+        if end > start and (e["all_day"] or e["end"][11:] == "00:00"):
+            end -= timedelta(days=1)  # ends at the start of that day
+        return start <= last and end >= first
+
+    return {**listing, "events": [e for e in listing["events"] if on(e)]}
+
+
+def agenda_period(text: str, today: date | None = None) -> tuple[date, int, str] | None:
+    """The days a calendar question asks about, as (first day, number of days, label); None if it is not one."""
     if not _CALENDAR_WORDS.search(text or ""):
         return None
     today = today or datetime.now(TZ).date()
@@ -328,7 +351,7 @@ def agenda_for_text(text: str, today: date | None = None) -> dict | None:
     last = first + timedelta(days=days - 1)
     # The small model mixes up "today" and "tomorrow" when it only sees a date, so say both.
     label = f"{when}, {first:%a %d %b}" + (f" to {last:%a %d %b}" if days > 1 else "")
-    return {"period": label, **list_events(*day_range(first, days))}
+    return first, days, label
 
 
 def create_event(source: str, title: str, start: datetime, end: datetime, calendar: str | None = None,

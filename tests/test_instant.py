@@ -13,7 +13,7 @@ from unittest import mock
 from starlette.testclient import TestClient
 
 from jarvis import calendars, config, health, money
-from jarvis.web import hermes, instant, login, server
+from jarvis.web import data, hermes, instant, login, server
 
 AGENDA = {"period": "TODAY, Thu 12 Nov", "sources": ["google", "apple"], "errors": {}, "events": [
     {"source": "google", "calendar": "Work", "title": "Standup", "all_day": False, "start": "2026-11-12 10:00",
@@ -31,8 +31,9 @@ class WhichQuestions(unittest.TestCase):
             patch = mock.patch.object(instant, name, return_value=target)
             patch.start()
             self.addCleanup(patch.stop)
-        for patch in [mock.patch.object(calendars, "list_events", return_value={k: AGENDA[k] for k in
-                                                                                ("sources", "errors", "events")}),
+        listing = {k: AGENDA[k] for k in ("sources", "errors", "events")}
+        for patch in [mock.patch.object(calendars, "list_events", return_value=listing),
+                      mock.patch.object(data, "agenda", return_value=listing),
                       mock.patch.object(health, "today_doses", return_value=[])]:
             patch.start()
             self.addCleanup(patch.stop)
@@ -59,8 +60,33 @@ class WhichQuestions(unittest.TestCase):
             self.assertIsNone(instant.answer(text), text)
 
     def test_no_calendar_connected_goes_to_the_model(self):
-        with mock.patch.object(calendars, "list_events", return_value={"sources": [], "errors": {}, "events": []}):
+        with mock.patch.object(data, "agenda", return_value={"sources": [], "errors": {}, "events": []}):
             self.assertIsNone(instant.answer("What's on my calendar today?"))
+        late = {"sources": ["google"], "errors": {"calendars": "took too long to answer"}, "events": []}
+        with mock.patch.object(data, "agenda", return_value=late):
+            self.assertIsNone(instant.answer("What's on my calendar today?"))
+
+    def test_the_coming_week_comes_from_the_kept_copy_and_later_days_are_read(self):
+        with mock.patch.object(calendars, "list_events", side_effect=AssertionError("read live")):
+            for text in ("What's on my calendar today?", "Any meetings tomorrow?", "Am I busy this week?"):
+                self.assertEqual(instant.answer(text), "calendar", text)
+        with mock.patch.object(data, "agenda", side_effect=AssertionError("used the copy")):
+            self.assertEqual(instant.answer("Any meetings next week?"), "calendar")
+
+
+class KeptCopy(unittest.TestCase):
+    def test_events_within_picks_the_asked_days(self):
+        listing = {"sources": ["google"], "errors": {}, "events": [
+            {"title": "today", "all_day": False, "start": "2026-11-12 10:00", "end": "2026-11-12 11:00"},
+            {"title": "late", "all_day": False, "start": "2026-11-12 23:00", "end": "2026-11-13 00:00"},
+            {"title": "trip", "all_day": True, "start": "2026-11-12", "end": "2026-11-15"},
+            {"title": "holiday", "all_day": True, "start": "2026-11-13", "end": "2026-11-14"},
+            {"title": "next", "all_day": False, "start": "2026-11-14 09:00", "end": None}]}
+        titles = lambda first, days: [e["title"] for e in calendars.events_within(listing, first, days)["events"]]  # noqa
+        self.assertEqual(titles(date(2026, 11, 12), 1), ["today", "late", "trip"])
+        self.assertEqual(titles(date(2026, 11, 13), 1), ["trip", "holiday"])
+        self.assertEqual(titles(date(2026, 11, 14), 2), ["trip", "next"])
+        self.assertEqual(calendars.events_within(listing, date(2026, 11, 13), 1)["sources"], ["google"])
 
 
 class Answers(unittest.TestCase):

@@ -60,7 +60,11 @@ def _reranker():
     return TextCrossEncoder(config.RERANK_MODEL, cache_dir=str(config.MODELS_DIR))
 
 
-def search(query: str, domain: str | None = None, limit: int = 5) -> list[dict]:
+def search(query: str, domain: str | None = None, limit: int = 5, pool_size: int = RERANK_POOL,
+           rerank_chars: int | None = None) -> list[dict]:
+    """The best `limit` passages for query. The reranker reads `pool_size` candidates, each cut to `rerank_chars`
+    when given: on a 4-core server 20 whole passages take 11-15 s, 10 cut to 800 characters under 3 s with the same
+    top passages in 4 of 5 test questions (the Hermes plugin's automatic lookup uses that)."""
     query_vector = np.array(embed([query])[0])
     params = {"domain": domain, "vec": query_vector, "q": query, "n": CANDIDATES}
     with psycopg.connect(config.DB_DSN) as conn:
@@ -80,11 +84,12 @@ def search(query: str, domain: str | None = None, limit: int = 5) -> list[dict]:
         for rank, row in enumerate(ranked):
             fused[row[0]] = fused.get(row[0], 0.0) + 1.0 / (RRF_K + rank + 1)
             rows[row[0]] = row
-    pool = [rows[i] for i in sorted(fused, key=fused.get, reverse=True)[:RERANK_POOL]]
+    pool = [rows[i] for i in sorted(fused, key=fused.get, reverse=True)[:pool_size]]
     if not pool:
         return []
 
-    scores = list(_reranker().rerank(_ranking_query(query), [f"{r[3]}\n{r[4] or ''}\n{r[6]}" for r in pool]))
+    texts = [f"{r[3]}\n{r[4] or ''}\n{r[6]}"[:rerank_chars] for r in pool]
+    scores = list(_reranker().rerank(_ranking_query(query), texts))
     ranked = sorted(zip(pool, scores), key=lambda pair: pair[1], reverse=True)[:limit]
     return [
         {
@@ -229,7 +234,10 @@ def serve() -> None:
                 sys.stdout.flush()
                 continue
             domain = request.get("domain") if request.get("domain") in config.DOMAINS else None
-            reply = {"id": request.get("id"), "results": search(request["query"], domain, int(request.get("limit", 5)))}
+            light = {"pool_size": int(request["pool"]), "rerank_chars": int(request["rerank_chars"])} \
+                if request.get("pool") and request.get("rerank_chars") else {}
+            reply = {"id": request.get("id"),
+                     "results": search(request["query"], domain, int(request.get("limit", 5)), **light)}
         except Exception as error:  # report and keep serving
             reply = {"id": request.get("id"), "error": f"{type(error).__name__}: {error}"}
         sys.stdout.write(json.dumps(reply) + "\n")

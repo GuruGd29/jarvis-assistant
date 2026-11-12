@@ -49,15 +49,16 @@ def mark_medicine(medication_id: int, hhmm: str, status: str) -> dict:
 
 
 # Google + iCloud take ~5 s to read, so Today uses a copy at most AGENDA_STALE old and refreshes it in the
-# background (the server also refreshes it every few minutes).
+# background (the server also refreshes it every few minutes). Instant calendar answers use it too.
 AGENDA_STALE = 120
+AGENDA_DAYS = 8  # today and the 7 days after it
 _agenda = {"day": None, "value": None, "at": 0.0, "busy": False}
 _agenda_lock = threading.Lock()
 
 
 def _read_agenda(day: date) -> None:
     try:
-        value = calendars.list_events(*calendars.day_range(day, 8))
+        value = calendars.list_events(*calendars.day_range(day, AGENDA_DAYS))
         _agenda.update(day=day, value=value, at=time.time())
     finally:
         _agenda["busy"] = False

@@ -15,7 +15,7 @@ import re
 from datetime import date, datetime, timedelta
 
 from .. import calendars, config, health, money
-from . import notify
+from . import data, notify
 
 LABEL = "Answered instantly from your data"
 MAX_WORDS = 12
@@ -49,10 +49,22 @@ def answer(text: str, now: datetime | None = None) -> str | None:
         return None if _NEEDS_THINKING.search(text) else medicines_answer(health.today_doses(now))
     if _NEEDS_THINKING.search(_PERIOD_WORDS.sub(" ", text)):
         return None
-    agenda = calendars.agenda_for_text(text)
-    if agenda is None or not agenda["sources"]:
-        return None  # not a calendar question, or no calendar connected (the model explains how to connect one)
-    return calendar_answer(agenda)
+    period = calendars.agenda_period(text)
+    if period is None:
+        return None
+    first, days, label = period
+    today = datetime.now(calendars.TZ).date()
+    if today <= first and first + timedelta(days=days) <= today + timedelta(days=data.AGENDA_DAYS):
+        # The Today screen's copy of the coming days, kept fresh in the background: no ~5 s wait on Google and Apple.
+        listing = data.agenda(today)
+        if "calendars" in listing["errors"]:
+            return None  # the copy isn't there yet; the model reads the calendars itself
+        listing = calendars.events_within(listing, first, days)
+    else:
+        listing = calendars.list_events(*calendars.day_range(first, days))
+    if not listing["sources"]:
+        return None  # no calendar connected: the model explains how to connect one
+    return calendar_answer({"period": label, **listing})
 
 
 # --- the answers ----------------------------------------------------------------------------------------------

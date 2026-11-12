@@ -58,6 +58,32 @@ class TanglishNote(unittest.TestCase):
             self.assertEqual(provider.prefetch("What's the plan today?"), "")
 
 
+class FileLookup(unittest.TestCase):
+    """The automatic file search runs, lighter, only for questions about the user's own things."""
+
+    def lookup(self, question):
+        provider = plugin.JarvisMemoryProvider()
+        search = mock.MagicMock()
+        search.request.return_value = {"results": None}  # not a medicine, calendar or money question
+        search.search.return_value = []
+        provider._search = search
+        provider._lookup(question)
+        return search.search.call_args
+
+    def test_their_own_things_are_searched_with_the_lighter_settings(self):
+        for question in ["When does my car insurance end?", "Where is the warranty card for the fridge?",
+                         "What is the wifi password?", "When did I buy the washing machine?",
+                         "en car insurance eppo mudiyum?", "என் கார் இன்சூரன்ஸ் எப்போது முடியும்?"]:
+            call = self.lookup(question)
+            self.assertIsNotNone(call, question)
+            self.assertEqual((call.kwargs["pool"], call.kwargs["rerank_chars"]), (10, 800))
+
+    def test_general_questions_are_not_searched(self):
+        for question in ["Give me one fun fact about the moon", "What is 15% of 2400?", "Good morning Jarvis",
+                         "Tell me a joke", "How do I make filter coffee?", "என்ன சமைக்கலாம்?"]:
+            self.assertIsNone(self.lookup(question), question)
+
+
 class ChatPrompt(unittest.TestCase):
     """The pre_api_request hook keeps a new app chat's system message and tools for the keep-warm job."""
 

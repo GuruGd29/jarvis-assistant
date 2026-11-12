@@ -39,6 +39,22 @@ MIN_SCORE = -8.0
 MAX_PASSAGES = 2
 MAX_PASSAGE_CHARS = 1000
 MAX_MONEY_LINES = 10
+# The automatic file search before a question costs the processor seconds the model then lacks (20 whole passages
+# reranked took 11-15 s on 4 cores and timed out), so it reranks 10 passages cut to 800 characters (under 3 s, the
+# same top passages in 4 of 5 tests), and runs only for questions about the user's own things. A general question
+# ("a fun fact about the moon", "15% of 2400") gets nothing from their files; the model can still search with its tool.
+LOOKUP_POOL = 10
+LOOKUP_RERANK_CHARS = 800
+_ABOUT_THEIR_THINGS = re.compile(
+    r"\b(my|mine|our|ours|we)\b"
+    r"|\bi\s+(have|had|got|get|paid|pay|bought|buy|own|renew\w*|sign\w*|sent|send|took|take|kept|saved|wrote|"
+    r"uploaded|scanned|need)\b"
+    r"|\b(documents?|docs|files?|pdfs?|photos?|scans?|folder|polic(y|ies)|insurance|bills?|receipts?|invoices?|"
+    r"warrant(y|ies)|statements?|passport|licen[cs]e|certificates?|reports?|payslips?|salary|loans?|emi|tax(es)?|"
+    r"aadhaa?r|pan card|rent|lease|agreements?|contracts?|prescriptions?|renewals?|subscriptions?|passwords?|wi-?fi|"
+    r"address|accounts?)\b"
+    # Tamil and Tanglish: my, mine, me, I, our ("என்" also starts "என்ன", what, so only on its own).
+    r"|\b(en|enn?oda|ennudaiya|enakk?u|naan|namma|nammoda|engal)\b|என்(\s|னுடைய)|எனது|எனக்கு|நான்|நம்ம|எங்கள்", re.I)
 # Each user message is queued here; `jarvis-learn` (cron) turns it into lasting facts.
 LEARN_QUEUE = Path.home() / "jarvis-system" / "state" / "learn-queue.jsonl"
 _NOT_WORTH_LEARNING = re.compile(r"^\s*(yes|no|ok(ay)?|thanks?( you)?|hi|hello|(taken|took|skip|skipped|done|snooze)\b.*)\s*[.!]*\s*$", re.I)
@@ -75,8 +91,8 @@ class _SearchProcess:
             self._buffer = b""
         return self._proc
 
-    def search(self, query: str, limit: int, timeout: float) -> list[dict[str, Any]]:
-        return self.request({"query": query, "limit": limit}, timeout)["results"]
+    def search(self, query: str, limit: int, timeout: float, **light: int) -> list[dict[str, Any]]:
+        return self.request({"query": query, "limit": limit, **light}, timeout)["results"]
 
     def request(self, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
         if not self._lock.acquire(timeout=timeout):
@@ -503,8 +519,11 @@ class JarvisMemoryProvider(MemoryProvider):
             except Exception as error:
                 logger.warning("Jarvis email lookup skipped for this turn: %s", error)
                 return ""
+        if not _ABOUT_THEIR_THINGS.search(query or ""):
+            return ""
         try:
-            results = self._search.search(query, MAX_PASSAGES + 2, timeout=REQUEST_TIMEOUT_S)
+            results = self._search.search(query, MAX_PASSAGES + 2, timeout=REQUEST_TIMEOUT_S,
+                                          pool=LOOKUP_POOL, rerank_chars=LOOKUP_RERANK_CHARS)
         except Exception as error:
             logger.warning("Jarvis search skipped for this turn: %s", error)
             return ""
