@@ -1,6 +1,6 @@
 """Money from bank alert emails: parse them into `transactions`, then sum in SQL.
 
-HDFC, ICICI and IDFC (India) have exact built-in readers. Alerts from any other bank in secrets/money.json
+HDFC, ICICI, IDFC and slice (India) have exact built-in readers. Alerts from any other bank in secrets/money.json
 "alert_senders" are read by the local AI (money_ai.py), when JARVIS_MONEY_AI allows it.
 
 Totals are computed here, never by the model. "Spending" = debits that are not transfers between
@@ -25,7 +25,9 @@ from . import calendars, config, mail
 TZ = ZoneInfo(config.TIMEZONE)
 SETTINGS = config.SECRETS_DIR / "money.json"
 _AMT = r"(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{1,2})?)"
-CARD_BILL_PAYEE = re.compile(r"credit ?card bill|ccbillpay|card ?bill ?pay", re.I)
+# Paying a card bill, or repaying slice borrow (a UPI payment to "slice" from another bank): the purchases and
+# payments made with that credit are the spending, so paying it back is not counted again.
+CARD_BILL_PAYEE = re.compile(r"credit ?card bill|ccbillpay|card ?bill ?pay|^\s*slice\s*$", re.I)
 # A purchase or refund on a credit card (not a debit card); the Cards screen lists them under each card.
 CREDIT_CARD_PURCHASE = "kind IN ('card_spend', 'card_refund') AND instrument ~ ' card ' AND instrument !~ 'debit card'"
 # Card purchases count on the day they are made, so paying the card bill is not spending again.
@@ -37,7 +39,11 @@ CARD_PAYEE_BANK = [("ICICI", re.compile(r"amazon ?pay|icici", re.I)), ("IDFC", r
                    ("HDFC", re.compile(r"hdfc", re.I))]
 STATEMENT_QUERY = 'subject:("credit card statement")'
 # Banks with an exact built-in reader below (matched on the sender's address); others are read by the AI.
-BUILT_IN_SENDERS = ("hdfcbank", "icici", "idfcfirstbank")
+BUILT_IN_SENDERS = ("hdfcbank", "icici", "idfcfirstbank", "slice.bank.in")
+# slice writes a zero-width joiner inside amounts ("₹12,‌500"); it and its kin are dropped before reading.
+_INVISIBLE = re.compile("[​-‍⁠﻿]")
+# slice sending money into its own savings account is borrowed money arriving: "slice", or the bank's former name.
+_SLICE_ITSELF = re.compile(r"slice(?: small finance bank)?|north east small finance bank(?: ltd\.?)?", re.I)
 AI_READS_PER_RUN = 40  # about 20-40 minutes on a 2-core server; the rest wait for the next run
 MAX_CATCH_UP_DAYS = 90  # how far a sync reads back on its own after a long gap (the first backfill's reach)
 
@@ -55,7 +61,7 @@ def _amount(text: str) -> float:
 
 
 def _day(text: str, fallback: date) -> date:
-    for fmt in ("%d-%m-%y", "%d %b, %Y", "%b %d, %Y", "%d-%b-%Y", "%d %b %Y"):
+    for fmt in ("%d-%m-%y", "%d %b, %Y", "%b %d, %Y", "%d-%b-%Y", "%d %b %Y", "%d-%b-%y"):
         try:
             return datetime.strptime(text.strip(), fmt).date()
         except ValueError:
@@ -65,8 +71,31 @@ def _day(text: str, fallback: date) -> date:
 
 def parse_alert(sender: str, subject: str, body: str, received: datetime) -> dict | None:
     """One transaction from one alert email, or None if it is not a transaction alert."""
-    t = re.sub(r"\s+", " ", body)
+    t = re.sub(r"\s+", " ", _INVISIBLE.sub("", body))
     fallback = received.date()
+
+    if "slice.bank.in" in sender:
+        # The slice savings account's own payments and receipts only. Borrowing is not spending or income: "Borrow
+        # order confirmed", the borrowed money arriving (sender "slice"), "Repayment successful" and borrow
+        # statements are all left out; the UPI payments made with that money are the spending.
+        if m := re.search(_AMT + r" debited from your slice (?:bank )?account x*(\d{4}) via UPI\.? Transaction date "
+                          r"(\d{1,2}-\w{3}-\d{2,4}) To (.+?) RRN (\d+)", t, re.I):
+            return dict(bank="slice", instrument=f"slice a/c {m[2]}", kind="upi_debit", direction="debit",
+                        amount=_amount(m[1]), counterparty=m[4].strip(), occurred_on=_day(m[3], fallback), reference=m[5])
+        if m := re.search(r"IMPS transaction of " + _AMT + r" from your slice bank a/c x*(\d{4}) is successful!? "
+                          r"Transaction Date (\d{1,2}-\w{3}-\d{2,4}) Beneficiary Name (.+?) Beneficiary Acc No\.? "
+                          r"x*(\d{4})(?:.*?IMPS Ref No\.? (\d+))?", t, re.I):
+            return dict(bank="slice", instrument=f"slice a/c {m[2]}", kind="imps_debit", direction="debit",
+                        amount=_amount(m[1]), counterparty=f"{m[4].strip()} account ending {m[5]}",
+                        occurred_on=_day(m[3], fallback), reference=m[6])
+        if m := re.search(r"You have received " + _AMT + r"(?: via (\w+))? in your slice bank a/c x*(\d{4}).*?"
+                          r"Transaction Date (\d{1,2}-\w{3}-\d{2,4}) Sender Name (.+?) (?:IMPS |UPI )?Ref No\.? (\d+)", t, re.I):
+            if _SLICE_ITSELF.fullmatch(m[5].strip()):
+                return None  # borrowed money moving into the account (each matched a borrow order)
+            return dict(bank="slice", instrument=f"slice a/c {m[3]}",
+                        kind="upi_credit" if (m[2] or "").upper() == "UPI" else "deposit_credit", direction="credit",
+                        amount=_amount(m[1]), counterparty=m[5].strip(), occurred_on=_day(m[4], fallback), reference=m[6])
+        return None
 
     if "hdfcbank" in sender:
         if m := re.search(_AMT + r" is debited from your account ending (\d{4}) towards VPA (\S+) \(([^)]*)\) on ([\d-]+)\.?"

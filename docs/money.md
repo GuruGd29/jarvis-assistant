@@ -40,6 +40,12 @@ debits and credits (UPI, IMPS, deposits), debit and credit card purchases, refun
 credit card statement emails with bill amount and due date (ICICI and IDFC; HDFC sends statements only as a
 password-protected PDF).
 
+**slice (India)** has a built-in reader too: add `noreply@slice.bank.in` to `alert_senders`. It counts the slice
+savings account's UPI payments and IMPS transfers as spending (unless they go to your own account) and money
+received as income. Borrowing is left out: borrow orders, the borrowed money arriving in the account (sent by
+"slice" or, before the bank's rename, "North East Small Finance Bank"), repayments and borrow statements. A UPI payment to "slice" from another bank (repaying borrow) is not counted as spending either,
+because the payments made with the borrowed money already are.
+
 **Every other bank: read by the local AI.** An email from one of your `alert_senders` that no built-in reader
 understands goes to the chat model with a fixed form to fill in: is it a payment, how much, which currency, debit or
 credit, which card or account, the merchant, the date. Jarvis then checks the answer before saving anything:
